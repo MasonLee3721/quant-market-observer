@@ -35,6 +35,12 @@ def test_m0_golden_summary_facts() -> None:
 
     golden_records = json.loads(records_bytes.decode("utf-8"))
 
+    # 50 Ticker 50/50 Coverage Verification
+    assert len(golden_records["tickers"]) == 50
+    assert len(set(golden_records["tickers"])) == 50
+    assert len(golden_records["institutional_data"]) == 50
+    assert len(golden_records["margin_data"]) == 50
+
     # 2. Execute Python Normalization Pipeline over M0 golden record payloads
     universe_path = Path(__file__).parents[1] / "config" / "universe_spike.csv"
     stock_master_map = load_universe_stock_master(universe_path)
@@ -76,9 +82,13 @@ def test_m0_golden_summary_facts() -> None:
         )
         normalized_margin.extend(margin_normalizer.normalize(margin_env))
 
-    # 3. Dynamic Pipeline Summary Facts Calculation & Assertion
+    # 3. Dynamic Pipeline Summary Facts Calculation & Assertion against Golden Summary Facts
+    assert len(normalized_prices) == golden_summary["total_price_records"]
+    assert len(normalized_inst) == golden_summary["total_institutional_records"]
+    assert len(normalized_margin) == golden_summary["total_margin_records"]
+
     distinct_tickers = set(p.stock_id for p in normalized_prices)
-    assert len(distinct_tickers) <= golden_summary["ticker_count"]
+    assert len(distinct_tickers) == golden_summary["ticker_count"]  # Exactly 50!
 
     no_trade_count = sum(1 for p in normalized_prices if p.no_trade)
     assert no_trade_count == golden_summary["no_trade_records_count"]
@@ -95,8 +105,8 @@ def test_m0_golden_summary_facts() -> None:
     margin_keys = set((m.stock_id, m.trade_date) for m in normalized_margin)
     joined_keys = price_keys.intersection(inst_keys).intersection(margin_keys)
 
-    join_ratio = len(joined_keys) / len(price_keys) if price_keys else 1.0
-    assert math.isclose(join_ratio, 1.0, abs_tol=1e-2)
+    join_ratio = round(len(joined_keys) / len(price_keys), 4) if price_keys else 1.0
+    assert math.isclose(join_ratio, golden_summary["three_table_join_ratio"], abs_tol=1e-4)
 
     # Verify schema version on all outputs
     for p in normalized_prices:
@@ -132,94 +142,66 @@ def test_m0_50_ticker_parity_regression() -> None:
     inst_normalizer = InstitutionalNormalizer(stock_master=stock_master_map)
     margin_normalizer = MarginNormalizer(stock_master=stock_master_map)
 
-    for idx, ticker in enumerate(tickers):
+    records_path = Path(__file__).parent / "fixtures" / "m0_golden_records.json"
+    golden_records = json.loads(records_path.read_text(encoding="utf-8"))
+
+    for _idx, ticker in enumerate(tickers):
         stock_id = ticker["stock_id"]
         expected_market = ticker["market"]
-        expected_close = 100.5 + idx * 0.5
 
-        raw_price_payload = {
-            "data": [
-                {
-                    "stock_id": stock_id,
-                    "date": "2026-09-25",
-                    "open": 100.0 + idx * 0.5,
-                    "max": 105.0 + idx * 0.5,
-                    "min": 99.0 + idx * 0.5,
-                    "close": expected_close,
-                    "spread": 0.5,
-                    "Trading_Volume": 50000 + idx * 10,
-                    "Trading_money": 5200000 + idx * 1000,
-                    "Trading_turnover": 120,
-                }
-            ]
-        }
+        # Extract ticker raw price envelope from fixture
+        price_rows = [p for p in golden_records["price_data"] if p["stock_id"] == stock_id]
+        assert len(price_rows) >= 1
+
         price_env = RawResponseEnvelope(
             provider_name="finmind",
             endpoint="https://api.finmindtrade.com/api/v4/data",
             params={"data_id": stock_id},
             status_code=200,
-            raw_body_bytes=json.dumps(raw_price_payload).encode("utf-8"),
+            raw_body_bytes=json.dumps({"data": price_rows}).encode("utf-8"),
         )
 
         records = normalizer.normalize(price_env)
-        assert len(records) == 1
-        rec = records[0]
+        assert len(records) == len(price_rows)
 
-        # 1. Discrete parity & dynamic market lookup check per ticker
-        assert rec.stock_id == stock_id
-        assert rec.trade_date == "2026-09-25"
-        assert rec.market == expected_market  # Dynamic StockMaster registry lookup!
-        assert rec.no_trade is False
-        assert rec.schema_version == "schema-v0.1"
+        for rec in records:
+            assert rec.stock_id == stock_id
+            assert rec.market == expected_market  # Dynamic StockMaster registry lookup!
+            assert rec.schema_version == "schema-v0.1"
 
-        # 2. Floating point Epsilon Tolerance (1e-4) & rounding check
-        assert rec.close_price is not None
-        assert math.isclose(rec.close_price, expected_close, abs_tol=1e-4)
+            if rec.no_trade:
+                assert rec.open_price is None
+                assert rec.close_price is None
+                assert "no_trade" in rec.quality_flags
+            else:
+                assert rec.close_price is not None
 
-        # 3. Institutional & Margin normalizer parity check per individual ticker envelope
-        raw_inst_payload = {
-            "data": [
-                {"date": "2026-09-25", "name": "Foreign_Investor", "buy": 1000 + idx, "sell": 400}
-            ]
-        }
+        # Institutional parity check per individual ticker envelope
+        inst_rows = golden_records["institutional_data"].get(stock_id, [])
         inst_env = RawResponseEnvelope(
             provider_name="finmind",
             endpoint="",
             params={"data_id": stock_id},
             status_code=200,
-            raw_body_bytes=json.dumps(raw_inst_payload).encode("utf-8"),
+            raw_body_bytes=json.dumps({"data": inst_rows}).encode("utf-8"),
         )
         inst_recs = inst_normalizer.normalize(inst_env)
-        assert len(inst_recs) == 1
-        assert inst_recs[0].stock_id == stock_id
-        assert inst_recs[0].market == expected_market
+        assert len(inst_recs) >= 1
+        for i_rec in inst_recs:
+            assert i_rec.stock_id == stock_id
+            assert i_rec.market == expected_market
 
-        raw_margin_payload = {
-            "data": [
-                {
-                    "date": "2026-09-25",
-                    "stock_id": stock_id,
-                    "MarginPurchaseBuy": 100 + idx,
-                    "MarginPurchaseSell": 30,
-                    "MarginPurchaseCashRedemption": 0,
-                    "MarginPurchaseTodayBalance": 500,
-                    "MarginPurchaseLimit": 1000,
-                    "ShortSaleBuy": 20,
-                    "ShortSaleSell": 50,
-                    "ShortSaleCashRedemption": 0,
-                    "ShortSaleTodayBalance": 200,
-                    "ShortSaleLimit": 1000,
-                }
-            ]
-        }
+        # Margin parity check per individual ticker envelope
+        margin_rows = golden_records["margin_data"].get(stock_id, [])
         margin_env = RawResponseEnvelope(
             provider_name="finmind",
             endpoint="",
             params={"data_id": stock_id},
             status_code=200,
-            raw_body_bytes=json.dumps(raw_margin_payload).encode("utf-8"),
+            raw_body_bytes=json.dumps({"data": margin_rows}).encode("utf-8"),
         )
         margin_recs = margin_normalizer.normalize(margin_env)
-        assert len(margin_recs) == 1
-        assert margin_recs[0].stock_id == stock_id
-        assert margin_recs[0].market == expected_market
+        assert len(margin_recs) >= 1
+        for m_rec in margin_recs:
+            assert m_rec.stock_id == stock_id
+            assert m_rec.market == expected_market

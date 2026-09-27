@@ -1,85 +1,4028 @@
 {
   "dataset": "m0_golden_records_v0.1",
   "tickers": [
-    "2330", "2317", "2454", "2308", "2382", "2303", "2881", "2882", "2891", "2886",
-    "5880", "2892", "2884", "2885", "2880", "1301", "1303", "1326", "2002", "1101",
-    "1216", "2912", "2207", "2603", "2609", "2615", "2618", "2610", "3008", "2379",
-    "3034", "2379", "3035", "2408", "3711", "2357", "2395", "3231", "2356", "6669",
-    "2345", "3045", "2412", "3044", "4904", "4938", "2377", "8069", "8299", "6690"
+    "1101",
+    "1216",
+    "1301",
+    "1303",
+    "1519",
+    "1402",
+    "2002",
+    "2207",
+    "2301",
+    "2303",
+    "2308",
+    "2317",
+    "2327",
+    "2330",
+    "2345",
+    "2357",
+    "2379",
+    "2382",
+    "2395",
+    "2408",
+    "2412",
+    "2454",
+    "2492",
+    "2603",
+    "2609",
+    "2049",
+    "2727",
+    "2881",
+    "2882",
+    "6446",
+    "2886",
+    "2891",
+    "3008",
+    "3034",
+    "3231",
+    "3711",
+    "4904",
+    "4938",
+    "5871",
+    "5880",
+    "6505",
+    "6669",
+    "8046",
+    "8069",
+    "8299",
+    "8454",
+    "6690",
+    "9914",
+    "9921",
+    "9945"
   ],
   "price_data": [
     {
-      "stock_id": "2330", "date": "2026-09-25",
-      "open": 980.0, "max": 990.0, "min": 975.0, "close": 985.0, "spread": 5.0,
-      "Trading_Volume": 25430000, "Trading_money": 25048550000, "Trading_turnover": 35200
+      "stock_id": "1101",
+      "date": "2026-09-25",
+      "open": 99.0,
+      "max": 102.0,
+      "min": 98.0,
+      "close": 100.0,
+      "spread": 1.5,
+      "Trading_Volume": 100000,
+      "Trading_money": 10000000,
+      "Trading_turnover": 500
     },
     {
-      "stock_id": "8069", "date": "2026-09-25",
-      "open": 120.0, "max": 123.0, "min": 119.5, "close": 122.5, "spread": 2.5,
-      "Trading_Volume": 1500000, "Trading_money": 183750000, "Trading_turnover": 1800
+      "stock_id": "1101",
+      "date": "2026-09-24",
+      "open": 98.0,
+      "max": 101.0,
+      "min": 97.0,
+      "close": 99.0,
+      "spread": 1.0,
+      "Trading_Volume": 90000,
+      "Trading_money": 8910000,
+      "Trading_turnover": 450
     },
     {
-      "stock_id": "8299", "date": "2026-09-25",
-      "open": 450.0, "max": 455.0, "min": 448.0, "close": 452.0, "spread": 2.0,
-      "Trading_Volume": 820000, "Trading_money": 370640000, "Trading_turnover": 950
+      "stock_id": "1216",
+      "date": "2026-09-25",
+      "open": 101.5,
+      "max": 104.5,
+      "min": 100.5,
+      "close": 102.5,
+      "spread": 1.5,
+      "Trading_Volume": 105000,
+      "Trading_money": 10762500,
+      "Trading_turnover": 510
     },
     {
-      "stock_id": "6690", "date": "2026-09-25",
-      "open": 310.0, "max": 315.0, "min": 308.0, "close": 312.0, "spread": 2.0,
-      "Trading_Volume": 450000, "Trading_money": 140400000, "Trading_turnover": 520
+      "stock_id": "1216",
+      "date": "2026-09-24",
+      "open": 100.5,
+      "max": 103.5,
+      "min": 99.5,
+      "close": 101.5,
+      "spread": 1.0,
+      "Trading_Volume": 95000,
+      "Trading_money": 9642500,
+      "Trading_turnover": 460
     },
     {
-      "stock_id": "2330", "date": "2026-09-24",
-      "open": 0.0, "max": 0.0, "min": 0.0, "close": 0.0, "spread": 0.0,
-      "Trading_Volume": 0, "Trading_money": 0, "Trading_turnover": 0
+      "stock_id": "1301",
+      "date": "2026-09-25",
+      "open": 104.0,
+      "max": 107.0,
+      "min": 103.0,
+      "close": 105.0,
+      "spread": 1.5,
+      "Trading_Volume": 110000,
+      "Trading_money": 11550000,
+      "Trading_turnover": 520
     },
     {
-      "stock_id": "8069", "date": "2026-09-24",
-      "open": 0.0, "max": 0.0, "min": 0.0, "close": 0.0, "spread": 0.0,
-      "Trading_Volume": 0, "Trading_money": 0, "Trading_turnover": 0
+      "stock_id": "1301",
+      "date": "2026-09-24",
+      "open": 103.0,
+      "max": 106.0,
+      "min": 102.0,
+      "close": 104.0,
+      "spread": 1.0,
+      "Trading_Volume": 100000,
+      "Trading_money": 10400000,
+      "Trading_turnover": 470
     },
     {
-      "stock_id": "6690", "date": "2026-09-24",
-      "open": 0.0, "max": 0.0, "min": 0.0, "close": 0.0, "spread": 0.0,
-      "Trading_Volume": 0, "Trading_money": 0, "Trading_turnover": 0
+      "stock_id": "1303",
+      "date": "2026-09-25",
+      "open": 106.5,
+      "max": 109.5,
+      "min": 105.5,
+      "close": 107.5,
+      "spread": 1.5,
+      "Trading_Volume": 115000,
+      "Trading_money": 12362500,
+      "Trading_turnover": 530
+    },
+    {
+      "stock_id": "1303",
+      "date": "2026-09-24",
+      "open": 105.5,
+      "max": 108.5,
+      "min": 104.5,
+      "close": 106.5,
+      "spread": 1.0,
+      "Trading_Volume": 105000,
+      "Trading_money": 11182500,
+      "Trading_turnover": 480
+    },
+    {
+      "stock_id": "1519",
+      "date": "2026-09-25",
+      "open": 109.0,
+      "max": 112.0,
+      "min": 108.0,
+      "close": 110.0,
+      "spread": 1.5,
+      "Trading_Volume": 120000,
+      "Trading_money": 13200000,
+      "Trading_turnover": 540
+    },
+    {
+      "stock_id": "1519",
+      "date": "2026-09-24",
+      "open": 108.0,
+      "max": 111.0,
+      "min": 107.0,
+      "close": 109.0,
+      "spread": 1.0,
+      "Trading_Volume": 110000,
+      "Trading_money": 11990000,
+      "Trading_turnover": 490
+    },
+    {
+      "stock_id": "1402",
+      "date": "2026-09-25",
+      "open": 111.5,
+      "max": 114.5,
+      "min": 110.5,
+      "close": 112.5,
+      "spread": 1.5,
+      "Trading_Volume": 125000,
+      "Trading_money": 14062500,
+      "Trading_turnover": 550
+    },
+    {
+      "stock_id": "1402",
+      "date": "2026-09-24",
+      "open": 110.5,
+      "max": 113.5,
+      "min": 109.5,
+      "close": 111.5,
+      "spread": 1.0,
+      "Trading_Volume": 115000,
+      "Trading_money": 12822500,
+      "Trading_turnover": 500
+    },
+    {
+      "stock_id": "2002",
+      "date": "2026-09-25",
+      "open": 114.0,
+      "max": 117.0,
+      "min": 113.0,
+      "close": 115.0,
+      "spread": 1.5,
+      "Trading_Volume": 130000,
+      "Trading_money": 14950000,
+      "Trading_turnover": 560
+    },
+    {
+      "stock_id": "2002",
+      "date": "2026-09-24",
+      "open": 113.0,
+      "max": 116.0,
+      "min": 112.0,
+      "close": 114.0,
+      "spread": 1.0,
+      "Trading_Volume": 120000,
+      "Trading_money": 13680000,
+      "Trading_turnover": 510
+    },
+    {
+      "stock_id": "2207",
+      "date": "2026-09-25",
+      "open": 116.5,
+      "max": 119.5,
+      "min": 115.5,
+      "close": 117.5,
+      "spread": 1.5,
+      "Trading_Volume": 135000,
+      "Trading_money": 15862500,
+      "Trading_turnover": 570
+    },
+    {
+      "stock_id": "2207",
+      "date": "2026-09-24",
+      "open": 115.5,
+      "max": 118.5,
+      "min": 114.5,
+      "close": 116.5,
+      "spread": 1.0,
+      "Trading_Volume": 125000,
+      "Trading_money": 14562500,
+      "Trading_turnover": 520
+    },
+    {
+      "stock_id": "2301",
+      "date": "2026-09-25",
+      "open": 119.0,
+      "max": 122.0,
+      "min": 118.0,
+      "close": 120.0,
+      "spread": 1.5,
+      "Trading_Volume": 140000,
+      "Trading_money": 16800000,
+      "Trading_turnover": 580
+    },
+    {
+      "stock_id": "2301",
+      "date": "2026-09-24",
+      "open": 118.0,
+      "max": 121.0,
+      "min": 117.0,
+      "close": 119.0,
+      "spread": 1.0,
+      "Trading_Volume": 130000,
+      "Trading_money": 15470000,
+      "Trading_turnover": 530
+    },
+    {
+      "stock_id": "2303",
+      "date": "2026-09-25",
+      "open": 121.5,
+      "max": 124.5,
+      "min": 120.5,
+      "close": 122.5,
+      "spread": 1.5,
+      "Trading_Volume": 145000,
+      "Trading_money": 17762500,
+      "Trading_turnover": 590
+    },
+    {
+      "stock_id": "2303",
+      "date": "2026-09-24",
+      "open": 120.5,
+      "max": 123.5,
+      "min": 119.5,
+      "close": 121.5,
+      "spread": 1.0,
+      "Trading_Volume": 135000,
+      "Trading_money": 16402500,
+      "Trading_turnover": 540
+    },
+    {
+      "stock_id": "2308",
+      "date": "2026-09-25",
+      "open": 124.0,
+      "max": 127.0,
+      "min": 123.0,
+      "close": 125.0,
+      "spread": 1.5,
+      "Trading_Volume": 150000,
+      "Trading_money": 18750000,
+      "Trading_turnover": 600
+    },
+    {
+      "stock_id": "2308",
+      "date": "2026-09-24",
+      "open": 123.0,
+      "max": 126.0,
+      "min": 122.0,
+      "close": 124.0,
+      "spread": 1.0,
+      "Trading_Volume": 140000,
+      "Trading_money": 17360000,
+      "Trading_turnover": 550
+    },
+    {
+      "stock_id": "2317",
+      "date": "2026-09-25",
+      "open": 126.5,
+      "max": 129.5,
+      "min": 125.5,
+      "close": 127.5,
+      "spread": 1.5,
+      "Trading_Volume": 155000,
+      "Trading_money": 19762500,
+      "Trading_turnover": 610
+    },
+    {
+      "stock_id": "2317",
+      "date": "2026-09-24",
+      "open": 125.5,
+      "max": 128.5,
+      "min": 124.5,
+      "close": 126.5,
+      "spread": 1.0,
+      "Trading_Volume": 145000,
+      "Trading_money": 18342500,
+      "Trading_turnover": 560
+    },
+    {
+      "stock_id": "2327",
+      "date": "2026-09-25",
+      "open": 129.0,
+      "max": 132.0,
+      "min": 128.0,
+      "close": 130.0,
+      "spread": 1.5,
+      "Trading_Volume": 160000,
+      "Trading_money": 20800000,
+      "Trading_turnover": 620
+    },
+    {
+      "stock_id": "2327",
+      "date": "2026-09-24",
+      "open": 128.0,
+      "max": 131.0,
+      "min": 127.0,
+      "close": 129.0,
+      "spread": 1.0,
+      "Trading_Volume": 150000,
+      "Trading_money": 19350000,
+      "Trading_turnover": 570
+    },
+    {
+      "stock_id": "2330",
+      "date": "2026-09-25",
+      "open": 131.5,
+      "max": 134.5,
+      "min": 130.5,
+      "close": 132.5,
+      "spread": 1.5,
+      "Trading_Volume": 165000,
+      "Trading_money": 21862500,
+      "Trading_turnover": 630
+    },
+    {
+      "stock_id": "2330",
+      "date": "2026-09-24",
+      "open": 130.5,
+      "max": 133.5,
+      "min": 129.5,
+      "close": 131.5,
+      "spread": 1.0,
+      "Trading_Volume": 155000,
+      "Trading_money": 20382500,
+      "Trading_turnover": 580
+    },
+    {
+      "stock_id": "2345",
+      "date": "2026-09-25",
+      "open": 134.0,
+      "max": 137.0,
+      "min": 133.0,
+      "close": 135.0,
+      "spread": 1.5,
+      "Trading_Volume": 170000,
+      "Trading_money": 22950000,
+      "Trading_turnover": 640
+    },
+    {
+      "stock_id": "2345",
+      "date": "2026-09-24",
+      "open": 133.0,
+      "max": 136.0,
+      "min": 132.0,
+      "close": 134.0,
+      "spread": 1.0,
+      "Trading_Volume": 160000,
+      "Trading_money": 21440000,
+      "Trading_turnover": 590
+    },
+    {
+      "stock_id": "2357",
+      "date": "2026-09-25",
+      "open": 136.5,
+      "max": 139.5,
+      "min": 135.5,
+      "close": 137.5,
+      "spread": 1.5,
+      "Trading_Volume": 175000,
+      "Trading_money": 24062500,
+      "Trading_turnover": 650
+    },
+    {
+      "stock_id": "2357",
+      "date": "2026-09-24",
+      "open": 135.5,
+      "max": 138.5,
+      "min": 134.5,
+      "close": 136.5,
+      "spread": 1.0,
+      "Trading_Volume": 165000,
+      "Trading_money": 22522500,
+      "Trading_turnover": 600
+    },
+    {
+      "stock_id": "2379",
+      "date": "2026-09-25",
+      "open": 139.0,
+      "max": 142.0,
+      "min": 138.0,
+      "close": 140.0,
+      "spread": 1.5,
+      "Trading_Volume": 180000,
+      "Trading_money": 25200000,
+      "Trading_turnover": 660
+    },
+    {
+      "stock_id": "2379",
+      "date": "2026-09-24",
+      "open": 138.0,
+      "max": 141.0,
+      "min": 137.0,
+      "close": 139.0,
+      "spread": 1.0,
+      "Trading_Volume": 170000,
+      "Trading_money": 23630000,
+      "Trading_turnover": 610
+    },
+    {
+      "stock_id": "2382",
+      "date": "2026-09-25",
+      "open": 141.5,
+      "max": 144.5,
+      "min": 140.5,
+      "close": 142.5,
+      "spread": 1.5,
+      "Trading_Volume": 185000,
+      "Trading_money": 26362500,
+      "Trading_turnover": 670
+    },
+    {
+      "stock_id": "2382",
+      "date": "2026-09-24",
+      "open": 140.5,
+      "max": 143.5,
+      "min": 139.5,
+      "close": 141.5,
+      "spread": 1.0,
+      "Trading_Volume": 175000,
+      "Trading_money": 24762500,
+      "Trading_turnover": 620
+    },
+    {
+      "stock_id": "2395",
+      "date": "2026-09-25",
+      "open": 144.0,
+      "max": 147.0,
+      "min": 143.0,
+      "close": 145.0,
+      "spread": 1.5,
+      "Trading_Volume": 190000,
+      "Trading_money": 27550000,
+      "Trading_turnover": 680
+    },
+    {
+      "stock_id": "2395",
+      "date": "2026-09-24",
+      "open": 143.0,
+      "max": 146.0,
+      "min": 142.0,
+      "close": 144.0,
+      "spread": 1.0,
+      "Trading_Volume": 180000,
+      "Trading_money": 25920000,
+      "Trading_turnover": 630
+    },
+    {
+      "stock_id": "2408",
+      "date": "2026-09-25",
+      "open": 146.5,
+      "max": 149.5,
+      "min": 145.5,
+      "close": 147.5,
+      "spread": 1.5,
+      "Trading_Volume": 195000,
+      "Trading_money": 28762500,
+      "Trading_turnover": 690
+    },
+    {
+      "stock_id": "2408",
+      "date": "2026-09-24",
+      "open": 145.5,
+      "max": 148.5,
+      "min": 144.5,
+      "close": 146.5,
+      "spread": 1.0,
+      "Trading_Volume": 185000,
+      "Trading_money": 27102500,
+      "Trading_turnover": 640
+    },
+    {
+      "stock_id": "2412",
+      "date": "2026-09-25",
+      "open": 149.0,
+      "max": 152.0,
+      "min": 148.0,
+      "close": 150.0,
+      "spread": 1.5,
+      "Trading_Volume": 200000,
+      "Trading_money": 30000000,
+      "Trading_turnover": 700
+    },
+    {
+      "stock_id": "2412",
+      "date": "2026-09-24",
+      "open": 148.0,
+      "max": 151.0,
+      "min": 147.0,
+      "close": 149.0,
+      "spread": 1.0,
+      "Trading_Volume": 190000,
+      "Trading_money": 28310000,
+      "Trading_turnover": 650
+    },
+    {
+      "stock_id": "2454",
+      "date": "2026-09-25",
+      "open": 151.5,
+      "max": 154.5,
+      "min": 150.5,
+      "close": 152.5,
+      "spread": 1.5,
+      "Trading_Volume": 205000,
+      "Trading_money": 31262500,
+      "Trading_turnover": 710
+    },
+    {
+      "stock_id": "2454",
+      "date": "2026-09-24",
+      "open": 150.5,
+      "max": 153.5,
+      "min": 149.5,
+      "close": 151.5,
+      "spread": 1.0,
+      "Trading_Volume": 195000,
+      "Trading_money": 29542500,
+      "Trading_turnover": 660
+    },
+    {
+      "stock_id": "2492",
+      "date": "2026-09-25",
+      "open": 154.0,
+      "max": 157.0,
+      "min": 153.0,
+      "close": 155.0,
+      "spread": 1.5,
+      "Trading_Volume": 210000,
+      "Trading_money": 32550000,
+      "Trading_turnover": 720
+    },
+    {
+      "stock_id": "2492",
+      "date": "2026-09-24",
+      "open": 153.0,
+      "max": 156.0,
+      "min": 152.0,
+      "close": 154.0,
+      "spread": 1.0,
+      "Trading_Volume": 200000,
+      "Trading_money": 30800000,
+      "Trading_turnover": 670
+    },
+    {
+      "stock_id": "2603",
+      "date": "2026-09-25",
+      "open": 156.5,
+      "max": 159.5,
+      "min": 155.5,
+      "close": 157.5,
+      "spread": 1.5,
+      "Trading_Volume": 215000,
+      "Trading_money": 33862500,
+      "Trading_turnover": 730
+    },
+    {
+      "stock_id": "2603",
+      "date": "2026-09-24",
+      "open": 155.5,
+      "max": 158.5,
+      "min": 154.5,
+      "close": 156.5,
+      "spread": 1.0,
+      "Trading_Volume": 205000,
+      "Trading_money": 32082500,
+      "Trading_turnover": 680
+    },
+    {
+      "stock_id": "2609",
+      "date": "2026-09-25",
+      "open": 159.0,
+      "max": 162.0,
+      "min": 158.0,
+      "close": 160.0,
+      "spread": 1.5,
+      "Trading_Volume": 220000,
+      "Trading_money": 35200000,
+      "Trading_turnover": 740
+    },
+    {
+      "stock_id": "2609",
+      "date": "2026-09-24",
+      "open": 158.0,
+      "max": 161.0,
+      "min": 157.0,
+      "close": 159.0,
+      "spread": 1.0,
+      "Trading_Volume": 210000,
+      "Trading_money": 33390000,
+      "Trading_turnover": 690
+    },
+    {
+      "stock_id": "2049",
+      "date": "2026-09-25",
+      "open": 161.5,
+      "max": 164.5,
+      "min": 160.5,
+      "close": 162.5,
+      "spread": 1.5,
+      "Trading_Volume": 225000,
+      "Trading_money": 36562500,
+      "Trading_turnover": 750
+    },
+    {
+      "stock_id": "2049",
+      "date": "2026-09-24",
+      "open": 160.5,
+      "max": 163.5,
+      "min": 159.5,
+      "close": 161.5,
+      "spread": 1.0,
+      "Trading_Volume": 215000,
+      "Trading_money": 34722500,
+      "Trading_turnover": 700
+    },
+    {
+      "stock_id": "2727",
+      "date": "2026-09-25",
+      "open": 164.0,
+      "max": 167.0,
+      "min": 163.0,
+      "close": 165.0,
+      "spread": 1.5,
+      "Trading_Volume": 230000,
+      "Trading_money": 37950000,
+      "Trading_turnover": 760
+    },
+    {
+      "stock_id": "2727",
+      "date": "2026-09-24",
+      "open": 163.0,
+      "max": 166.0,
+      "min": 162.0,
+      "close": 164.0,
+      "spread": 1.0,
+      "Trading_Volume": 220000,
+      "Trading_money": 36080000,
+      "Trading_turnover": 710
+    },
+    {
+      "stock_id": "2881",
+      "date": "2026-09-25",
+      "open": 166.5,
+      "max": 169.5,
+      "min": 165.5,
+      "close": 167.5,
+      "spread": 1.5,
+      "Trading_Volume": 235000,
+      "Trading_money": 39362500,
+      "Trading_turnover": 770
+    },
+    {
+      "stock_id": "2881",
+      "date": "2026-09-24",
+      "open": 165.5,
+      "max": 168.5,
+      "min": 164.5,
+      "close": 166.5,
+      "spread": 1.0,
+      "Trading_Volume": 225000,
+      "Trading_money": 37462500,
+      "Trading_turnover": 720
+    },
+    {
+      "stock_id": "2882",
+      "date": "2026-09-25",
+      "open": 169.0,
+      "max": 172.0,
+      "min": 168.0,
+      "close": 170.0,
+      "spread": 1.5,
+      "Trading_Volume": 240000,
+      "Trading_money": 40800000,
+      "Trading_turnover": 780
+    },
+    {
+      "stock_id": "2882",
+      "date": "2026-09-24",
+      "open": 168.0,
+      "max": 171.0,
+      "min": 167.0,
+      "close": 169.0,
+      "spread": 1.0,
+      "Trading_Volume": 230000,
+      "Trading_money": 38870000,
+      "Trading_turnover": 730
+    },
+    {
+      "stock_id": "6446",
+      "date": "2026-09-25",
+      "open": 171.5,
+      "max": 174.5,
+      "min": 170.5,
+      "close": 172.5,
+      "spread": 1.5,
+      "Trading_Volume": 245000,
+      "Trading_money": 42262500,
+      "Trading_turnover": 790
+    },
+    {
+      "stock_id": "6446",
+      "date": "2026-09-24",
+      "open": 170.5,
+      "max": 173.5,
+      "min": 169.5,
+      "close": 171.5,
+      "spread": 1.0,
+      "Trading_Volume": 235000,
+      "Trading_money": 40302500,
+      "Trading_turnover": 740
+    },
+    {
+      "stock_id": "2886",
+      "date": "2026-09-25",
+      "open": 174.0,
+      "max": 177.0,
+      "min": 173.0,
+      "close": 175.0,
+      "spread": 1.5,
+      "Trading_Volume": 250000,
+      "Trading_money": 43750000,
+      "Trading_turnover": 800
+    },
+    {
+      "stock_id": "2886",
+      "date": "2026-09-24",
+      "open": 173.0,
+      "max": 176.0,
+      "min": 172.0,
+      "close": 174.0,
+      "spread": 1.0,
+      "Trading_Volume": 240000,
+      "Trading_money": 41760000,
+      "Trading_turnover": 750
+    },
+    {
+      "stock_id": "2891",
+      "date": "2026-09-25",
+      "open": 176.5,
+      "max": 179.5,
+      "min": 175.5,
+      "close": 177.5,
+      "spread": 1.5,
+      "Trading_Volume": 255000,
+      "Trading_money": 45262500,
+      "Trading_turnover": 810
+    },
+    {
+      "stock_id": "2891",
+      "date": "2026-09-24",
+      "open": 175.5,
+      "max": 178.5,
+      "min": 174.5,
+      "close": 176.5,
+      "spread": 1.0,
+      "Trading_Volume": 245000,
+      "Trading_money": 43242500,
+      "Trading_turnover": 760
+    },
+    {
+      "stock_id": "3008",
+      "date": "2026-09-25",
+      "open": 179.0,
+      "max": 182.0,
+      "min": 178.0,
+      "close": 180.0,
+      "spread": 1.5,
+      "Trading_Volume": 260000,
+      "Trading_money": 46800000,
+      "Trading_turnover": 820
+    },
+    {
+      "stock_id": "3008",
+      "date": "2026-09-24",
+      "open": 178.0,
+      "max": 181.0,
+      "min": 177.0,
+      "close": 179.0,
+      "spread": 1.0,
+      "Trading_Volume": 250000,
+      "Trading_money": 44750000,
+      "Trading_turnover": 770
+    },
+    {
+      "stock_id": "3034",
+      "date": "2026-09-25",
+      "open": 181.5,
+      "max": 184.5,
+      "min": 180.5,
+      "close": 182.5,
+      "spread": 1.5,
+      "Trading_Volume": 265000,
+      "Trading_money": 48362500,
+      "Trading_turnover": 830
+    },
+    {
+      "stock_id": "3034",
+      "date": "2026-09-24",
+      "open": 180.5,
+      "max": 183.5,
+      "min": 179.5,
+      "close": 181.5,
+      "spread": 1.0,
+      "Trading_Volume": 255000,
+      "Trading_money": 46282500,
+      "Trading_turnover": 780
+    },
+    {
+      "stock_id": "3231",
+      "date": "2026-09-25",
+      "open": 184.0,
+      "max": 187.0,
+      "min": 183.0,
+      "close": 185.0,
+      "spread": 1.5,
+      "Trading_Volume": 270000,
+      "Trading_money": 49950000,
+      "Trading_turnover": 840
+    },
+    {
+      "stock_id": "3231",
+      "date": "2026-09-24",
+      "open": 183.0,
+      "max": 186.0,
+      "min": 182.0,
+      "close": 184.0,
+      "spread": 1.0,
+      "Trading_Volume": 260000,
+      "Trading_money": 47840000,
+      "Trading_turnover": 790
+    },
+    {
+      "stock_id": "3711",
+      "date": "2026-09-25",
+      "open": 186.5,
+      "max": 189.5,
+      "min": 185.5,
+      "close": 187.5,
+      "spread": 1.5,
+      "Trading_Volume": 275000,
+      "Trading_money": 51562500,
+      "Trading_turnover": 850
+    },
+    {
+      "stock_id": "3711",
+      "date": "2026-09-24",
+      "open": 185.5,
+      "max": 188.5,
+      "min": 184.5,
+      "close": 186.5,
+      "spread": 1.0,
+      "Trading_Volume": 265000,
+      "Trading_money": 49422500,
+      "Trading_turnover": 800
+    },
+    {
+      "stock_id": "4904",
+      "date": "2026-09-25",
+      "open": 189.0,
+      "max": 192.0,
+      "min": 188.0,
+      "close": 190.0,
+      "spread": 1.5,
+      "Trading_Volume": 280000,
+      "Trading_money": 53200000,
+      "Trading_turnover": 860
+    },
+    {
+      "stock_id": "4904",
+      "date": "2026-09-24",
+      "open": 188.0,
+      "max": 191.0,
+      "min": 187.0,
+      "close": 189.0,
+      "spread": 1.0,
+      "Trading_Volume": 270000,
+      "Trading_money": 51030000,
+      "Trading_turnover": 810
+    },
+    {
+      "stock_id": "4938",
+      "date": "2026-09-25",
+      "open": 191.5,
+      "max": 194.5,
+      "min": 190.5,
+      "close": 192.5,
+      "spread": 1.5,
+      "Trading_Volume": 285000,
+      "Trading_money": 54862500,
+      "Trading_turnover": 870
+    },
+    {
+      "stock_id": "4938",
+      "date": "2026-09-24",
+      "open": 190.5,
+      "max": 193.5,
+      "min": 189.5,
+      "close": 191.5,
+      "spread": 1.0,
+      "Trading_Volume": 275000,
+      "Trading_money": 52662500,
+      "Trading_turnover": 820
+    },
+    {
+      "stock_id": "5871",
+      "date": "2026-09-25",
+      "open": 194.0,
+      "max": 197.0,
+      "min": 193.0,
+      "close": 195.0,
+      "spread": 1.5,
+      "Trading_Volume": 290000,
+      "Trading_money": 56550000,
+      "Trading_turnover": 880
+    },
+    {
+      "stock_id": "5871",
+      "date": "2026-09-24",
+      "open": 193.0,
+      "max": 196.0,
+      "min": 192.0,
+      "close": 194.0,
+      "spread": 1.0,
+      "Trading_Volume": 280000,
+      "Trading_money": 54320000,
+      "Trading_turnover": 830
+    },
+    {
+      "stock_id": "5880",
+      "date": "2026-09-25",
+      "open": 196.5,
+      "max": 199.5,
+      "min": 195.5,
+      "close": 197.5,
+      "spread": 1.5,
+      "Trading_Volume": 295000,
+      "Trading_money": 58262500,
+      "Trading_turnover": 890
+    },
+    {
+      "stock_id": "5880",
+      "date": "2026-09-24",
+      "open": 195.5,
+      "max": 198.5,
+      "min": 194.5,
+      "close": 196.5,
+      "spread": 1.0,
+      "Trading_Volume": 285000,
+      "Trading_money": 56002500,
+      "Trading_turnover": 840
+    },
+    {
+      "stock_id": "6505",
+      "date": "2026-09-25",
+      "open": 199.0,
+      "max": 202.0,
+      "min": 198.0,
+      "close": 200.0,
+      "spread": 1.5,
+      "Trading_Volume": 300000,
+      "Trading_money": 60000000,
+      "Trading_turnover": 900
+    },
+    {
+      "stock_id": "6505",
+      "date": "2026-09-24",
+      "open": 198.0,
+      "max": 201.0,
+      "min": 197.0,
+      "close": 199.0,
+      "spread": 1.0,
+      "Trading_Volume": 290000,
+      "Trading_money": 57710000,
+      "Trading_turnover": 850
+    },
+    {
+      "stock_id": "6669",
+      "date": "2026-09-25",
+      "open": 201.5,
+      "max": 204.5,
+      "min": 200.5,
+      "close": 202.5,
+      "spread": 1.5,
+      "Trading_Volume": 305000,
+      "Trading_money": 61762500,
+      "Trading_turnover": 910
+    },
+    {
+      "stock_id": "6669",
+      "date": "2026-09-24",
+      "open": 200.5,
+      "max": 203.5,
+      "min": 199.5,
+      "close": 201.5,
+      "spread": 1.0,
+      "Trading_Volume": 295000,
+      "Trading_money": 59442500,
+      "Trading_turnover": 860
+    },
+    {
+      "stock_id": "8046",
+      "date": "2026-09-25",
+      "open": 204.0,
+      "max": 207.0,
+      "min": 203.0,
+      "close": 205.0,
+      "spread": 1.5,
+      "Trading_Volume": 310000,
+      "Trading_money": 63550000,
+      "Trading_turnover": 920
+    },
+    {
+      "stock_id": "8046",
+      "date": "2026-09-24",
+      "open": 203.0,
+      "max": 206.0,
+      "min": 202.0,
+      "close": 204.0,
+      "spread": 1.0,
+      "Trading_Volume": 300000,
+      "Trading_money": 61200000,
+      "Trading_turnover": 870
+    },
+    {
+      "stock_id": "8069",
+      "date": "2026-09-25",
+      "open": 206.5,
+      "max": 209.5,
+      "min": 205.5,
+      "close": 207.5,
+      "spread": 1.5,
+      "Trading_Volume": 315000,
+      "Trading_money": 65362500,
+      "Trading_turnover": 930
+    },
+    {
+      "stock_id": "8069",
+      "date": "2026-09-24",
+      "open": null,
+      "max": null,
+      "min": null,
+      "close": null,
+      "spread": null,
+      "Trading_Volume": 0,
+      "Trading_money": 0,
+      "Trading_turnover": 0
+    },
+    {
+      "stock_id": "8299",
+      "date": "2026-09-25",
+      "open": 209.0,
+      "max": 212.0,
+      "min": 208.0,
+      "close": 210.0,
+      "spread": 1.5,
+      "Trading_Volume": 320000,
+      "Trading_money": 67200000,
+      "Trading_turnover": 940
+    },
+    {
+      "stock_id": "8299",
+      "date": "2026-09-24",
+      "open": null,
+      "max": null,
+      "min": null,
+      "close": null,
+      "spread": null,
+      "Trading_Volume": 0,
+      "Trading_money": 0,
+      "Trading_turnover": 0
+    },
+    {
+      "stock_id": "8454",
+      "date": "2026-09-25",
+      "open": 211.5,
+      "max": 214.5,
+      "min": 210.5,
+      "close": 212.5,
+      "spread": 1.5,
+      "Trading_Volume": 325000,
+      "Trading_money": 69062500,
+      "Trading_turnover": 950
+    },
+    {
+      "stock_id": "8454",
+      "date": "2026-09-24",
+      "open": 210.5,
+      "max": 213.5,
+      "min": 209.5,
+      "close": 211.5,
+      "spread": 1.0,
+      "Trading_Volume": 315000,
+      "Trading_money": 66622500,
+      "Trading_turnover": 900
+    },
+    {
+      "stock_id": "6690",
+      "date": "2026-09-25",
+      "open": 214.0,
+      "max": 217.0,
+      "min": 213.0,
+      "close": 215.0,
+      "spread": 1.5,
+      "Trading_Volume": 330000,
+      "Trading_money": 70950000,
+      "Trading_turnover": 960
+    },
+    {
+      "stock_id": "6690",
+      "date": "2026-09-24",
+      "open": null,
+      "max": null,
+      "min": null,
+      "close": null,
+      "spread": null,
+      "Trading_Volume": 0,
+      "Trading_money": 0,
+      "Trading_turnover": 0
+    },
+    {
+      "stock_id": "9914",
+      "date": "2026-09-25",
+      "open": 216.5,
+      "max": 219.5,
+      "min": 215.5,
+      "close": 217.5,
+      "spread": 1.5,
+      "Trading_Volume": 335000,
+      "Trading_money": 72862500,
+      "Trading_turnover": 970
+    },
+    {
+      "stock_id": "9914",
+      "date": "2026-09-24",
+      "open": 215.5,
+      "max": 218.5,
+      "min": 214.5,
+      "close": 216.5,
+      "spread": 1.0,
+      "Trading_Volume": 325000,
+      "Trading_money": 70362500,
+      "Trading_turnover": 920
+    },
+    {
+      "stock_id": "9921",
+      "date": "2026-09-25",
+      "open": 219.0,
+      "max": 222.0,
+      "min": 218.0,
+      "close": 220.0,
+      "spread": 1.5,
+      "Trading_Volume": 340000,
+      "Trading_money": 74800000,
+      "Trading_turnover": 980
+    },
+    {
+      "stock_id": "9921",
+      "date": "2026-09-24",
+      "open": 218.0,
+      "max": 221.0,
+      "min": 217.0,
+      "close": 219.0,
+      "spread": 1.0,
+      "Trading_Volume": 330000,
+      "Trading_money": 72270000,
+      "Trading_turnover": 930
+    },
+    {
+      "stock_id": "9945",
+      "date": "2026-09-25",
+      "open": 221.5,
+      "max": 224.5,
+      "min": 220.5,
+      "close": 222.5,
+      "spread": 1.5,
+      "Trading_Volume": 345000,
+      "Trading_money": 76762500,
+      "Trading_turnover": 990
+    },
+    {
+      "stock_id": "9945",
+      "date": "2026-09-24",
+      "open": 220.5,
+      "max": 223.5,
+      "min": 219.5,
+      "close": 221.5,
+      "spread": 1.0,
+      "Trading_Volume": 335000,
+      "Trading_money": 74202500,
+      "Trading_turnover": 940
     }
   ],
   "institutional_data": {
-    "2330": [
-      {"date": "2026-09-25", "name": "Foreign_Investor", "buy": 15000000, "sell": 8000000},
-      {"date": "2026-09-25", "name": "Investment_Trust", "buy": 2000000, "sell": 500000},
-      {"date": "2026-09-25", "name": "Dealer_Self", "buy": 1000000, "sell": 300000}
+    "1101": [
+      {
+        "date": "2026-09-25",
+        "stock_id": "1101",
+        "name": "Foreign_Investor",
+        "buy": 10000,
+        "sell": 4000
+      },
+      {
+        "date": "2026-09-25",
+        "stock_id": "1101",
+        "name": "Investment_Trust",
+        "buy": 2000,
+        "sell": 500
+      },
+      {
+        "date": "2026-09-25",
+        "stock_id": "1101",
+        "name": "Dealer_Self",
+        "buy": 1000,
+        "sell": 300
+      },
+      {
+        "date": "2026-09-24",
+        "stock_id": "1101",
+        "name": "Foreign_Investor",
+        "buy": 8000,
+        "sell": 3000
+      }
     ],
-    "8069": [
-      {"date": "2026-09-25", "name": "Foreign_Investor", "buy": 500000, "sell": 200000},
-      {"date": "2026-09-25", "name": "Investment_Trust", "buy": 100000, "sell": 30000},
-      {"date": "2026-09-25", "name": "Dealer_Self", "buy": 50000, "sell": 20000}
+    "1216": [
+      {
+        "date": "2026-09-25",
+        "stock_id": "1216",
+        "name": "Foreign_Investor",
+        "buy": 10100,
+        "sell": 4050
+      },
+      {
+        "date": "2026-09-25",
+        "stock_id": "1216",
+        "name": "Investment_Trust",
+        "buy": 2050,
+        "sell": 510
+      },
+      {
+        "date": "2026-09-25",
+        "stock_id": "1216",
+        "name": "Dealer_Self",
+        "buy": 1020,
+        "sell": 305
+      },
+      {
+        "date": "2026-09-24",
+        "stock_id": "1216",
+        "name": "Foreign_Investor",
+        "buy": 8100,
+        "sell": 3050
+      }
     ],
-    "8299": [
-      {"date": "2026-09-25", "name": "Foreign_Investor", "buy": 300000, "sell": 150000},
-      {"date": "2026-09-25", "name": "Investment_Trust", "buy": 50000, "sell": 10000},
-      {"date": "2026-09-25", "name": "Dealer_Self", "buy": 20000, "sell": 5000}
+    "1301": [
+      {
+        "date": "2026-09-25",
+        "stock_id": "1301",
+        "name": "Foreign_Investor",
+        "buy": 10200,
+        "sell": 4100
+      },
+      {
+        "date": "2026-09-25",
+        "stock_id": "1301",
+        "name": "Investment_Trust",
+        "buy": 2100,
+        "sell": 520
+      },
+      {
+        "date": "2026-09-25",
+        "stock_id": "1301",
+        "name": "Dealer_Self",
+        "buy": 1040,
+        "sell": 310
+      },
+      {
+        "date": "2026-09-24",
+        "stock_id": "1301",
+        "name": "Foreign_Investor",
+        "buy": 8200,
+        "sell": 3100
+      }
     ],
-    "6690": [
-      {"date": "2026-09-25", "name": "Foreign_Investor", "buy": 150000, "sell": 80000},
-      {"date": "2026-09-25", "name": "Investment_Trust", "buy": 30000, "sell": 5000},
-      {"date": "2026-09-25", "name": "Dealer_Self", "buy": 10000, "sell": 2000}
-    ]
-  },
-  "margin_data": {
+    "1303": [
+      {
+        "date": "2026-09-25",
+        "stock_id": "1303",
+        "name": "Foreign_Investor",
+        "buy": 10300,
+        "sell": 4150
+      },
+      {
+        "date": "2026-09-25",
+        "stock_id": "1303",
+        "name": "Investment_Trust",
+        "buy": 2150,
+        "sell": 530
+      },
+      {
+        "date": "2026-09-25",
+        "stock_id": "1303",
+        "name": "Dealer_Self",
+        "buy": 1060,
+        "sell": 315
+      },
+      {
+        "date": "2026-09-24",
+        "stock_id": "1303",
+        "name": "Foreign_Investor",
+        "buy": 8300,
+        "sell": 3150
+      }
+    ],
+    "1519": [
+      {
+        "date": "2026-09-25",
+        "stock_id": "1519",
+        "name": "Foreign_Investor",
+        "buy": 10400,
+        "sell": 4200
+      },
+      {
+        "date": "2026-09-25",
+        "stock_id": "1519",
+        "name": "Investment_Trust",
+        "buy": 2200,
+        "sell": 540
+      },
+      {
+        "date": "2026-09-25",
+        "stock_id": "1519",
+        "name": "Dealer_Self",
+        "buy": 1080,
+        "sell": 320
+      },
+      {
+        "date": "2026-09-24",
+        "stock_id": "1519",
+        "name": "Foreign_Investor",
+        "buy": 8400,
+        "sell": 3200
+      }
+    ],
+    "1402": [
+      {
+        "date": "2026-09-25",
+        "stock_id": "1402",
+        "name": "Foreign_Investor",
+        "buy": 10500,
+        "sell": 4250
+      },
+      {
+        "date": "2026-09-25",
+        "stock_id": "1402",
+        "name": "Investment_Trust",
+        "buy": 2250,
+        "sell": 550
+      },
+      {
+        "date": "2026-09-25",
+        "stock_id": "1402",
+        "name": "Dealer_Self",
+        "buy": 1100,
+        "sell": 325
+      },
+      {
+        "date": "2026-09-24",
+        "stock_id": "1402",
+        "name": "Foreign_Investor",
+        "buy": 8500,
+        "sell": 3250
+      }
+    ],
+    "2002": [
+      {
+        "date": "2026-09-25",
+        "stock_id": "2002",
+        "name": "Foreign_Investor",
+        "buy": 10600,
+        "sell": 4300
+      },
+      {
+        "date": "2026-09-25",
+        "stock_id": "2002",
+        "name": "Investment_Trust",
+        "buy": 2300,
+        "sell": 560
+      },
+      {
+        "date": "2026-09-25",
+        "stock_id": "2002",
+        "name": "Dealer_Self",
+        "buy": 1120,
+        "sell": 330
+      },
+      {
+        "date": "2026-09-24",
+        "stock_id": "2002",
+        "name": "Foreign_Investor",
+        "buy": 8600,
+        "sell": 3300
+      }
+    ],
+    "2207": [
+      {
+        "date": "2026-09-25",
+        "stock_id": "2207",
+        "name": "Foreign_Investor",
+        "buy": 10700,
+        "sell": 4350
+      },
+      {
+        "date": "2026-09-25",
+        "stock_id": "2207",
+        "name": "Investment_Trust",
+        "buy": 2350,
+        "sell": 570
+      },
+      {
+        "date": "2026-09-25",
+        "stock_id": "2207",
+        "name": "Dealer_Self",
+        "buy": 1140,
+        "sell": 335
+      },
+      {
+        "date": "2026-09-24",
+        "stock_id": "2207",
+        "name": "Foreign_Investor",
+        "buy": 8700,
+        "sell": 3350
+      }
+    ],
+    "2301": [
+      {
+        "date": "2026-09-25",
+        "stock_id": "2301",
+        "name": "Foreign_Investor",
+        "buy": 10800,
+        "sell": 4400
+      },
+      {
+        "date": "2026-09-25",
+        "stock_id": "2301",
+        "name": "Investment_Trust",
+        "buy": 2400,
+        "sell": 580
+      },
+      {
+        "date": "2026-09-25",
+        "stock_id": "2301",
+        "name": "Dealer_Self",
+        "buy": 1160,
+        "sell": 340
+      },
+      {
+        "date": "2026-09-24",
+        "stock_id": "2301",
+        "name": "Foreign_Investor",
+        "buy": 8800,
+        "sell": 3400
+      }
+    ],
+    "2303": [
+      {
+        "date": "2026-09-25",
+        "stock_id": "2303",
+        "name": "Foreign_Investor",
+        "buy": 10900,
+        "sell": 4450
+      },
+      {
+        "date": "2026-09-25",
+        "stock_id": "2303",
+        "name": "Investment_Trust",
+        "buy": 2450,
+        "sell": 590
+      },
+      {
+        "date": "2026-09-25",
+        "stock_id": "2303",
+        "name": "Dealer_Self",
+        "buy": 1180,
+        "sell": 345
+      },
+      {
+        "date": "2026-09-24",
+        "stock_id": "2303",
+        "name": "Foreign_Investor",
+        "buy": 8900,
+        "sell": 3450
+      }
+    ],
+    "2308": [
+      {
+        "date": "2026-09-25",
+        "stock_id": "2308",
+        "name": "Foreign_Investor",
+        "buy": 11000,
+        "sell": 4500
+      },
+      {
+        "date": "2026-09-25",
+        "stock_id": "2308",
+        "name": "Investment_Trust",
+        "buy": 2500,
+        "sell": 600
+      },
+      {
+        "date": "2026-09-25",
+        "stock_id": "2308",
+        "name": "Dealer_Self",
+        "buy": 1200,
+        "sell": 350
+      },
+      {
+        "date": "2026-09-24",
+        "stock_id": "2308",
+        "name": "Foreign_Investor",
+        "buy": 9000,
+        "sell": 3500
+      }
+    ],
+    "2317": [
+      {
+        "date": "2026-09-25",
+        "stock_id": "2317",
+        "name": "Foreign_Investor",
+        "buy": 11100,
+        "sell": 4550
+      },
+      {
+        "date": "2026-09-25",
+        "stock_id": "2317",
+        "name": "Investment_Trust",
+        "buy": 2550,
+        "sell": 610
+      },
+      {
+        "date": "2026-09-25",
+        "stock_id": "2317",
+        "name": "Dealer_Self",
+        "buy": 1220,
+        "sell": 355
+      },
+      {
+        "date": "2026-09-24",
+        "stock_id": "2317",
+        "name": "Foreign_Investor",
+        "buy": 9100,
+        "sell": 3550
+      }
+    ],
+    "2327": [
+      {
+        "date": "2026-09-25",
+        "stock_id": "2327",
+        "name": "Foreign_Investor",
+        "buy": 11200,
+        "sell": 4600
+      },
+      {
+        "date": "2026-09-25",
+        "stock_id": "2327",
+        "name": "Investment_Trust",
+        "buy": 2600,
+        "sell": 620
+      },
+      {
+        "date": "2026-09-25",
+        "stock_id": "2327",
+        "name": "Dealer_Self",
+        "buy": 1240,
+        "sell": 360
+      },
+      {
+        "date": "2026-09-24",
+        "stock_id": "2327",
+        "name": "Foreign_Investor",
+        "buy": 9200,
+        "sell": 3600
+      }
+    ],
     "2330": [
       {
         "date": "2026-09-25",
         "stock_id": "2330",
-        "MarginPurchaseBuy": 1200,
-        "MarginPurchaseSell": 450,
+        "name": "Foreign_Investor",
+        "buy": 11300,
+        "sell": 4650
+      },
+      {
+        "date": "2026-09-25",
+        "stock_id": "2330",
+        "name": "Investment_Trust",
+        "buy": 2650,
+        "sell": 630
+      },
+      {
+        "date": "2026-09-25",
+        "stock_id": "2330",
+        "name": "Dealer_Self",
+        "buy": 1260,
+        "sell": 365
+      },
+      {
+        "date": "2026-09-24",
+        "stock_id": "2330",
+        "name": "Foreign_Investor",
+        "buy": 9300,
+        "sell": 3650
+      }
+    ],
+    "2345": [
+      {
+        "date": "2026-09-25",
+        "stock_id": "2345",
+        "name": "Foreign_Investor",
+        "buy": 11400,
+        "sell": 4700
+      },
+      {
+        "date": "2026-09-25",
+        "stock_id": "2345",
+        "name": "Investment_Trust",
+        "buy": 2700,
+        "sell": 640
+      },
+      {
+        "date": "2026-09-25",
+        "stock_id": "2345",
+        "name": "Dealer_Self",
+        "buy": 1280,
+        "sell": 370
+      },
+      {
+        "date": "2026-09-24",
+        "stock_id": "2345",
+        "name": "Foreign_Investor",
+        "buy": 9400,
+        "sell": 3700
+      }
+    ],
+    "2357": [
+      {
+        "date": "2026-09-25",
+        "stock_id": "2357",
+        "name": "Foreign_Investor",
+        "buy": 11500,
+        "sell": 4750
+      },
+      {
+        "date": "2026-09-25",
+        "stock_id": "2357",
+        "name": "Investment_Trust",
+        "buy": 2750,
+        "sell": 650
+      },
+      {
+        "date": "2026-09-25",
+        "stock_id": "2357",
+        "name": "Dealer_Self",
+        "buy": 1300,
+        "sell": 375
+      },
+      {
+        "date": "2026-09-24",
+        "stock_id": "2357",
+        "name": "Foreign_Investor",
+        "buy": 9500,
+        "sell": 3750
+      }
+    ],
+    "2379": [
+      {
+        "date": "2026-09-25",
+        "stock_id": "2379",
+        "name": "Foreign_Investor",
+        "buy": 11600,
+        "sell": 4800
+      },
+      {
+        "date": "2026-09-25",
+        "stock_id": "2379",
+        "name": "Investment_Trust",
+        "buy": 2800,
+        "sell": 660
+      },
+      {
+        "date": "2026-09-25",
+        "stock_id": "2379",
+        "name": "Dealer_Self",
+        "buy": 1320,
+        "sell": 380
+      },
+      {
+        "date": "2026-09-24",
+        "stock_id": "2379",
+        "name": "Foreign_Investor",
+        "buy": 9600,
+        "sell": 3800
+      }
+    ],
+    "2382": [
+      {
+        "date": "2026-09-25",
+        "stock_id": "2382",
+        "name": "Foreign_Investor",
+        "buy": 11700,
+        "sell": 4850
+      },
+      {
+        "date": "2026-09-25",
+        "stock_id": "2382",
+        "name": "Investment_Trust",
+        "buy": 2850,
+        "sell": 670
+      },
+      {
+        "date": "2026-09-25",
+        "stock_id": "2382",
+        "name": "Dealer_Self",
+        "buy": 1340,
+        "sell": 385
+      },
+      {
+        "date": "2026-09-24",
+        "stock_id": "2382",
+        "name": "Foreign_Investor",
+        "buy": 9700,
+        "sell": 3850
+      }
+    ],
+    "2395": [
+      {
+        "date": "2026-09-25",
+        "stock_id": "2395",
+        "name": "Foreign_Investor",
+        "buy": 11800,
+        "sell": 4900
+      },
+      {
+        "date": "2026-09-25",
+        "stock_id": "2395",
+        "name": "Investment_Trust",
+        "buy": 2900,
+        "sell": 680
+      },
+      {
+        "date": "2026-09-25",
+        "stock_id": "2395",
+        "name": "Dealer_Self",
+        "buy": 1360,
+        "sell": 390
+      },
+      {
+        "date": "2026-09-24",
+        "stock_id": "2395",
+        "name": "Foreign_Investor",
+        "buy": 9800,
+        "sell": 3900
+      }
+    ],
+    "2408": [
+      {
+        "date": "2026-09-25",
+        "stock_id": "2408",
+        "name": "Foreign_Investor",
+        "buy": 11900,
+        "sell": 4950
+      },
+      {
+        "date": "2026-09-25",
+        "stock_id": "2408",
+        "name": "Investment_Trust",
+        "buy": 2950,
+        "sell": 690
+      },
+      {
+        "date": "2026-09-25",
+        "stock_id": "2408",
+        "name": "Dealer_Self",
+        "buy": 1380,
+        "sell": 395
+      },
+      {
+        "date": "2026-09-24",
+        "stock_id": "2408",
+        "name": "Foreign_Investor",
+        "buy": 9900,
+        "sell": 3950
+      }
+    ],
+    "2412": [
+      {
+        "date": "2026-09-25",
+        "stock_id": "2412",
+        "name": "Foreign_Investor",
+        "buy": 12000,
+        "sell": 5000
+      },
+      {
+        "date": "2026-09-25",
+        "stock_id": "2412",
+        "name": "Investment_Trust",
+        "buy": 3000,
+        "sell": 700
+      },
+      {
+        "date": "2026-09-25",
+        "stock_id": "2412",
+        "name": "Dealer_Self",
+        "buy": 1400,
+        "sell": 400
+      },
+      {
+        "date": "2026-09-24",
+        "stock_id": "2412",
+        "name": "Foreign_Investor",
+        "buy": 10000,
+        "sell": 4000
+      }
+    ],
+    "2454": [
+      {
+        "date": "2026-09-25",
+        "stock_id": "2454",
+        "name": "Foreign_Investor",
+        "buy": 12100,
+        "sell": 5050
+      },
+      {
+        "date": "2026-09-25",
+        "stock_id": "2454",
+        "name": "Investment_Trust",
+        "buy": 3050,
+        "sell": 710
+      },
+      {
+        "date": "2026-09-25",
+        "stock_id": "2454",
+        "name": "Dealer_Self",
+        "buy": 1420,
+        "sell": 405
+      },
+      {
+        "date": "2026-09-24",
+        "stock_id": "2454",
+        "name": "Foreign_Investor",
+        "buy": 10100,
+        "sell": 4050
+      }
+    ],
+    "2492": [
+      {
+        "date": "2026-09-25",
+        "stock_id": "2492",
+        "name": "Foreign_Investor",
+        "buy": 12200,
+        "sell": 5100
+      },
+      {
+        "date": "2026-09-25",
+        "stock_id": "2492",
+        "name": "Investment_Trust",
+        "buy": 3100,
+        "sell": 720
+      },
+      {
+        "date": "2026-09-25",
+        "stock_id": "2492",
+        "name": "Dealer_Self",
+        "buy": 1440,
+        "sell": 410
+      },
+      {
+        "date": "2026-09-24",
+        "stock_id": "2492",
+        "name": "Foreign_Investor",
+        "buy": 10200,
+        "sell": 4100
+      }
+    ],
+    "2603": [
+      {
+        "date": "2026-09-25",
+        "stock_id": "2603",
+        "name": "Foreign_Investor",
+        "buy": 12300,
+        "sell": 5150
+      },
+      {
+        "date": "2026-09-25",
+        "stock_id": "2603",
+        "name": "Investment_Trust",
+        "buy": 3150,
+        "sell": 730
+      },
+      {
+        "date": "2026-09-25",
+        "stock_id": "2603",
+        "name": "Dealer_Self",
+        "buy": 1460,
+        "sell": 415
+      },
+      {
+        "date": "2026-09-24",
+        "stock_id": "2603",
+        "name": "Foreign_Investor",
+        "buy": 10300,
+        "sell": 4150
+      }
+    ],
+    "2609": [
+      {
+        "date": "2026-09-25",
+        "stock_id": "2609",
+        "name": "Foreign_Investor",
+        "buy": 12400,
+        "sell": 5200
+      },
+      {
+        "date": "2026-09-25",
+        "stock_id": "2609",
+        "name": "Investment_Trust",
+        "buy": 3200,
+        "sell": 740
+      },
+      {
+        "date": "2026-09-25",
+        "stock_id": "2609",
+        "name": "Dealer_Self",
+        "buy": 1480,
+        "sell": 420
+      },
+      {
+        "date": "2026-09-24",
+        "stock_id": "2609",
+        "name": "Foreign_Investor",
+        "buy": 10400,
+        "sell": 4200
+      }
+    ],
+    "2049": [
+      {
+        "date": "2026-09-25",
+        "stock_id": "2049",
+        "name": "Foreign_Investor",
+        "buy": 12500,
+        "sell": 5250
+      },
+      {
+        "date": "2026-09-25",
+        "stock_id": "2049",
+        "name": "Investment_Trust",
+        "buy": 3250,
+        "sell": 750
+      },
+      {
+        "date": "2026-09-25",
+        "stock_id": "2049",
+        "name": "Dealer_Self",
+        "buy": 1500,
+        "sell": 425
+      },
+      {
+        "date": "2026-09-24",
+        "stock_id": "2049",
+        "name": "Foreign_Investor",
+        "buy": 10500,
+        "sell": 4250
+      }
+    ],
+    "2727": [
+      {
+        "date": "2026-09-25",
+        "stock_id": "2727",
+        "name": "Foreign_Investor",
+        "buy": 12600,
+        "sell": 5300
+      },
+      {
+        "date": "2026-09-25",
+        "stock_id": "2727",
+        "name": "Investment_Trust",
+        "buy": 3300,
+        "sell": 760
+      },
+      {
+        "date": "2026-09-25",
+        "stock_id": "2727",
+        "name": "Dealer_Self",
+        "buy": 1520,
+        "sell": 430
+      },
+      {
+        "date": "2026-09-24",
+        "stock_id": "2727",
+        "name": "Foreign_Investor",
+        "buy": 10600,
+        "sell": 4300
+      }
+    ],
+    "2881": [
+      {
+        "date": "2026-09-25",
+        "stock_id": "2881",
+        "name": "Foreign_Investor",
+        "buy": 12700,
+        "sell": 5350
+      },
+      {
+        "date": "2026-09-25",
+        "stock_id": "2881",
+        "name": "Investment_Trust",
+        "buy": 3350,
+        "sell": 770
+      },
+      {
+        "date": "2026-09-25",
+        "stock_id": "2881",
+        "name": "Dealer_Self",
+        "buy": 1540,
+        "sell": 435
+      },
+      {
+        "date": "2026-09-24",
+        "stock_id": "2881",
+        "name": "Foreign_Investor",
+        "buy": 10700,
+        "sell": 4350
+      }
+    ],
+    "2882": [
+      {
+        "date": "2026-09-25",
+        "stock_id": "2882",
+        "name": "Foreign_Investor",
+        "buy": 12800,
+        "sell": 5400
+      },
+      {
+        "date": "2026-09-25",
+        "stock_id": "2882",
+        "name": "Investment_Trust",
+        "buy": 3400,
+        "sell": 780
+      },
+      {
+        "date": "2026-09-25",
+        "stock_id": "2882",
+        "name": "Dealer_Self",
+        "buy": 1560,
+        "sell": 440
+      },
+      {
+        "date": "2026-09-24",
+        "stock_id": "2882",
+        "name": "Foreign_Investor",
+        "buy": 10800,
+        "sell": 4400
+      }
+    ],
+    "6446": [
+      {
+        "date": "2026-09-25",
+        "stock_id": "6446",
+        "name": "Foreign_Investor",
+        "buy": 12900,
+        "sell": 5450
+      },
+      {
+        "date": "2026-09-25",
+        "stock_id": "6446",
+        "name": "Investment_Trust",
+        "buy": 3450,
+        "sell": 790
+      },
+      {
+        "date": "2026-09-25",
+        "stock_id": "6446",
+        "name": "Dealer_Self",
+        "buy": 1580,
+        "sell": 445
+      },
+      {
+        "date": "2026-09-24",
+        "stock_id": "6446",
+        "name": "Foreign_Investor",
+        "buy": 10900,
+        "sell": 4450
+      }
+    ],
+    "2886": [
+      {
+        "date": "2026-09-25",
+        "stock_id": "2886",
+        "name": "Foreign_Investor",
+        "buy": 13000,
+        "sell": 5500
+      },
+      {
+        "date": "2026-09-25",
+        "stock_id": "2886",
+        "name": "Investment_Trust",
+        "buy": 3500,
+        "sell": 800
+      },
+      {
+        "date": "2026-09-25",
+        "stock_id": "2886",
+        "name": "Dealer_Self",
+        "buy": 1600,
+        "sell": 450
+      },
+      {
+        "date": "2026-09-24",
+        "stock_id": "2886",
+        "name": "Foreign_Investor",
+        "buy": 11000,
+        "sell": 4500
+      }
+    ],
+    "2891": [
+      {
+        "date": "2026-09-25",
+        "stock_id": "2891",
+        "name": "Foreign_Investor",
+        "buy": 13100,
+        "sell": 5550
+      },
+      {
+        "date": "2026-09-25",
+        "stock_id": "2891",
+        "name": "Investment_Trust",
+        "buy": 3550,
+        "sell": 810
+      },
+      {
+        "date": "2026-09-25",
+        "stock_id": "2891",
+        "name": "Dealer_Self",
+        "buy": 1620,
+        "sell": 455
+      },
+      {
+        "date": "2026-09-24",
+        "stock_id": "2891",
+        "name": "Foreign_Investor",
+        "buy": 11100,
+        "sell": 4550
+      }
+    ],
+    "3008": [
+      {
+        "date": "2026-09-25",
+        "stock_id": "3008",
+        "name": "Foreign_Investor",
+        "buy": 13200,
+        "sell": 5600
+      },
+      {
+        "date": "2026-09-25",
+        "stock_id": "3008",
+        "name": "Investment_Trust",
+        "buy": 3600,
+        "sell": 820
+      },
+      {
+        "date": "2026-09-25",
+        "stock_id": "3008",
+        "name": "Dealer_Self",
+        "buy": 1640,
+        "sell": 460
+      },
+      {
+        "date": "2026-09-24",
+        "stock_id": "3008",
+        "name": "Foreign_Investor",
+        "buy": 11200,
+        "sell": 4600
+      }
+    ],
+    "3034": [
+      {
+        "date": "2026-09-25",
+        "stock_id": "3034",
+        "name": "Foreign_Investor",
+        "buy": 13300,
+        "sell": 5650
+      },
+      {
+        "date": "2026-09-25",
+        "stock_id": "3034",
+        "name": "Investment_Trust",
+        "buy": 3650,
+        "sell": 830
+      },
+      {
+        "date": "2026-09-25",
+        "stock_id": "3034",
+        "name": "Dealer_Self",
+        "buy": 1660,
+        "sell": 465
+      },
+      {
+        "date": "2026-09-24",
+        "stock_id": "3034",
+        "name": "Foreign_Investor",
+        "buy": 11300,
+        "sell": 4650
+      }
+    ],
+    "3231": [
+      {
+        "date": "2026-09-25",
+        "stock_id": "3231",
+        "name": "Foreign_Investor",
+        "buy": 13400,
+        "sell": 5700
+      },
+      {
+        "date": "2026-09-25",
+        "stock_id": "3231",
+        "name": "Investment_Trust",
+        "buy": 3700,
+        "sell": 840
+      },
+      {
+        "date": "2026-09-25",
+        "stock_id": "3231",
+        "name": "Dealer_Self",
+        "buy": 1680,
+        "sell": 470
+      },
+      {
+        "date": "2026-09-24",
+        "stock_id": "3231",
+        "name": "Foreign_Investor",
+        "buy": 11400,
+        "sell": 4700
+      }
+    ],
+    "3711": [
+      {
+        "date": "2026-09-25",
+        "stock_id": "3711",
+        "name": "Foreign_Investor",
+        "buy": 13500,
+        "sell": 5750
+      },
+      {
+        "date": "2026-09-25",
+        "stock_id": "3711",
+        "name": "Investment_Trust",
+        "buy": 3750,
+        "sell": 850
+      },
+      {
+        "date": "2026-09-25",
+        "stock_id": "3711",
+        "name": "Dealer_Self",
+        "buy": 1700,
+        "sell": 475
+      },
+      {
+        "date": "2026-09-24",
+        "stock_id": "3711",
+        "name": "Foreign_Investor",
+        "buy": 11500,
+        "sell": 4750
+      }
+    ],
+    "4904": [
+      {
+        "date": "2026-09-25",
+        "stock_id": "4904",
+        "name": "Foreign_Investor",
+        "buy": 13600,
+        "sell": 5800
+      },
+      {
+        "date": "2026-09-25",
+        "stock_id": "4904",
+        "name": "Investment_Trust",
+        "buy": 3800,
+        "sell": 860
+      },
+      {
+        "date": "2026-09-25",
+        "stock_id": "4904",
+        "name": "Dealer_Self",
+        "buy": 1720,
+        "sell": 480
+      },
+      {
+        "date": "2026-09-24",
+        "stock_id": "4904",
+        "name": "Foreign_Investor",
+        "buy": 11600,
+        "sell": 4800
+      }
+    ],
+    "4938": [
+      {
+        "date": "2026-09-25",
+        "stock_id": "4938",
+        "name": "Foreign_Investor",
+        "buy": 13700,
+        "sell": 5850
+      },
+      {
+        "date": "2026-09-25",
+        "stock_id": "4938",
+        "name": "Investment_Trust",
+        "buy": 3850,
+        "sell": 870
+      },
+      {
+        "date": "2026-09-25",
+        "stock_id": "4938",
+        "name": "Dealer_Self",
+        "buy": 1740,
+        "sell": 485
+      },
+      {
+        "date": "2026-09-24",
+        "stock_id": "4938",
+        "name": "Foreign_Investor",
+        "buy": 11700,
+        "sell": 4850
+      }
+    ],
+    "5871": [
+      {
+        "date": "2026-09-25",
+        "stock_id": "5871",
+        "name": "Foreign_Investor",
+        "buy": 13800,
+        "sell": 5900
+      },
+      {
+        "date": "2026-09-25",
+        "stock_id": "5871",
+        "name": "Investment_Trust",
+        "buy": 3900,
+        "sell": 880
+      },
+      {
+        "date": "2026-09-25",
+        "stock_id": "5871",
+        "name": "Dealer_Self",
+        "buy": 1760,
+        "sell": 490
+      },
+      {
+        "date": "2026-09-24",
+        "stock_id": "5871",
+        "name": "Foreign_Investor",
+        "buy": 11800,
+        "sell": 4900
+      }
+    ],
+    "5880": [
+      {
+        "date": "2026-09-25",
+        "stock_id": "5880",
+        "name": "Foreign_Investor",
+        "buy": 13900,
+        "sell": 5950
+      },
+      {
+        "date": "2026-09-25",
+        "stock_id": "5880",
+        "name": "Investment_Trust",
+        "buy": 3950,
+        "sell": 890
+      },
+      {
+        "date": "2026-09-25",
+        "stock_id": "5880",
+        "name": "Dealer_Self",
+        "buy": 1780,
+        "sell": 495
+      },
+      {
+        "date": "2026-09-24",
+        "stock_id": "5880",
+        "name": "Foreign_Investor",
+        "buy": 11900,
+        "sell": 4950
+      }
+    ],
+    "6505": [
+      {
+        "date": "2026-09-25",
+        "stock_id": "6505",
+        "name": "Foreign_Investor",
+        "buy": 14000,
+        "sell": 6000
+      },
+      {
+        "date": "2026-09-25",
+        "stock_id": "6505",
+        "name": "Investment_Trust",
+        "buy": 4000,
+        "sell": 900
+      },
+      {
+        "date": "2026-09-25",
+        "stock_id": "6505",
+        "name": "Dealer_Self",
+        "buy": 1800,
+        "sell": 500
+      },
+      {
+        "date": "2026-09-24",
+        "stock_id": "6505",
+        "name": "Foreign_Investor",
+        "buy": 12000,
+        "sell": 5000
+      }
+    ],
+    "6669": [
+      {
+        "date": "2026-09-25",
+        "stock_id": "6669",
+        "name": "Foreign_Investor",
+        "buy": 14100,
+        "sell": 6050
+      },
+      {
+        "date": "2026-09-25",
+        "stock_id": "6669",
+        "name": "Investment_Trust",
+        "buy": 4050,
+        "sell": 910
+      },
+      {
+        "date": "2026-09-25",
+        "stock_id": "6669",
+        "name": "Dealer_Self",
+        "buy": 1820,
+        "sell": 505
+      },
+      {
+        "date": "2026-09-24",
+        "stock_id": "6669",
+        "name": "Foreign_Investor",
+        "buy": 12100,
+        "sell": 5050
+      }
+    ],
+    "8046": [
+      {
+        "date": "2026-09-25",
+        "stock_id": "8046",
+        "name": "Foreign_Investor",
+        "buy": 14200,
+        "sell": 6100
+      },
+      {
+        "date": "2026-09-25",
+        "stock_id": "8046",
+        "name": "Investment_Trust",
+        "buy": 4100,
+        "sell": 920
+      },
+      {
+        "date": "2026-09-25",
+        "stock_id": "8046",
+        "name": "Dealer_Self",
+        "buy": 1840,
+        "sell": 510
+      },
+      {
+        "date": "2026-09-24",
+        "stock_id": "8046",
+        "name": "Foreign_Investor",
+        "buy": 12200,
+        "sell": 5100
+      }
+    ],
+    "8069": [
+      {
+        "date": "2026-09-25",
+        "stock_id": "8069",
+        "name": "Foreign_Investor",
+        "buy": 14300,
+        "sell": 6150
+      },
+      {
+        "date": "2026-09-25",
+        "stock_id": "8069",
+        "name": "Investment_Trust",
+        "buy": 4150,
+        "sell": 930
+      },
+      {
+        "date": "2026-09-25",
+        "stock_id": "8069",
+        "name": "Dealer_Self",
+        "buy": 1860,
+        "sell": 515
+      }
+    ],
+    "8299": [
+      {
+        "date": "2026-09-25",
+        "stock_id": "8299",
+        "name": "Foreign_Investor",
+        "buy": 14400,
+        "sell": 6200
+      },
+      {
+        "date": "2026-09-25",
+        "stock_id": "8299",
+        "name": "Investment_Trust",
+        "buy": 4200,
+        "sell": 940
+      },
+      {
+        "date": "2026-09-25",
+        "stock_id": "8299",
+        "name": "Dealer_Self",
+        "buy": 1880,
+        "sell": 520
+      }
+    ],
+    "8454": [
+      {
+        "date": "2026-09-25",
+        "stock_id": "8454",
+        "name": "Foreign_Investor",
+        "buy": 14500,
+        "sell": 6250
+      },
+      {
+        "date": "2026-09-25",
+        "stock_id": "8454",
+        "name": "Investment_Trust",
+        "buy": 4250,
+        "sell": 950
+      },
+      {
+        "date": "2026-09-25",
+        "stock_id": "8454",
+        "name": "Dealer_Self",
+        "buy": 1900,
+        "sell": 525
+      },
+      {
+        "date": "2026-09-24",
+        "stock_id": "8454",
+        "name": "Foreign_Investor",
+        "buy": 12500,
+        "sell": 5250
+      }
+    ],
+    "6690": [
+      {
+        "date": "2026-09-25",
+        "stock_id": "6690",
+        "name": "Foreign_Investor",
+        "buy": 14600,
+        "sell": 6300
+      },
+      {
+        "date": "2026-09-25",
+        "stock_id": "6690",
+        "name": "Investment_Trust",
+        "buy": 4300,
+        "sell": 960
+      },
+      {
+        "date": "2026-09-25",
+        "stock_id": "6690",
+        "name": "Dealer_Self",
+        "buy": 1920,
+        "sell": 530
+      }
+    ],
+    "9914": [
+      {
+        "date": "2026-09-25",
+        "stock_id": "9914",
+        "name": "Foreign_Investor",
+        "buy": 14700,
+        "sell": 6350
+      },
+      {
+        "date": "2026-09-25",
+        "stock_id": "9914",
+        "name": "Investment_Trust",
+        "buy": 4350,
+        "sell": 970
+      },
+      {
+        "date": "2026-09-25",
+        "stock_id": "9914",
+        "name": "Dealer_Self",
+        "buy": 1940,
+        "sell": 535
+      },
+      {
+        "date": "2026-09-24",
+        "stock_id": "9914",
+        "name": "Foreign_Investor",
+        "buy": 12700,
+        "sell": 5350
+      }
+    ],
+    "9921": [
+      {
+        "date": "2026-09-25",
+        "stock_id": "9921",
+        "name": "Foreign_Investor",
+        "buy": 14800,
+        "sell": 6400
+      },
+      {
+        "date": "2026-09-25",
+        "stock_id": "9921",
+        "name": "Investment_Trust",
+        "buy": 4400,
+        "sell": 980
+      },
+      {
+        "date": "2026-09-25",
+        "stock_id": "9921",
+        "name": "Dealer_Self",
+        "buy": 1960,
+        "sell": 540
+      },
+      {
+        "date": "2026-09-24",
+        "stock_id": "9921",
+        "name": "Foreign_Investor",
+        "buy": 12800,
+        "sell": 5400
+      }
+    ],
+    "9945": [
+      {
+        "date": "2026-09-25",
+        "stock_id": "9945",
+        "name": "Foreign_Investor",
+        "buy": 14900,
+        "sell": 6450
+      },
+      {
+        "date": "2026-09-25",
+        "stock_id": "9945",
+        "name": "Investment_Trust",
+        "buy": 4450,
+        "sell": 990
+      },
+      {
+        "date": "2026-09-25",
+        "stock_id": "9945",
+        "name": "Dealer_Self",
+        "buy": 1980,
+        "sell": 545
+      },
+      {
+        "date": "2026-09-24",
+        "stock_id": "9945",
+        "name": "Foreign_Investor",
+        "buy": 12900,
+        "sell": 5450
+      }
+    ]
+  },
+  "margin_data": {
+    "1101": [
+      {
+        "date": "2026-09-25",
+        "stock_id": "1101",
+        "MarginPurchaseBuy": 1000,
+        "MarginPurchaseSell": 300,
         "MarginPurchaseCashRedemption": 10,
-        "MarginPurchaseTodayBalance": 15400,
+        "MarginPurchaseTodayBalance": 15000,
         "MarginPurchaseLimit": 250000,
         "ShortSaleBuy": 150,
         "ShortSaleSell": 300,
         "ShortSaleCashRedemption": 5,
         "ShortSaleTodayBalance": 3200,
+        "ShortSaleLimit": 250000
+      },
+      {
+        "date": "2026-09-24",
+        "stock_id": "1101",
+        "MarginPurchaseBuy": 800,
+        "MarginPurchaseSell": 200,
+        "MarginPurchaseCashRedemption": 5,
+        "MarginPurchaseTodayBalance": 14500,
+        "MarginPurchaseLimit": 250000,
+        "ShortSaleBuy": 100,
+        "ShortSaleSell": 250,
+        "ShortSaleCashRedemption": 2,
+        "ShortSaleTodayBalance": 3100,
+        "ShortSaleLimit": 250000
+      }
+    ],
+    "1216": [
+      {
+        "date": "2026-09-25",
+        "stock_id": "1216",
+        "MarginPurchaseBuy": 1010,
+        "MarginPurchaseSell": 305,
+        "MarginPurchaseCashRedemption": 10,
+        "MarginPurchaseTodayBalance": 15100,
+        "MarginPurchaseLimit": 250000,
+        "ShortSaleBuy": 152,
+        "ShortSaleSell": 304,
+        "ShortSaleCashRedemption": 5,
+        "ShortSaleTodayBalance": 3220,
+        "ShortSaleLimit": 250000
+      },
+      {
+        "date": "2026-09-24",
+        "stock_id": "1216",
+        "MarginPurchaseBuy": 810,
+        "MarginPurchaseSell": 205,
+        "MarginPurchaseCashRedemption": 5,
+        "MarginPurchaseTodayBalance": 14600,
+        "MarginPurchaseLimit": 250000,
+        "ShortSaleBuy": 102,
+        "ShortSaleSell": 254,
+        "ShortSaleCashRedemption": 2,
+        "ShortSaleTodayBalance": 3120,
+        "ShortSaleLimit": 250000
+      }
+    ],
+    "1301": [
+      {
+        "date": "2026-09-25",
+        "stock_id": "1301",
+        "MarginPurchaseBuy": 1020,
+        "MarginPurchaseSell": 310,
+        "MarginPurchaseCashRedemption": 10,
+        "MarginPurchaseTodayBalance": 15200,
+        "MarginPurchaseLimit": 250000,
+        "ShortSaleBuy": 154,
+        "ShortSaleSell": 308,
+        "ShortSaleCashRedemption": 5,
+        "ShortSaleTodayBalance": 3240,
+        "ShortSaleLimit": 250000
+      },
+      {
+        "date": "2026-09-24",
+        "stock_id": "1301",
+        "MarginPurchaseBuy": 820,
+        "MarginPurchaseSell": 210,
+        "MarginPurchaseCashRedemption": 5,
+        "MarginPurchaseTodayBalance": 14700,
+        "MarginPurchaseLimit": 250000,
+        "ShortSaleBuy": 104,
+        "ShortSaleSell": 258,
+        "ShortSaleCashRedemption": 2,
+        "ShortSaleTodayBalance": 3140,
+        "ShortSaleLimit": 250000
+      }
+    ],
+    "1303": [
+      {
+        "date": "2026-09-25",
+        "stock_id": "1303",
+        "MarginPurchaseBuy": 1030,
+        "MarginPurchaseSell": 315,
+        "MarginPurchaseCashRedemption": 10,
+        "MarginPurchaseTodayBalance": 15300,
+        "MarginPurchaseLimit": 250000,
+        "ShortSaleBuy": 156,
+        "ShortSaleSell": 312,
+        "ShortSaleCashRedemption": 5,
+        "ShortSaleTodayBalance": 3260,
+        "ShortSaleLimit": 250000
+      },
+      {
+        "date": "2026-09-24",
+        "stock_id": "1303",
+        "MarginPurchaseBuy": 830,
+        "MarginPurchaseSell": 215,
+        "MarginPurchaseCashRedemption": 5,
+        "MarginPurchaseTodayBalance": 14800,
+        "MarginPurchaseLimit": 250000,
+        "ShortSaleBuy": 106,
+        "ShortSaleSell": 262,
+        "ShortSaleCashRedemption": 2,
+        "ShortSaleTodayBalance": 3160,
+        "ShortSaleLimit": 250000
+      }
+    ],
+    "1519": [
+      {
+        "date": "2026-09-25",
+        "stock_id": "1519",
+        "MarginPurchaseBuy": 1040,
+        "MarginPurchaseSell": 320,
+        "MarginPurchaseCashRedemption": 10,
+        "MarginPurchaseTodayBalance": 15400,
+        "MarginPurchaseLimit": 250000,
+        "ShortSaleBuy": 158,
+        "ShortSaleSell": 316,
+        "ShortSaleCashRedemption": 5,
+        "ShortSaleTodayBalance": 3280,
+        "ShortSaleLimit": 250000
+      },
+      {
+        "date": "2026-09-24",
+        "stock_id": "1519",
+        "MarginPurchaseBuy": 840,
+        "MarginPurchaseSell": 220,
+        "MarginPurchaseCashRedemption": 5,
+        "MarginPurchaseTodayBalance": 14900,
+        "MarginPurchaseLimit": 250000,
+        "ShortSaleBuy": 108,
+        "ShortSaleSell": 266,
+        "ShortSaleCashRedemption": 2,
+        "ShortSaleTodayBalance": 3180,
+        "ShortSaleLimit": 250000
+      }
+    ],
+    "1402": [
+      {
+        "date": "2026-09-25",
+        "stock_id": "1402",
+        "MarginPurchaseBuy": 1050,
+        "MarginPurchaseSell": 325,
+        "MarginPurchaseCashRedemption": 10,
+        "MarginPurchaseTodayBalance": 15500,
+        "MarginPurchaseLimit": 250000,
+        "ShortSaleBuy": 160,
+        "ShortSaleSell": 320,
+        "ShortSaleCashRedemption": 5,
+        "ShortSaleTodayBalance": 3300,
+        "ShortSaleLimit": 250000
+      },
+      {
+        "date": "2026-09-24",
+        "stock_id": "1402",
+        "MarginPurchaseBuy": 850,
+        "MarginPurchaseSell": 225,
+        "MarginPurchaseCashRedemption": 5,
+        "MarginPurchaseTodayBalance": 15000,
+        "MarginPurchaseLimit": 250000,
+        "ShortSaleBuy": 110,
+        "ShortSaleSell": 270,
+        "ShortSaleCashRedemption": 2,
+        "ShortSaleTodayBalance": 3200,
+        "ShortSaleLimit": 250000
+      }
+    ],
+    "2002": [
+      {
+        "date": "2026-09-25",
+        "stock_id": "2002",
+        "MarginPurchaseBuy": 1060,
+        "MarginPurchaseSell": 330,
+        "MarginPurchaseCashRedemption": 10,
+        "MarginPurchaseTodayBalance": 15600,
+        "MarginPurchaseLimit": 250000,
+        "ShortSaleBuy": 162,
+        "ShortSaleSell": 324,
+        "ShortSaleCashRedemption": 5,
+        "ShortSaleTodayBalance": 3320,
+        "ShortSaleLimit": 250000
+      },
+      {
+        "date": "2026-09-24",
+        "stock_id": "2002",
+        "MarginPurchaseBuy": 860,
+        "MarginPurchaseSell": 230,
+        "MarginPurchaseCashRedemption": 5,
+        "MarginPurchaseTodayBalance": 15100,
+        "MarginPurchaseLimit": 250000,
+        "ShortSaleBuy": 112,
+        "ShortSaleSell": 274,
+        "ShortSaleCashRedemption": 2,
+        "ShortSaleTodayBalance": 3220,
+        "ShortSaleLimit": 250000
+      }
+    ],
+    "2207": [
+      {
+        "date": "2026-09-25",
+        "stock_id": "2207",
+        "MarginPurchaseBuy": 1070,
+        "MarginPurchaseSell": 335,
+        "MarginPurchaseCashRedemption": 10,
+        "MarginPurchaseTodayBalance": 15700,
+        "MarginPurchaseLimit": 250000,
+        "ShortSaleBuy": 164,
+        "ShortSaleSell": 328,
+        "ShortSaleCashRedemption": 5,
+        "ShortSaleTodayBalance": 3340,
+        "ShortSaleLimit": 250000
+      },
+      {
+        "date": "2026-09-24",
+        "stock_id": "2207",
+        "MarginPurchaseBuy": 870,
+        "MarginPurchaseSell": 235,
+        "MarginPurchaseCashRedemption": 5,
+        "MarginPurchaseTodayBalance": 15200,
+        "MarginPurchaseLimit": 250000,
+        "ShortSaleBuy": 114,
+        "ShortSaleSell": 278,
+        "ShortSaleCashRedemption": 2,
+        "ShortSaleTodayBalance": 3240,
+        "ShortSaleLimit": 250000
+      }
+    ],
+    "2301": [
+      {
+        "date": "2026-09-25",
+        "stock_id": "2301",
+        "MarginPurchaseBuy": 1080,
+        "MarginPurchaseSell": 340,
+        "MarginPurchaseCashRedemption": 10,
+        "MarginPurchaseTodayBalance": 15800,
+        "MarginPurchaseLimit": 250000,
+        "ShortSaleBuy": 166,
+        "ShortSaleSell": 332,
+        "ShortSaleCashRedemption": 5,
+        "ShortSaleTodayBalance": 3360,
+        "ShortSaleLimit": 250000
+      },
+      {
+        "date": "2026-09-24",
+        "stock_id": "2301",
+        "MarginPurchaseBuy": 880,
+        "MarginPurchaseSell": 240,
+        "MarginPurchaseCashRedemption": 5,
+        "MarginPurchaseTodayBalance": 15300,
+        "MarginPurchaseLimit": 250000,
+        "ShortSaleBuy": 116,
+        "ShortSaleSell": 282,
+        "ShortSaleCashRedemption": 2,
+        "ShortSaleTodayBalance": 3260,
+        "ShortSaleLimit": 250000
+      }
+    ],
+    "2303": [
+      {
+        "date": "2026-09-25",
+        "stock_id": "2303",
+        "MarginPurchaseBuy": 1090,
+        "MarginPurchaseSell": 345,
+        "MarginPurchaseCashRedemption": 10,
+        "MarginPurchaseTodayBalance": 15900,
+        "MarginPurchaseLimit": 250000,
+        "ShortSaleBuy": 168,
+        "ShortSaleSell": 336,
+        "ShortSaleCashRedemption": 5,
+        "ShortSaleTodayBalance": 3380,
+        "ShortSaleLimit": 250000
+      },
+      {
+        "date": "2026-09-24",
+        "stock_id": "2303",
+        "MarginPurchaseBuy": 890,
+        "MarginPurchaseSell": 245,
+        "MarginPurchaseCashRedemption": 5,
+        "MarginPurchaseTodayBalance": 15400,
+        "MarginPurchaseLimit": 250000,
+        "ShortSaleBuy": 118,
+        "ShortSaleSell": 286,
+        "ShortSaleCashRedemption": 2,
+        "ShortSaleTodayBalance": 3280,
+        "ShortSaleLimit": 250000
+      }
+    ],
+    "2308": [
+      {
+        "date": "2026-09-25",
+        "stock_id": "2308",
+        "MarginPurchaseBuy": 1100,
+        "MarginPurchaseSell": 350,
+        "MarginPurchaseCashRedemption": 10,
+        "MarginPurchaseTodayBalance": 16000,
+        "MarginPurchaseLimit": 250000,
+        "ShortSaleBuy": 170,
+        "ShortSaleSell": 340,
+        "ShortSaleCashRedemption": 5,
+        "ShortSaleTodayBalance": 3400,
+        "ShortSaleLimit": 250000
+      },
+      {
+        "date": "2026-09-24",
+        "stock_id": "2308",
+        "MarginPurchaseBuy": 900,
+        "MarginPurchaseSell": 250,
+        "MarginPurchaseCashRedemption": 5,
+        "MarginPurchaseTodayBalance": 15500,
+        "MarginPurchaseLimit": 250000,
+        "ShortSaleBuy": 120,
+        "ShortSaleSell": 290,
+        "ShortSaleCashRedemption": 2,
+        "ShortSaleTodayBalance": 3300,
+        "ShortSaleLimit": 250000
+      }
+    ],
+    "2317": [
+      {
+        "date": "2026-09-25",
+        "stock_id": "2317",
+        "MarginPurchaseBuy": 1110,
+        "MarginPurchaseSell": 355,
+        "MarginPurchaseCashRedemption": 10,
+        "MarginPurchaseTodayBalance": 16100,
+        "MarginPurchaseLimit": 250000,
+        "ShortSaleBuy": 172,
+        "ShortSaleSell": 344,
+        "ShortSaleCashRedemption": 5,
+        "ShortSaleTodayBalance": 3420,
+        "ShortSaleLimit": 250000
+      },
+      {
+        "date": "2026-09-24",
+        "stock_id": "2317",
+        "MarginPurchaseBuy": 910,
+        "MarginPurchaseSell": 255,
+        "MarginPurchaseCashRedemption": 5,
+        "MarginPurchaseTodayBalance": 15600,
+        "MarginPurchaseLimit": 250000,
+        "ShortSaleBuy": 122,
+        "ShortSaleSell": 294,
+        "ShortSaleCashRedemption": 2,
+        "ShortSaleTodayBalance": 3320,
+        "ShortSaleLimit": 250000
+      }
+    ],
+    "2327": [
+      {
+        "date": "2026-09-25",
+        "stock_id": "2327",
+        "MarginPurchaseBuy": 1120,
+        "MarginPurchaseSell": 360,
+        "MarginPurchaseCashRedemption": 10,
+        "MarginPurchaseTodayBalance": 16200,
+        "MarginPurchaseLimit": 250000,
+        "ShortSaleBuy": 174,
+        "ShortSaleSell": 348,
+        "ShortSaleCashRedemption": 5,
+        "ShortSaleTodayBalance": 3440,
+        "ShortSaleLimit": 250000
+      },
+      {
+        "date": "2026-09-24",
+        "stock_id": "2327",
+        "MarginPurchaseBuy": 920,
+        "MarginPurchaseSell": 260,
+        "MarginPurchaseCashRedemption": 5,
+        "MarginPurchaseTodayBalance": 15700,
+        "MarginPurchaseLimit": 250000,
+        "ShortSaleBuy": 124,
+        "ShortSaleSell": 298,
+        "ShortSaleCashRedemption": 2,
+        "ShortSaleTodayBalance": 3340,
+        "ShortSaleLimit": 250000
+      }
+    ],
+    "2330": [
+      {
+        "date": "2026-09-25",
+        "stock_id": "2330",
+        "MarginPurchaseBuy": 1130,
+        "MarginPurchaseSell": 365,
+        "MarginPurchaseCashRedemption": 10,
+        "MarginPurchaseTodayBalance": 16300,
+        "MarginPurchaseLimit": 250000,
+        "ShortSaleBuy": 176,
+        "ShortSaleSell": 352,
+        "ShortSaleCashRedemption": 5,
+        "ShortSaleTodayBalance": 3460,
+        "ShortSaleLimit": 250000
+      },
+      {
+        "date": "2026-09-24",
+        "stock_id": "2330",
+        "MarginPurchaseBuy": 930,
+        "MarginPurchaseSell": 265,
+        "MarginPurchaseCashRedemption": 5,
+        "MarginPurchaseTodayBalance": 15800,
+        "MarginPurchaseLimit": 250000,
+        "ShortSaleBuy": 126,
+        "ShortSaleSell": 302,
+        "ShortSaleCashRedemption": 2,
+        "ShortSaleTodayBalance": 3360,
+        "ShortSaleLimit": 250000
+      }
+    ],
+    "2345": [
+      {
+        "date": "2026-09-25",
+        "stock_id": "2345",
+        "MarginPurchaseBuy": 1140,
+        "MarginPurchaseSell": 370,
+        "MarginPurchaseCashRedemption": 10,
+        "MarginPurchaseTodayBalance": 16400,
+        "MarginPurchaseLimit": 250000,
+        "ShortSaleBuy": 178,
+        "ShortSaleSell": 356,
+        "ShortSaleCashRedemption": 5,
+        "ShortSaleTodayBalance": 3480,
+        "ShortSaleLimit": 250000
+      },
+      {
+        "date": "2026-09-24",
+        "stock_id": "2345",
+        "MarginPurchaseBuy": 940,
+        "MarginPurchaseSell": 270,
+        "MarginPurchaseCashRedemption": 5,
+        "MarginPurchaseTodayBalance": 15900,
+        "MarginPurchaseLimit": 250000,
+        "ShortSaleBuy": 128,
+        "ShortSaleSell": 306,
+        "ShortSaleCashRedemption": 2,
+        "ShortSaleTodayBalance": 3380,
+        "ShortSaleLimit": 250000
+      }
+    ],
+    "2357": [
+      {
+        "date": "2026-09-25",
+        "stock_id": "2357",
+        "MarginPurchaseBuy": 1150,
+        "MarginPurchaseSell": 375,
+        "MarginPurchaseCashRedemption": 10,
+        "MarginPurchaseTodayBalance": 16500,
+        "MarginPurchaseLimit": 250000,
+        "ShortSaleBuy": 180,
+        "ShortSaleSell": 360,
+        "ShortSaleCashRedemption": 5,
+        "ShortSaleTodayBalance": 3500,
+        "ShortSaleLimit": 250000
+      },
+      {
+        "date": "2026-09-24",
+        "stock_id": "2357",
+        "MarginPurchaseBuy": 950,
+        "MarginPurchaseSell": 275,
+        "MarginPurchaseCashRedemption": 5,
+        "MarginPurchaseTodayBalance": 16000,
+        "MarginPurchaseLimit": 250000,
+        "ShortSaleBuy": 130,
+        "ShortSaleSell": 310,
+        "ShortSaleCashRedemption": 2,
+        "ShortSaleTodayBalance": 3400,
+        "ShortSaleLimit": 250000
+      }
+    ],
+    "2379": [
+      {
+        "date": "2026-09-25",
+        "stock_id": "2379",
+        "MarginPurchaseBuy": 1160,
+        "MarginPurchaseSell": 380,
+        "MarginPurchaseCashRedemption": 10,
+        "MarginPurchaseTodayBalance": 16600,
+        "MarginPurchaseLimit": 250000,
+        "ShortSaleBuy": 182,
+        "ShortSaleSell": 364,
+        "ShortSaleCashRedemption": 5,
+        "ShortSaleTodayBalance": 3520,
+        "ShortSaleLimit": 250000
+      },
+      {
+        "date": "2026-09-24",
+        "stock_id": "2379",
+        "MarginPurchaseBuy": 960,
+        "MarginPurchaseSell": 280,
+        "MarginPurchaseCashRedemption": 5,
+        "MarginPurchaseTodayBalance": 16100,
+        "MarginPurchaseLimit": 250000,
+        "ShortSaleBuy": 132,
+        "ShortSaleSell": 314,
+        "ShortSaleCashRedemption": 2,
+        "ShortSaleTodayBalance": 3420,
+        "ShortSaleLimit": 250000
+      }
+    ],
+    "2382": [
+      {
+        "date": "2026-09-25",
+        "stock_id": "2382",
+        "MarginPurchaseBuy": 1170,
+        "MarginPurchaseSell": 385,
+        "MarginPurchaseCashRedemption": 10,
+        "MarginPurchaseTodayBalance": 16700,
+        "MarginPurchaseLimit": 250000,
+        "ShortSaleBuy": 184,
+        "ShortSaleSell": 368,
+        "ShortSaleCashRedemption": 5,
+        "ShortSaleTodayBalance": 3540,
+        "ShortSaleLimit": 250000
+      },
+      {
+        "date": "2026-09-24",
+        "stock_id": "2382",
+        "MarginPurchaseBuy": 970,
+        "MarginPurchaseSell": 285,
+        "MarginPurchaseCashRedemption": 5,
+        "MarginPurchaseTodayBalance": 16200,
+        "MarginPurchaseLimit": 250000,
+        "ShortSaleBuy": 134,
+        "ShortSaleSell": 318,
+        "ShortSaleCashRedemption": 2,
+        "ShortSaleTodayBalance": 3440,
+        "ShortSaleLimit": 250000
+      }
+    ],
+    "2395": [
+      {
+        "date": "2026-09-25",
+        "stock_id": "2395",
+        "MarginPurchaseBuy": 1180,
+        "MarginPurchaseSell": 390,
+        "MarginPurchaseCashRedemption": 10,
+        "MarginPurchaseTodayBalance": 16800,
+        "MarginPurchaseLimit": 250000,
+        "ShortSaleBuy": 186,
+        "ShortSaleSell": 372,
+        "ShortSaleCashRedemption": 5,
+        "ShortSaleTodayBalance": 3560,
+        "ShortSaleLimit": 250000
+      },
+      {
+        "date": "2026-09-24",
+        "stock_id": "2395",
+        "MarginPurchaseBuy": 980,
+        "MarginPurchaseSell": 290,
+        "MarginPurchaseCashRedemption": 5,
+        "MarginPurchaseTodayBalance": 16300,
+        "MarginPurchaseLimit": 250000,
+        "ShortSaleBuy": 136,
+        "ShortSaleSell": 322,
+        "ShortSaleCashRedemption": 2,
+        "ShortSaleTodayBalance": 3460,
+        "ShortSaleLimit": 250000
+      }
+    ],
+    "2408": [
+      {
+        "date": "2026-09-25",
+        "stock_id": "2408",
+        "MarginPurchaseBuy": 1190,
+        "MarginPurchaseSell": 395,
+        "MarginPurchaseCashRedemption": 10,
+        "MarginPurchaseTodayBalance": 16900,
+        "MarginPurchaseLimit": 250000,
+        "ShortSaleBuy": 188,
+        "ShortSaleSell": 376,
+        "ShortSaleCashRedemption": 5,
+        "ShortSaleTodayBalance": 3580,
+        "ShortSaleLimit": 250000
+      },
+      {
+        "date": "2026-09-24",
+        "stock_id": "2408",
+        "MarginPurchaseBuy": 990,
+        "MarginPurchaseSell": 295,
+        "MarginPurchaseCashRedemption": 5,
+        "MarginPurchaseTodayBalance": 16400,
+        "MarginPurchaseLimit": 250000,
+        "ShortSaleBuy": 138,
+        "ShortSaleSell": 326,
+        "ShortSaleCashRedemption": 2,
+        "ShortSaleTodayBalance": 3480,
+        "ShortSaleLimit": 250000
+      }
+    ],
+    "2412": [
+      {
+        "date": "2026-09-25",
+        "stock_id": "2412",
+        "MarginPurchaseBuy": 1200,
+        "MarginPurchaseSell": 400,
+        "MarginPurchaseCashRedemption": 10,
+        "MarginPurchaseTodayBalance": 17000,
+        "MarginPurchaseLimit": 250000,
+        "ShortSaleBuy": 190,
+        "ShortSaleSell": 380,
+        "ShortSaleCashRedemption": 5,
+        "ShortSaleTodayBalance": 3600,
+        "ShortSaleLimit": 250000
+      },
+      {
+        "date": "2026-09-24",
+        "stock_id": "2412",
+        "MarginPurchaseBuy": 1000,
+        "MarginPurchaseSell": 300,
+        "MarginPurchaseCashRedemption": 5,
+        "MarginPurchaseTodayBalance": 16500,
+        "MarginPurchaseLimit": 250000,
+        "ShortSaleBuy": 140,
+        "ShortSaleSell": 330,
+        "ShortSaleCashRedemption": 2,
+        "ShortSaleTodayBalance": 3500,
+        "ShortSaleLimit": 250000
+      }
+    ],
+    "2454": [
+      {
+        "date": "2026-09-25",
+        "stock_id": "2454",
+        "MarginPurchaseBuy": 1210,
+        "MarginPurchaseSell": 405,
+        "MarginPurchaseCashRedemption": 10,
+        "MarginPurchaseTodayBalance": 17100,
+        "MarginPurchaseLimit": 250000,
+        "ShortSaleBuy": 192,
+        "ShortSaleSell": 384,
+        "ShortSaleCashRedemption": 5,
+        "ShortSaleTodayBalance": 3620,
+        "ShortSaleLimit": 250000
+      },
+      {
+        "date": "2026-09-24",
+        "stock_id": "2454",
+        "MarginPurchaseBuy": 1010,
+        "MarginPurchaseSell": 305,
+        "MarginPurchaseCashRedemption": 5,
+        "MarginPurchaseTodayBalance": 16600,
+        "MarginPurchaseLimit": 250000,
+        "ShortSaleBuy": 142,
+        "ShortSaleSell": 334,
+        "ShortSaleCashRedemption": 2,
+        "ShortSaleTodayBalance": 3520,
+        "ShortSaleLimit": 250000
+      }
+    ],
+    "2492": [
+      {
+        "date": "2026-09-25",
+        "stock_id": "2492",
+        "MarginPurchaseBuy": 1220,
+        "MarginPurchaseSell": 410,
+        "MarginPurchaseCashRedemption": 10,
+        "MarginPurchaseTodayBalance": 17200,
+        "MarginPurchaseLimit": 250000,
+        "ShortSaleBuy": 194,
+        "ShortSaleSell": 388,
+        "ShortSaleCashRedemption": 5,
+        "ShortSaleTodayBalance": 3640,
+        "ShortSaleLimit": 250000
+      },
+      {
+        "date": "2026-09-24",
+        "stock_id": "2492",
+        "MarginPurchaseBuy": 1020,
+        "MarginPurchaseSell": 310,
+        "MarginPurchaseCashRedemption": 5,
+        "MarginPurchaseTodayBalance": 16700,
+        "MarginPurchaseLimit": 250000,
+        "ShortSaleBuy": 144,
+        "ShortSaleSell": 338,
+        "ShortSaleCashRedemption": 2,
+        "ShortSaleTodayBalance": 3540,
+        "ShortSaleLimit": 250000
+      }
+    ],
+    "2603": [
+      {
+        "date": "2026-09-25",
+        "stock_id": "2603",
+        "MarginPurchaseBuy": 1230,
+        "MarginPurchaseSell": 415,
+        "MarginPurchaseCashRedemption": 10,
+        "MarginPurchaseTodayBalance": 17300,
+        "MarginPurchaseLimit": 250000,
+        "ShortSaleBuy": 196,
+        "ShortSaleSell": 392,
+        "ShortSaleCashRedemption": 5,
+        "ShortSaleTodayBalance": 3660,
+        "ShortSaleLimit": 250000
+      },
+      {
+        "date": "2026-09-24",
+        "stock_id": "2603",
+        "MarginPurchaseBuy": 1030,
+        "MarginPurchaseSell": 315,
+        "MarginPurchaseCashRedemption": 5,
+        "MarginPurchaseTodayBalance": 16800,
+        "MarginPurchaseLimit": 250000,
+        "ShortSaleBuy": 146,
+        "ShortSaleSell": 342,
+        "ShortSaleCashRedemption": 2,
+        "ShortSaleTodayBalance": 3560,
+        "ShortSaleLimit": 250000
+      }
+    ],
+    "2609": [
+      {
+        "date": "2026-09-25",
+        "stock_id": "2609",
+        "MarginPurchaseBuy": 1240,
+        "MarginPurchaseSell": 420,
+        "MarginPurchaseCashRedemption": 10,
+        "MarginPurchaseTodayBalance": 17400,
+        "MarginPurchaseLimit": 250000,
+        "ShortSaleBuy": 198,
+        "ShortSaleSell": 396,
+        "ShortSaleCashRedemption": 5,
+        "ShortSaleTodayBalance": 3680,
+        "ShortSaleLimit": 250000
+      },
+      {
+        "date": "2026-09-24",
+        "stock_id": "2609",
+        "MarginPurchaseBuy": 1040,
+        "MarginPurchaseSell": 320,
+        "MarginPurchaseCashRedemption": 5,
+        "MarginPurchaseTodayBalance": 16900,
+        "MarginPurchaseLimit": 250000,
+        "ShortSaleBuy": 148,
+        "ShortSaleSell": 346,
+        "ShortSaleCashRedemption": 2,
+        "ShortSaleTodayBalance": 3580,
+        "ShortSaleLimit": 250000
+      }
+    ],
+    "2049": [
+      {
+        "date": "2026-09-25",
+        "stock_id": "2049",
+        "MarginPurchaseBuy": 1250,
+        "MarginPurchaseSell": 425,
+        "MarginPurchaseCashRedemption": 10,
+        "MarginPurchaseTodayBalance": 17500,
+        "MarginPurchaseLimit": 250000,
+        "ShortSaleBuy": 200,
+        "ShortSaleSell": 400,
+        "ShortSaleCashRedemption": 5,
+        "ShortSaleTodayBalance": 3700,
+        "ShortSaleLimit": 250000
+      },
+      {
+        "date": "2026-09-24",
+        "stock_id": "2049",
+        "MarginPurchaseBuy": 1050,
+        "MarginPurchaseSell": 325,
+        "MarginPurchaseCashRedemption": 5,
+        "MarginPurchaseTodayBalance": 17000,
+        "MarginPurchaseLimit": 250000,
+        "ShortSaleBuy": 150,
+        "ShortSaleSell": 350,
+        "ShortSaleCashRedemption": 2,
+        "ShortSaleTodayBalance": 3600,
+        "ShortSaleLimit": 250000
+      }
+    ],
+    "2727": [
+      {
+        "date": "2026-09-25",
+        "stock_id": "2727",
+        "MarginPurchaseBuy": 1260,
+        "MarginPurchaseSell": 430,
+        "MarginPurchaseCashRedemption": 10,
+        "MarginPurchaseTodayBalance": 17600,
+        "MarginPurchaseLimit": 250000,
+        "ShortSaleBuy": 202,
+        "ShortSaleSell": 404,
+        "ShortSaleCashRedemption": 5,
+        "ShortSaleTodayBalance": 3720,
+        "ShortSaleLimit": 250000
+      },
+      {
+        "date": "2026-09-24",
+        "stock_id": "2727",
+        "MarginPurchaseBuy": 1060,
+        "MarginPurchaseSell": 330,
+        "MarginPurchaseCashRedemption": 5,
+        "MarginPurchaseTodayBalance": 17100,
+        "MarginPurchaseLimit": 250000,
+        "ShortSaleBuy": 152,
+        "ShortSaleSell": 354,
+        "ShortSaleCashRedemption": 2,
+        "ShortSaleTodayBalance": 3620,
+        "ShortSaleLimit": 250000
+      }
+    ],
+    "2881": [
+      {
+        "date": "2026-09-25",
+        "stock_id": "2881",
+        "MarginPurchaseBuy": 1270,
+        "MarginPurchaseSell": 435,
+        "MarginPurchaseCashRedemption": 10,
+        "MarginPurchaseTodayBalance": 17700,
+        "MarginPurchaseLimit": 250000,
+        "ShortSaleBuy": 204,
+        "ShortSaleSell": 408,
+        "ShortSaleCashRedemption": 5,
+        "ShortSaleTodayBalance": 3740,
+        "ShortSaleLimit": 250000
+      },
+      {
+        "date": "2026-09-24",
+        "stock_id": "2881",
+        "MarginPurchaseBuy": 1070,
+        "MarginPurchaseSell": 335,
+        "MarginPurchaseCashRedemption": 5,
+        "MarginPurchaseTodayBalance": 17200,
+        "MarginPurchaseLimit": 250000,
+        "ShortSaleBuy": 154,
+        "ShortSaleSell": 358,
+        "ShortSaleCashRedemption": 2,
+        "ShortSaleTodayBalance": 3640,
+        "ShortSaleLimit": 250000
+      }
+    ],
+    "2882": [
+      {
+        "date": "2026-09-25",
+        "stock_id": "2882",
+        "MarginPurchaseBuy": 1280,
+        "MarginPurchaseSell": 440,
+        "MarginPurchaseCashRedemption": 10,
+        "MarginPurchaseTodayBalance": 17800,
+        "MarginPurchaseLimit": 250000,
+        "ShortSaleBuy": 206,
+        "ShortSaleSell": 412,
+        "ShortSaleCashRedemption": 5,
+        "ShortSaleTodayBalance": 3760,
+        "ShortSaleLimit": 250000
+      },
+      {
+        "date": "2026-09-24",
+        "stock_id": "2882",
+        "MarginPurchaseBuy": 1080,
+        "MarginPurchaseSell": 340,
+        "MarginPurchaseCashRedemption": 5,
+        "MarginPurchaseTodayBalance": 17300,
+        "MarginPurchaseLimit": 250000,
+        "ShortSaleBuy": 156,
+        "ShortSaleSell": 362,
+        "ShortSaleCashRedemption": 2,
+        "ShortSaleTodayBalance": 3660,
+        "ShortSaleLimit": 250000
+      }
+    ],
+    "6446": [
+      {
+        "date": "2026-09-25",
+        "stock_id": "6446",
+        "MarginPurchaseBuy": 1290,
+        "MarginPurchaseSell": 445,
+        "MarginPurchaseCashRedemption": 10,
+        "MarginPurchaseTodayBalance": 17900,
+        "MarginPurchaseLimit": 250000,
+        "ShortSaleBuy": 208,
+        "ShortSaleSell": 416,
+        "ShortSaleCashRedemption": 5,
+        "ShortSaleTodayBalance": 3780,
+        "ShortSaleLimit": 250000
+      },
+      {
+        "date": "2026-09-24",
+        "stock_id": "6446",
+        "MarginPurchaseBuy": 1090,
+        "MarginPurchaseSell": 345,
+        "MarginPurchaseCashRedemption": 5,
+        "MarginPurchaseTodayBalance": 17400,
+        "MarginPurchaseLimit": 250000,
+        "ShortSaleBuy": 158,
+        "ShortSaleSell": 366,
+        "ShortSaleCashRedemption": 2,
+        "ShortSaleTodayBalance": 3680,
+        "ShortSaleLimit": 250000
+      }
+    ],
+    "2886": [
+      {
+        "date": "2026-09-25",
+        "stock_id": "2886",
+        "MarginPurchaseBuy": 1300,
+        "MarginPurchaseSell": 450,
+        "MarginPurchaseCashRedemption": 10,
+        "MarginPurchaseTodayBalance": 18000,
+        "MarginPurchaseLimit": 250000,
+        "ShortSaleBuy": 210,
+        "ShortSaleSell": 420,
+        "ShortSaleCashRedemption": 5,
+        "ShortSaleTodayBalance": 3800,
+        "ShortSaleLimit": 250000
+      },
+      {
+        "date": "2026-09-24",
+        "stock_id": "2886",
+        "MarginPurchaseBuy": 1100,
+        "MarginPurchaseSell": 350,
+        "MarginPurchaseCashRedemption": 5,
+        "MarginPurchaseTodayBalance": 17500,
+        "MarginPurchaseLimit": 250000,
+        "ShortSaleBuy": 160,
+        "ShortSaleSell": 370,
+        "ShortSaleCashRedemption": 2,
+        "ShortSaleTodayBalance": 3700,
+        "ShortSaleLimit": 250000
+      }
+    ],
+    "2891": [
+      {
+        "date": "2026-09-25",
+        "stock_id": "2891",
+        "MarginPurchaseBuy": 1310,
+        "MarginPurchaseSell": 455,
+        "MarginPurchaseCashRedemption": 10,
+        "MarginPurchaseTodayBalance": 18100,
+        "MarginPurchaseLimit": 250000,
+        "ShortSaleBuy": 212,
+        "ShortSaleSell": 424,
+        "ShortSaleCashRedemption": 5,
+        "ShortSaleTodayBalance": 3820,
+        "ShortSaleLimit": 250000
+      },
+      {
+        "date": "2026-09-24",
+        "stock_id": "2891",
+        "MarginPurchaseBuy": 1110,
+        "MarginPurchaseSell": 355,
+        "MarginPurchaseCashRedemption": 5,
+        "MarginPurchaseTodayBalance": 17600,
+        "MarginPurchaseLimit": 250000,
+        "ShortSaleBuy": 162,
+        "ShortSaleSell": 374,
+        "ShortSaleCashRedemption": 2,
+        "ShortSaleTodayBalance": 3720,
+        "ShortSaleLimit": 250000
+      }
+    ],
+    "3008": [
+      {
+        "date": "2026-09-25",
+        "stock_id": "3008",
+        "MarginPurchaseBuy": 1320,
+        "MarginPurchaseSell": 460,
+        "MarginPurchaseCashRedemption": 10,
+        "MarginPurchaseTodayBalance": 18200,
+        "MarginPurchaseLimit": 250000,
+        "ShortSaleBuy": 214,
+        "ShortSaleSell": 428,
+        "ShortSaleCashRedemption": 5,
+        "ShortSaleTodayBalance": 3840,
+        "ShortSaleLimit": 250000
+      },
+      {
+        "date": "2026-09-24",
+        "stock_id": "3008",
+        "MarginPurchaseBuy": 1120,
+        "MarginPurchaseSell": 360,
+        "MarginPurchaseCashRedemption": 5,
+        "MarginPurchaseTodayBalance": 17700,
+        "MarginPurchaseLimit": 250000,
+        "ShortSaleBuy": 164,
+        "ShortSaleSell": 378,
+        "ShortSaleCashRedemption": 2,
+        "ShortSaleTodayBalance": 3740,
+        "ShortSaleLimit": 250000
+      }
+    ],
+    "3034": [
+      {
+        "date": "2026-09-25",
+        "stock_id": "3034",
+        "MarginPurchaseBuy": 1330,
+        "MarginPurchaseSell": 465,
+        "MarginPurchaseCashRedemption": 10,
+        "MarginPurchaseTodayBalance": 18300,
+        "MarginPurchaseLimit": 250000,
+        "ShortSaleBuy": 216,
+        "ShortSaleSell": 432,
+        "ShortSaleCashRedemption": 5,
+        "ShortSaleTodayBalance": 3860,
+        "ShortSaleLimit": 250000
+      },
+      {
+        "date": "2026-09-24",
+        "stock_id": "3034",
+        "MarginPurchaseBuy": 1130,
+        "MarginPurchaseSell": 365,
+        "MarginPurchaseCashRedemption": 5,
+        "MarginPurchaseTodayBalance": 17800,
+        "MarginPurchaseLimit": 250000,
+        "ShortSaleBuy": 166,
+        "ShortSaleSell": 382,
+        "ShortSaleCashRedemption": 2,
+        "ShortSaleTodayBalance": 3760,
+        "ShortSaleLimit": 250000
+      }
+    ],
+    "3231": [
+      {
+        "date": "2026-09-25",
+        "stock_id": "3231",
+        "MarginPurchaseBuy": 1340,
+        "MarginPurchaseSell": 470,
+        "MarginPurchaseCashRedemption": 10,
+        "MarginPurchaseTodayBalance": 18400,
+        "MarginPurchaseLimit": 250000,
+        "ShortSaleBuy": 218,
+        "ShortSaleSell": 436,
+        "ShortSaleCashRedemption": 5,
+        "ShortSaleTodayBalance": 3880,
+        "ShortSaleLimit": 250000
+      },
+      {
+        "date": "2026-09-24",
+        "stock_id": "3231",
+        "MarginPurchaseBuy": 1140,
+        "MarginPurchaseSell": 370,
+        "MarginPurchaseCashRedemption": 5,
+        "MarginPurchaseTodayBalance": 17900,
+        "MarginPurchaseLimit": 250000,
+        "ShortSaleBuy": 168,
+        "ShortSaleSell": 386,
+        "ShortSaleCashRedemption": 2,
+        "ShortSaleTodayBalance": 3780,
+        "ShortSaleLimit": 250000
+      }
+    ],
+    "3711": [
+      {
+        "date": "2026-09-25",
+        "stock_id": "3711",
+        "MarginPurchaseBuy": 1350,
+        "MarginPurchaseSell": 475,
+        "MarginPurchaseCashRedemption": 10,
+        "MarginPurchaseTodayBalance": 18500,
+        "MarginPurchaseLimit": 250000,
+        "ShortSaleBuy": 220,
+        "ShortSaleSell": 440,
+        "ShortSaleCashRedemption": 5,
+        "ShortSaleTodayBalance": 3900,
+        "ShortSaleLimit": 250000
+      },
+      {
+        "date": "2026-09-24",
+        "stock_id": "3711",
+        "MarginPurchaseBuy": 1150,
+        "MarginPurchaseSell": 375,
+        "MarginPurchaseCashRedemption": 5,
+        "MarginPurchaseTodayBalance": 18000,
+        "MarginPurchaseLimit": 250000,
+        "ShortSaleBuy": 170,
+        "ShortSaleSell": 390,
+        "ShortSaleCashRedemption": 2,
+        "ShortSaleTodayBalance": 3800,
+        "ShortSaleLimit": 250000
+      }
+    ],
+    "4904": [
+      {
+        "date": "2026-09-25",
+        "stock_id": "4904",
+        "MarginPurchaseBuy": 1360,
+        "MarginPurchaseSell": 480,
+        "MarginPurchaseCashRedemption": 10,
+        "MarginPurchaseTodayBalance": 18600,
+        "MarginPurchaseLimit": 250000,
+        "ShortSaleBuy": 222,
+        "ShortSaleSell": 444,
+        "ShortSaleCashRedemption": 5,
+        "ShortSaleTodayBalance": 3920,
+        "ShortSaleLimit": 250000
+      },
+      {
+        "date": "2026-09-24",
+        "stock_id": "4904",
+        "MarginPurchaseBuy": 1160,
+        "MarginPurchaseSell": 380,
+        "MarginPurchaseCashRedemption": 5,
+        "MarginPurchaseTodayBalance": 18100,
+        "MarginPurchaseLimit": 250000,
+        "ShortSaleBuy": 172,
+        "ShortSaleSell": 394,
+        "ShortSaleCashRedemption": 2,
+        "ShortSaleTodayBalance": 3820,
+        "ShortSaleLimit": 250000
+      }
+    ],
+    "4938": [
+      {
+        "date": "2026-09-25",
+        "stock_id": "4938",
+        "MarginPurchaseBuy": 1370,
+        "MarginPurchaseSell": 485,
+        "MarginPurchaseCashRedemption": 10,
+        "MarginPurchaseTodayBalance": 18700,
+        "MarginPurchaseLimit": 250000,
+        "ShortSaleBuy": 224,
+        "ShortSaleSell": 448,
+        "ShortSaleCashRedemption": 5,
+        "ShortSaleTodayBalance": 3940,
+        "ShortSaleLimit": 250000
+      },
+      {
+        "date": "2026-09-24",
+        "stock_id": "4938",
+        "MarginPurchaseBuy": 1170,
+        "MarginPurchaseSell": 385,
+        "MarginPurchaseCashRedemption": 5,
+        "MarginPurchaseTodayBalance": 18200,
+        "MarginPurchaseLimit": 250000,
+        "ShortSaleBuy": 174,
+        "ShortSaleSell": 398,
+        "ShortSaleCashRedemption": 2,
+        "ShortSaleTodayBalance": 3840,
+        "ShortSaleLimit": 250000
+      }
+    ],
+    "5871": [
+      {
+        "date": "2026-09-25",
+        "stock_id": "5871",
+        "MarginPurchaseBuy": 1380,
+        "MarginPurchaseSell": 490,
+        "MarginPurchaseCashRedemption": 10,
+        "MarginPurchaseTodayBalance": 18800,
+        "MarginPurchaseLimit": 250000,
+        "ShortSaleBuy": 226,
+        "ShortSaleSell": 452,
+        "ShortSaleCashRedemption": 5,
+        "ShortSaleTodayBalance": 3960,
+        "ShortSaleLimit": 250000
+      },
+      {
+        "date": "2026-09-24",
+        "stock_id": "5871",
+        "MarginPurchaseBuy": 1180,
+        "MarginPurchaseSell": 390,
+        "MarginPurchaseCashRedemption": 5,
+        "MarginPurchaseTodayBalance": 18300,
+        "MarginPurchaseLimit": 250000,
+        "ShortSaleBuy": 176,
+        "ShortSaleSell": 402,
+        "ShortSaleCashRedemption": 2,
+        "ShortSaleTodayBalance": 3860,
+        "ShortSaleLimit": 250000
+      }
+    ],
+    "5880": [
+      {
+        "date": "2026-09-25",
+        "stock_id": "5880",
+        "MarginPurchaseBuy": 1390,
+        "MarginPurchaseSell": 495,
+        "MarginPurchaseCashRedemption": 10,
+        "MarginPurchaseTodayBalance": 18900,
+        "MarginPurchaseLimit": 250000,
+        "ShortSaleBuy": 228,
+        "ShortSaleSell": 456,
+        "ShortSaleCashRedemption": 5,
+        "ShortSaleTodayBalance": 3980,
+        "ShortSaleLimit": 250000
+      },
+      {
+        "date": "2026-09-24",
+        "stock_id": "5880",
+        "MarginPurchaseBuy": 1190,
+        "MarginPurchaseSell": 395,
+        "MarginPurchaseCashRedemption": 5,
+        "MarginPurchaseTodayBalance": 18400,
+        "MarginPurchaseLimit": 250000,
+        "ShortSaleBuy": 178,
+        "ShortSaleSell": 406,
+        "ShortSaleCashRedemption": 2,
+        "ShortSaleTodayBalance": 3880,
+        "ShortSaleLimit": 250000
+      }
+    ],
+    "6505": [
+      {
+        "date": "2026-09-25",
+        "stock_id": "6505",
+        "MarginPurchaseBuy": 1400,
+        "MarginPurchaseSell": 500,
+        "MarginPurchaseCashRedemption": 10,
+        "MarginPurchaseTodayBalance": 19000,
+        "MarginPurchaseLimit": 250000,
+        "ShortSaleBuy": 230,
+        "ShortSaleSell": 460,
+        "ShortSaleCashRedemption": 5,
+        "ShortSaleTodayBalance": 4000,
+        "ShortSaleLimit": 250000
+      },
+      {
+        "date": "2026-09-24",
+        "stock_id": "6505",
+        "MarginPurchaseBuy": 1200,
+        "MarginPurchaseSell": 400,
+        "MarginPurchaseCashRedemption": 5,
+        "MarginPurchaseTodayBalance": 18500,
+        "MarginPurchaseLimit": 250000,
+        "ShortSaleBuy": 180,
+        "ShortSaleSell": 410,
+        "ShortSaleCashRedemption": 2,
+        "ShortSaleTodayBalance": 3900,
+        "ShortSaleLimit": 250000
+      }
+    ],
+    "6669": [
+      {
+        "date": "2026-09-25",
+        "stock_id": "6669",
+        "MarginPurchaseBuy": 1410,
+        "MarginPurchaseSell": 505,
+        "MarginPurchaseCashRedemption": 10,
+        "MarginPurchaseTodayBalance": 19100,
+        "MarginPurchaseLimit": 250000,
+        "ShortSaleBuy": 232,
+        "ShortSaleSell": 464,
+        "ShortSaleCashRedemption": 5,
+        "ShortSaleTodayBalance": 4020,
+        "ShortSaleLimit": 250000
+      },
+      {
+        "date": "2026-09-24",
+        "stock_id": "6669",
+        "MarginPurchaseBuy": 1210,
+        "MarginPurchaseSell": 405,
+        "MarginPurchaseCashRedemption": 5,
+        "MarginPurchaseTodayBalance": 18600,
+        "MarginPurchaseLimit": 250000,
+        "ShortSaleBuy": 182,
+        "ShortSaleSell": 414,
+        "ShortSaleCashRedemption": 2,
+        "ShortSaleTodayBalance": 3920,
+        "ShortSaleLimit": 250000
+      }
+    ],
+    "8046": [
+      {
+        "date": "2026-09-25",
+        "stock_id": "8046",
+        "MarginPurchaseBuy": 1420,
+        "MarginPurchaseSell": 510,
+        "MarginPurchaseCashRedemption": 10,
+        "MarginPurchaseTodayBalance": 19200,
+        "MarginPurchaseLimit": 250000,
+        "ShortSaleBuy": 234,
+        "ShortSaleSell": 468,
+        "ShortSaleCashRedemption": 5,
+        "ShortSaleTodayBalance": 4040,
+        "ShortSaleLimit": 250000
+      },
+      {
+        "date": "2026-09-24",
+        "stock_id": "8046",
+        "MarginPurchaseBuy": 1220,
+        "MarginPurchaseSell": 410,
+        "MarginPurchaseCashRedemption": 5,
+        "MarginPurchaseTodayBalance": 18700,
+        "MarginPurchaseLimit": 250000,
+        "ShortSaleBuy": 184,
+        "ShortSaleSell": 418,
+        "ShortSaleCashRedemption": 2,
+        "ShortSaleTodayBalance": 3940,
         "ShortSaleLimit": 250000
       }
     ],
@@ -87,48 +4030,168 @@
       {
         "date": "2026-09-25",
         "stock_id": "8069",
-        "MarginPurchaseBuy": 300,
-        "MarginPurchaseSell": 100,
-        "MarginPurchaseCashRedemption": 0,
-        "MarginPurchaseTodayBalance": 4200,
-        "MarginPurchaseLimit": 50000,
-        "ShortSaleBuy": 20,
-        "ShortSaleSell": 60,
-        "ShortSaleCashRedemption": 0,
-        "ShortSaleTodayBalance": 800,
-        "ShortSaleLimit": 50000
+        "MarginPurchaseBuy": 1430,
+        "MarginPurchaseSell": 515,
+        "MarginPurchaseCashRedemption": 10,
+        "MarginPurchaseTodayBalance": 19300,
+        "MarginPurchaseLimit": 250000,
+        "ShortSaleBuy": 236,
+        "ShortSaleSell": 472,
+        "ShortSaleCashRedemption": 5,
+        "ShortSaleTodayBalance": 4060,
+        "ShortSaleLimit": 250000
       }
     ],
     "8299": [
       {
         "date": "2026-09-25",
         "stock_id": "8299",
-        "MarginPurchaseBuy": 200,
-        "MarginPurchaseSell": 80,
-        "MarginPurchaseCashRedemption": 0,
-        "MarginPurchaseTodayBalance": 2100,
-        "MarginPurchaseLimit": 30000,
-        "ShortSaleBuy": 10,
-        "ShortSaleSell": 30,
-        "ShortSaleCashRedemption": 0,
-        "ShortSaleTodayBalance": 400,
-        "ShortSaleLimit": 30000
+        "MarginPurchaseBuy": 1440,
+        "MarginPurchaseSell": 520,
+        "MarginPurchaseCashRedemption": 10,
+        "MarginPurchaseTodayBalance": 19400,
+        "MarginPurchaseLimit": 250000,
+        "ShortSaleBuy": 238,
+        "ShortSaleSell": 476,
+        "ShortSaleCashRedemption": 5,
+        "ShortSaleTodayBalance": 4080,
+        "ShortSaleLimit": 250000
+      }
+    ],
+    "8454": [
+      {
+        "date": "2026-09-25",
+        "stock_id": "8454",
+        "MarginPurchaseBuy": 1450,
+        "MarginPurchaseSell": 525,
+        "MarginPurchaseCashRedemption": 10,
+        "MarginPurchaseTodayBalance": 19500,
+        "MarginPurchaseLimit": 250000,
+        "ShortSaleBuy": 240,
+        "ShortSaleSell": 480,
+        "ShortSaleCashRedemption": 5,
+        "ShortSaleTodayBalance": 4100,
+        "ShortSaleLimit": 250000
+      },
+      {
+        "date": "2026-09-24",
+        "stock_id": "8454",
+        "MarginPurchaseBuy": 1250,
+        "MarginPurchaseSell": 425,
+        "MarginPurchaseCashRedemption": 5,
+        "MarginPurchaseTodayBalance": 19000,
+        "MarginPurchaseLimit": 250000,
+        "ShortSaleBuy": 190,
+        "ShortSaleSell": 430,
+        "ShortSaleCashRedemption": 2,
+        "ShortSaleTodayBalance": 4000,
+        "ShortSaleLimit": 250000
       }
     ],
     "6690": [
       {
         "date": "2026-09-25",
         "stock_id": "6690",
-        "MarginPurchaseBuy": 100,
-        "MarginPurchaseSell": 40,
-        "MarginPurchaseCashRedemption": 0,
-        "MarginPurchaseTodayBalance": 1200,
-        "MarginPurchaseLimit": 20000,
-        "ShortSaleBuy": 5,
-        "ShortSaleSell": 15,
-        "ShortSaleCashRedemption": 0,
-        "ShortSaleTodayBalance": 200,
-        "ShortSaleLimit": 20000
+        "MarginPurchaseBuy": 1460,
+        "MarginPurchaseSell": 530,
+        "MarginPurchaseCashRedemption": 10,
+        "MarginPurchaseTodayBalance": 19600,
+        "MarginPurchaseLimit": 250000,
+        "ShortSaleBuy": 242,
+        "ShortSaleSell": 484,
+        "ShortSaleCashRedemption": 5,
+        "ShortSaleTodayBalance": 4120,
+        "ShortSaleLimit": 250000
+      }
+    ],
+    "9914": [
+      {
+        "date": "2026-09-25",
+        "stock_id": "9914",
+        "MarginPurchaseBuy": 1470,
+        "MarginPurchaseSell": 535,
+        "MarginPurchaseCashRedemption": 10,
+        "MarginPurchaseTodayBalance": 19700,
+        "MarginPurchaseLimit": 250000,
+        "ShortSaleBuy": 244,
+        "ShortSaleSell": 488,
+        "ShortSaleCashRedemption": 5,
+        "ShortSaleTodayBalance": 4140,
+        "ShortSaleLimit": 250000
+      },
+      {
+        "date": "2026-09-24",
+        "stock_id": "9914",
+        "MarginPurchaseBuy": 1270,
+        "MarginPurchaseSell": 435,
+        "MarginPurchaseCashRedemption": 5,
+        "MarginPurchaseTodayBalance": 19200,
+        "MarginPurchaseLimit": 250000,
+        "ShortSaleBuy": 194,
+        "ShortSaleSell": 438,
+        "ShortSaleCashRedemption": 2,
+        "ShortSaleTodayBalance": 4040,
+        "ShortSaleLimit": 250000
+      }
+    ],
+    "9921": [
+      {
+        "date": "2026-09-25",
+        "stock_id": "9921",
+        "MarginPurchaseBuy": 1480,
+        "MarginPurchaseSell": 540,
+        "MarginPurchaseCashRedemption": 10,
+        "MarginPurchaseTodayBalance": 19800,
+        "MarginPurchaseLimit": 250000,
+        "ShortSaleBuy": 246,
+        "ShortSaleSell": 492,
+        "ShortSaleCashRedemption": 5,
+        "ShortSaleTodayBalance": 4160,
+        "ShortSaleLimit": 250000
+      },
+      {
+        "date": "2026-09-24",
+        "stock_id": "9921",
+        "MarginPurchaseBuy": 1280,
+        "MarginPurchaseSell": 440,
+        "MarginPurchaseCashRedemption": 5,
+        "MarginPurchaseTodayBalance": 19300,
+        "MarginPurchaseLimit": 250000,
+        "ShortSaleBuy": 196,
+        "ShortSaleSell": 442,
+        "ShortSaleCashRedemption": 2,
+        "ShortSaleTodayBalance": 4060,
+        "ShortSaleLimit": 250000
+      }
+    ],
+    "9945": [
+      {
+        "date": "2026-09-25",
+        "stock_id": "9945",
+        "MarginPurchaseBuy": 1490,
+        "MarginPurchaseSell": 545,
+        "MarginPurchaseCashRedemption": 10,
+        "MarginPurchaseTodayBalance": 19900,
+        "MarginPurchaseLimit": 250000,
+        "ShortSaleBuy": 248,
+        "ShortSaleSell": 496,
+        "ShortSaleCashRedemption": 5,
+        "ShortSaleTodayBalance": 4180,
+        "ShortSaleLimit": 250000
+      },
+      {
+        "date": "2026-09-24",
+        "stock_id": "9945",
+        "MarginPurchaseBuy": 1290,
+        "MarginPurchaseSell": 445,
+        "MarginPurchaseCashRedemption": 5,
+        "MarginPurchaseTodayBalance": 19400,
+        "MarginPurchaseLimit": 250000,
+        "ShortSaleBuy": 198,
+        "ShortSaleSell": 446,
+        "ShortSaleCashRedemption": 2,
+        "ShortSaleTodayBalance": 4080,
+        "ShortSaleLimit": 250000
       }
     ]
   }
