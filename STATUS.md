@@ -30,11 +30,12 @@ M0 已完成：50 檔、23 個代表主題、最近兩年的價量／法人／�
 ## M1 工作包與認領入口
 
 1. [✅ #1 Python 專案骨架與工具鏈](https://github.com/MasonLee3721/quant-market-observer/issues/1) (已由 蘇荃 完成)
-2. [#2 FinMind、TWSE、TPEx Providers](https://github.com/MasonLee3721/quant-market-observer/issues/2)
-3. [#3 資料模型與 Normalizer](https://github.com/MasonLee3721/quant-market-observer/issues/3)
+2. [✅ #2 FinMind、TWSE、TPEx Providers](https://github.com/MasonLee3721/quant-market-observer/issues/2) (已由 蘇荃 完成)
+3. [✅ #3 資料模型與 Normalizer](https://github.com/MasonLee3721/quant-market-observer/issues/3) (已由 蘇荃 完成)
 4. [#4 Parquet、DuckDB 與批次追蹤](https://github.com/MasonLee3721/quant-market-observer/issues/4) (預計交辦 小寶)
 5. [#5 Validator 與官方對帳](https://github.com/MasonLee3721/quant-market-observer/issues/5) (預計交辦 小寶)
 6. [#6 CLI、runbook 與上手流程](https://github.com/MasonLee3721/quant-market-observer/issues/6)
+
 
 
 ## 協作者從哪裡開始
