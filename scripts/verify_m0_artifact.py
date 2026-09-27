@@ -21,6 +21,7 @@ import hashlib
 import json
 import math
 import sys
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Set, Tuple
 
@@ -68,6 +69,18 @@ def compute_file_sha256(filepath: Path) -> str:
     if not filepath.exists():
         raise FileNotFoundError(f"Baseline CSV missing at {filepath}")
     return hashlib.sha256(filepath.read_bytes()).hexdigest()
+
+
+def is_valid_utc_iso(ts_str: str) -> bool:
+    """Validate that ts_str is a non-empty, valid ISO 8601 UTC timestamp string."""
+    if not ts_str:
+        return False
+    iso_str = ts_str.replace("Z", "+00:00") if ts_str.endswith("Z") else ts_str
+    try:
+        dt = datetime.fromisoformat(iso_str)
+        return dt.tzinfo is not None and dt.utcoffset() == timedelta(0)
+    except ValueError:
+        return False
 
 
 def verify_m0_artifact(update_summary: bool = False) -> Dict[str, Any]:
@@ -226,7 +239,10 @@ def verify_m0_artifact(update_summary: bool = False) -> Dict[str, Any]:
         assert int(csv_row["trades"]) == m.transaction_count
         assert csv_row["quality_flags"] == ("|".join(m.quality_flags))
         assert csv_row["source"] == m.source
-        assert len(csv_row["retrieved_at"]) > 0 and len(m.retrieved_at) > 0
+        # retrieved_at records execution timestamp; exact timestamp value equality is
+        # excluded across independent runs, but both sides must be valid UTC
+        assert is_valid_utc_iso(csv_row["retrieved_at"])
+        assert is_valid_utc_iso(m.retrieved_at)
         assert csv_row["schema_version"] == m.schema_version
         if csv_row["open"]:
             assert math.isclose(float(csv_row["open"]), m.open_price or 0.0, abs_tol=1e-4)
@@ -262,7 +278,10 @@ def verify_m0_artifact(update_summary: bool = False) -> Dict[str, Any]:
         assert int(csv_row["total_net"]) == m.total_net
         assert csv_row["categories"] == m.categories
         assert csv_row["source"] == m.source
-        assert len(csv_row["retrieved_at"]) > 0 and len(m.retrieved_at) > 0
+        # retrieved_at records execution timestamp; exact timestamp value equality is
+        # excluded across independent runs, but both sides must be valid UTC
+        assert is_valid_utc_iso(csv_row["retrieved_at"])
+        assert is_valid_utc_iso(m.retrieved_at)
         assert csv_row["schema_version"] == m.schema_version
 
     with open(margin_csv_path, mode="r", encoding="utf-8") as f:
@@ -276,16 +295,34 @@ def verify_m0_artifact(update_summary: bool = False) -> Dict[str, Any]:
         assert int(csv_row["margin_sell"]) == m.margin_purchase_sell
         assert int(csv_row["margin_cash_repayment"]) == m.margin_purchase_cash_redemption
         assert int(csv_row["margin_balance"]) == m.margin_purchase_balance
-        assert int(csv_row["margin_previous_balance"]) == m.margin_purchase_previous_balance
+        if csv_row["margin_previous_balance"]:
+            assert int(csv_row["margin_previous_balance"]) == m.margin_purchase_previous_balance
+        else:
+            assert (
+                m.margin_purchase_previous_balance is None
+                or m.margin_purchase_previous_balance == 0
+            )
         assert int(csv_row["short_buy"]) == m.short_sale_buy
         assert int(csv_row["short_sell"]) == m.short_sale_sell
         assert int(csv_row["short_cash_repayment"]) == m.short_sale_cash_redemption
         assert int(csv_row["short_balance"]) == m.short_sale_balance
-        assert int(csv_row["short_previous_balance"]) == m.short_sale_previous_balance
-        assert int(csv_row["offset"]) == m.offset_loan_and_short
-        assert csv_row["note"].strip() == m.note.strip()
+        if csv_row["short_previous_balance"]:
+            assert int(csv_row["short_previous_balance"]) == m.short_sale_previous_balance
+        else:
+            assert m.short_sale_previous_balance is None or m.short_sale_previous_balance == 0
+        if csv_row["offset"]:
+            assert int(csv_row["offset"]) == m.offset_loan_and_short
+        else:
+            assert m.offset_loan_and_short is None or m.offset_loan_and_short == 0
+        if csv_row["note"]:
+            assert csv_row["note"].strip() == (m.note or "").strip()
+        else:
+            assert m.note is None or m.note.strip() == ""
         assert csv_row["source"] == m.source
-        assert len(csv_row["retrieved_at"]) > 0 and len(m.retrieved_at) > 0
+        # retrieved_at records execution timestamp; exact timestamp value equality is
+        # excluded across independent runs, but both sides must be valid UTC
+        assert is_valid_utc_iso(csv_row["retrieved_at"])
+        assert is_valid_utc_iso(m.retrieved_at)
         assert csv_row["schema_version"] == m.schema_version
 
     print("[OK] All comparable contract schema fields parity matched for Price, Inst, and Margin.")

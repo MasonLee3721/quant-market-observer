@@ -112,18 +112,25 @@ class MarginNormalizer:
                     mp_sell = int(row["MarginPurchaseSell"])
                     mp_red = int(mp_red_val)
                     mp_bal = int(row["MarginPurchaseTodayBalance"])
-                    mp_prev = int(row.get("MarginPurchaseYesterdayBalance", 0) or 0)
                     mp_limit = int(row["MarginPurchaseLimit"])
+
+                    mp_prev_raw = row.get("MarginPurchaseYesterdayBalance")
+                    mp_prev = int(mp_prev_raw) if mp_prev_raw is not None else None
 
                     ss_buy = int(row["ShortSaleBuy"])
                     ss_sell = int(row["ShortSaleSell"])
                     ss_red = int(ss_red_val)
                     ss_bal = int(row["ShortSaleTodayBalance"])
-                    ss_prev = int(row.get("ShortSaleYesterdayBalance", 0) or 0)
                     ss_limit = int(row["ShortSaleLimit"])
 
-                    offset_val = int(row.get("OffsetLoanAndShort", 0) or 0)
-                    note_val = str(row.get("Note", "") or "").strip()
+                    ss_prev_raw = row.get("ShortSaleYesterdayBalance")
+                    ss_prev = int(ss_prev_raw) if ss_prev_raw is not None else None
+
+                    offset_raw = row.get("OffsetLoanAndShort")
+                    offset_val = int(offset_raw) if offset_raw is not None else None
+
+                    note_raw = row.get("Note")
+                    note_val = str(note_raw).strip() if note_raw is not None else None
                 except (ValueError, TypeError) as e:
                     raise SchemaValidationError(
                         f"Invalid integer value in margin field: {e}",
