@@ -1,0 +1,31 @@
+name: Implementation task
+description: 認領可交付的開發或文件工作
+title: "[Task] "
+labels: ["task"]
+body:
+  - type: textarea
+    id: outcome
+    attributes:
+      label: 預期成果
+      description: 完成後能觀察到什麼結果？
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: 範圍與非範圍
+      description: 列出會做與不會做的內容。
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: 驗收條件
+      description: 使用 checklist 描述可驗證的完成定義。
+    validations:
+      required: true
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: 依賴與風險
+      description: 外部 API、資料授權、前置 Issue 或相容性風險。

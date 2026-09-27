@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 專案狀態與任務入口
+    url: https://github.com/MasonLee3721/quant-market-observer/blob/main/STATUS.md
+    about: 提 Issue 前請先閱讀目前進度與優先順序。

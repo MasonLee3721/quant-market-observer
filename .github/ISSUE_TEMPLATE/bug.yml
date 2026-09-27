@@ -1,0 +1,28 @@
+name: Bug report
+description: 回報資料、計算、報告或流程錯誤
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: textarea
+    id: observed
+    attributes:
+      label: 實際結果
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 預期結果
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: 重現步驟
+      description: 請勿貼出 token 或受限制的原始資料。
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Commit／模型／schema 版本

@@ -1,0 +1,31 @@
+name: Research question
+description: 提出資料、因子或回測假設
+title: "[Research] "
+labels: ["research"]
+body:
+  - type: textarea
+    id: hypothesis
+    attributes:
+      label: 可證偽假設
+      description: 描述預期關係，以及什麼結果會推翻它。
+    validations:
+      required: true
+  - type: textarea
+    id: data
+    attributes:
+      label: 所需資料與可得時間
+      description: 來源、欄位、頻率，以及市場當時何時能取得。
+    validations:
+      required: true
+  - type: textarea
+    id: method
+    attributes:
+      label: 驗證方法
+      description: 基準、樣本切分、成本、執行價格與評估指標。
+    validations:
+      required: true
+  - type: textarea
+    id: risks
+    attributes:
+      label: 偏誤與限制
+      description: 未來函數、倖存者偏誤、多重嘗試或流動性等風險。

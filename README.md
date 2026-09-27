@@ -8,7 +8,15 @@
 
 ## 專案狀態
 
-M0 研究規格與資料可行性已完成。完整範圍請見 [PROJECT_PLAN.md](PROJECT_PLAN.md)，實測結果與下一階段事項請見 [M0 完成狀態](docs/m0-status.md)。
+M0 研究規格與資料可行性已完成，目前準備進入 M1 資料管線 MVP。
+
+- [目前進度與任務入口](STATUS.md)
+- [M1 執行計畫](docs/m1-plan.md)
+- [M0 完成狀態與實測結果](docs/m0-status.md)
+- [完整專案計畫](PROJECT_PLAN.md)
+- [協作指南](CONTRIBUTING.md)
+
+想參與協作，請先從 `STATUS.md` 查看當前優先順序，再到 GitHub Issues 認領任務。
 
 ## 核心輸出
 
