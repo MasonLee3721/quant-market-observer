@@ -1,7 +1,6 @@
 """Provider Protocol and Envelope Definition."""
 
 import hashlib
-import json
 from datetime import datetime, timezone
 from typing import Any, Dict, Protocol, runtime_checkable
 
@@ -9,20 +8,20 @@ from pydantic import BaseModel, Field
 
 
 class RawResponseEnvelope(BaseModel):
-    """Unmodified Raw Response Envelope from Data Providers."""
+    """Unmodified Raw Response Envelope preserving raw bytes and masked metadata."""
 
     provider_name: str
     endpoint: str
-    params: Dict[str, Any]
+    params: Dict[str, Any]  # Masked parameters (safe for snapshot logging)
     retrieved_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     status_code: int
-    raw_payload: Any
-    content_hash: str = ""
+    headers: Dict[str, str] = Field(default_factory=dict)
+    raw_body: str = ""  # Raw unparsed response body
+    content_hash: str = ""  # SHA-256 on raw_body bytes
 
     def model_post_init(self, __context: Any) -> None:
-        if not self.content_hash:
-            payload_bytes = json.dumps(self.raw_payload, sort_keys=True).encode("utf-8")
-            self.content_hash = hashlib.sha256(payload_bytes).hexdigest()
+        if not self.content_hash and self.raw_body:
+            self.content_hash = hashlib.sha256(self.raw_body.encode("utf-8")).hexdigest()
 
 
 @runtime_checkable

@@ -3,7 +3,7 @@
 from typing import Optional
 
 from qmo.providers.protocols import RawResponseEnvelope
-from qmo.providers.transport import HttpTransport
+from qmo.providers.transport import HttpTransport, mask_sensitive_params
 
 
 class FinMindProvider:
@@ -28,13 +28,16 @@ class FinMindProvider:
         if self.api_token:
             params["token"] = self.api_token
 
-        payload = self.transport.request(self.base_url, params=params)
+        res = self.transport.execute(self.base_url, params=params)
+        masked_params = mask_sensitive_params(params)
+
         return RawResponseEnvelope(
             provider_name=self.provider_name,
             endpoint=self.base_url,
-            params=params,
-            status_code=200,
-            raw_payload=payload,
+            params=masked_params,
+            status_code=res.status_code,
+            headers=res.headers,
+            raw_body=res.raw_body,
         )
 
     def fetch_institutional_flow(
@@ -49,13 +52,16 @@ class FinMindProvider:
         if self.api_token:
             params["token"] = self.api_token
 
-        payload = self.transport.request(self.base_url, params=params)
+        res = self.transport.execute(self.base_url, params=params)
+        masked_params = mask_sensitive_params(params)
+
         return RawResponseEnvelope(
             provider_name=self.provider_name,
             endpoint=self.base_url,
-            params=params,
-            status_code=200,
-            raw_payload=payload,
+            params=masked_params,
+            status_code=res.status_code,
+            headers=res.headers,
+            raw_body=res.raw_body,
         )
 
     def fetch_margin(self, symbol: str, start_date: str, end_date: str) -> RawResponseEnvelope:
@@ -68,11 +74,14 @@ class FinMindProvider:
         if self.api_token:
             params["token"] = self.api_token
 
-        payload = self.transport.request(self.base_url, params=params)
+        res = self.transport.execute(self.base_url, params=params)
+        masked_params = mask_sensitive_params(params)
+
         return RawResponseEnvelope(
             provider_name=self.provider_name,
             endpoint=self.base_url,
-            params=params,
-            status_code=200,
-            raw_payload=payload,
+            params=masked_params,
+            status_code=res.status_code,
+            headers=res.headers,
+            raw_body=res.raw_body,
         )

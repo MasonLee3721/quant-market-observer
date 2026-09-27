@@ -20,7 +20,6 @@ class TpexProvider:
         return "tpex"
 
     def fetch_daily_price(self, symbol: str, start_date: str, end_date: str) -> RawResponseEnvelope:
-        # Converts YYYY-MM-DD to ROC Date format (e.g. 113/09)
         parts = start_date.split("-")
         roc_year = int(parts[0]) - 1911
         roc_date = f"{roc_year}/{parts[1]}"
@@ -29,13 +28,14 @@ class TpexProvider:
             "stkno": symbol,
             "l": "zh-tw",
         }
-        payload = self.transport.request(self.base_url, params=params)
+        res = self.transport.execute(self.base_url, params=params)
         return RawResponseEnvelope(
             provider_name=self.provider_name,
             endpoint=self.base_url,
             params=params,
-            status_code=200,
-            raw_payload=payload,
+            status_code=res.status_code,
+            headers=res.headers,
+            raw_body=res.raw_body,
         )
 
     def fetch_institutional_flow(
@@ -46,13 +46,14 @@ class TpexProvider:
         roc_date = f"{roc_year}/{parts[1]}/{parts[2]}"
         url = "https://www.tpex.org.tw/web/stock/3shares/3shares_result.php"
         params = {"d": roc_date, "l": "zh-tw"}
-        payload = self.transport.request(url, params=params)
+        res = self.transport.execute(url, params=params)
         return RawResponseEnvelope(
             provider_name=self.provider_name,
             endpoint=url,
             params=params,
-            status_code=200,
-            raw_payload=payload,
+            status_code=res.status_code,
+            headers=res.headers,
+            raw_body=res.raw_body,
         )
 
     def fetch_margin(self, symbol: str, start_date: str, end_date: str) -> RawResponseEnvelope:
@@ -61,11 +62,12 @@ class TpexProvider:
         roc_date = f"{roc_year}/{parts[1]}/{parts[2]}"
         url = "https://www.tpex.org.tw/web/stock/margin_trading/margin_bal/margin_bal_result.php"
         params = {"d": roc_date, "l": "zh-tw"}
-        payload = self.transport.request(url, params=params)
+        res = self.transport.execute(url, params=params)
         return RawResponseEnvelope(
             provider_name=self.provider_name,
             endpoint=url,
             params=params,
-            status_code=200,
-            raw_payload=payload,
+            status_code=res.status_code,
+            headers=res.headers,
+            raw_body=res.raw_body,
         )

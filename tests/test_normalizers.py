@@ -1,5 +1,7 @@
 """Normalizer Tests for Zero, Null, and No-Trade Semantics."""
 
+import json
+
 import pytest
 
 from qmo.normalizers.price import PriceNormalizer
@@ -22,7 +24,7 @@ def test_price_normalizer_no_trade_semantics(
     expected_no_trade: bool,
 ) -> None:
     """Verify strict no_trade semantics and null conversion."""
-    raw_payload = {
+    payload_dict = {
         "data": [
             {
                 "stock_id": "2330",
@@ -36,12 +38,14 @@ def test_price_normalizer_no_trade_semantics(
             }
         ]
     }
+    raw_body_str = json.dumps(payload_dict)
+
     envelope = RawResponseEnvelope(
         provider_name="finmind",
         endpoint="https://api.finmindtrade.com/api/v4/data",
         params={"data_id": "2330"},
         status_code=200,
-        raw_payload=raw_payload,
+        raw_body=raw_body_str,
     )
 
     normalizer = PriceNormalizer()

@@ -1,5 +1,6 @@
 """Parity Tests Comparing Node Spike Results and Python Normalizer."""
 
+import json
 import math
 
 from qmo.normalizers.price import PriceNormalizer
@@ -15,7 +16,7 @@ def test_discrete_and_floating_parity_rules() -> None:
         "no_trade": False,
     }
 
-    raw_payload = {
+    payload_dict = {
         "data": [
             {
                 "stock_id": "2330",
@@ -29,12 +30,14 @@ def test_discrete_and_floating_parity_rules() -> None:
             }
         ]
     }
+    raw_body_str = json.dumps(payload_dict)
+
     envelope = RawResponseEnvelope(
         provider_name="finmind",
         endpoint="https://api.finmindtrade.com/api/v4/data",
         params={"data_id": "2330"},
         status_code=200,
-        raw_payload=raw_payload,
+        raw_body=raw_body_str,
     )
 
     normalizer = PriceNormalizer()

@@ -1,5 +1,6 @@
 """Price Normalizer Implementation."""
 
+import json
 from typing import Any, List, Optional
 
 from qmo.models.price import DailyPrice
@@ -22,7 +23,13 @@ class PriceNormalizer:
     def normalize(self, envelope: RawResponseEnvelope) -> List[DailyPrice]:
         """Convert raw payload envelope to a list of DailyPrice instances."""
         results: List[DailyPrice] = []
-        payload = envelope.raw_payload
+        if not envelope.raw_body:
+            return results
+
+        try:
+            payload = json.loads(envelope.raw_body)
+        except Exception:
+            return results
 
         if envelope.provider_name == "finmind":
             data = payload.get("data", []) if isinstance(payload, dict) else []
