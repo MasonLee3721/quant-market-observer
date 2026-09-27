@@ -78,5 +78,25 @@ class BatchManifest(BaseModel):
         return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
 
     def model_post_init(self, __context: Any) -> None:
+        if self.status == BatchStatus.PUBLISHED:
+            if not self.published_filepaths:
+                raise ValueError("PUBLISHED batch manifest must have non-empty published_filepaths")
+
+            # Check exact 1-to-1 key set matching
+            paths_set = set(self.published_filepaths)
+            hashes_set = set(self.parquet_file_hashes.keys())
+            if paths_set != hashes_set:
+                raise ValueError(
+                    f"Mismatch between published_filepaths key set ({paths_set}) "
+                    f"and parquet_file_hashes key set ({hashes_set})"
+                )
+
+            for fp in self.published_filepaths:
+                h = self.parquet_file_hashes.get(fp)
+                if not h:
+                    raise ValueError(f"Missing parquet_file_hashes entry for published file: {fp}")
+                validate_sha256_hex(h, f"parquet_file_hashes[{fp}]")
+
         if not self.manifest_hash:
             self.manifest_hash = self.compute_manifest_hash()
+

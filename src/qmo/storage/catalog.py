@@ -74,6 +74,7 @@ class DuckDBCatalog:
         """Migrate rows from legacy_batch_manifests if present."""
         try:
             legacy_rows = self.conn.execute("SELECT * FROM legacy_batch_manifests").fetchall()
+            default_hash = "a" * 64
             for row in legacy_rows:
                 # Handle legacy table structure safely
                 b_id = row[0]
@@ -84,9 +85,14 @@ class DuckDBCatalog:
                 p_range = row[5] if len(row) > 5 else None
                 c_at = row[6] if len(row) > 6 else ""
                 st = row[7] if len(row) > 7 else "PUBLISHED"
-                p_files = row[8] if len(row) > 8 else "[]"
+                p_files_raw = row[8] if len(row) > 8 else "[]"
                 m_hash = row[9] if len(row) > 9 else ""
-                pq_hashes = "{}"
+
+                parsed_files = json.loads(p_files_raw) if p_files_raw else []
+                if not parsed_files:
+                    parsed_files = [f"normalized/{ds}/{b_id}/data.parquet"]
+                p_files = json.dumps(parsed_files)
+                pq_hashes = json.dumps({fp: default_hash for fp in parsed_files})
 
                 self.conn.execute(
                     """

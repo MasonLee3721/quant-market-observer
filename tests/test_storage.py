@@ -349,11 +349,13 @@ def test_catalog_rejects_non_published_manifest_or_hash_mismatch(tmp_path: Path)
         catalog.register_published_batch(m_staged)
 
     # Missing file error
+    missing_path = str(tmp_path / "non_existent.parquet")
     m_missing = BatchManifest(
         batch_id="b_missing",
         dataset="daily_price",
         status=BatchStatus.PUBLISHED,
-        published_filepaths=[str(tmp_path / "non_existent.parquet")],
+        published_filepaths=[missing_path],
+        parquet_file_hashes={missing_path: "a" * 64},
     )
     with pytest.raises(FileNotFoundError, match="Published file does not exist"):
         catalog.register_published_batch(m_missing)
@@ -371,3 +373,107 @@ def test_catalog_rejects_non_published_manifest_or_hash_mismatch(tmp_path: Path)
     )
     with pytest.raises(ValueError, match="Published file hash mismatch"):
         catalog.register_published_batch(m_hash_mismatch)
+
+
+def test_manifest_published_key_set_parity_and_validation() -> None:
+    """Verify BatchManifest enforces non-empty published_filepaths and 1-to-1 hash key parity."""
+    # 1. Empty published_filepaths for PUBLISHED status
+    err_empty = "PUBLISHED batch manifest must have non-empty published_filepaths"
+    with pytest.raises(ValueError, match=err_empty):
+        BatchManifest(
+            batch_id="b_empty_pub",
+            dataset="daily_price",
+            status=BatchStatus.PUBLISHED,
+            published_filepaths=[],
+        )
+
+    # 2. Key set mismatch between published_filepaths and parquet_file_hashes
+    with pytest.raises(ValueError, match="Mismatch between published_filepaths key set"):
+        BatchManifest(
+            batch_id="b_key_mismatch",
+            dataset="daily_price",
+            status=BatchStatus.PUBLISHED,
+            published_filepaths=["path/a.parquet"],
+            parquet_file_hashes={"path/b.parquet": "a" * 64},
+        )
+
+    # 3. Invalid non-64-hex SHA-256 hash string
+    with pytest.raises(ValueError, match="Invalid parquet_file_hashes"):
+        BatchManifest(
+            batch_id="b_invalid_hex",
+            dataset="daily_price",
+            status=BatchStatus.PUBLISHED,
+            published_filepaths=["path/a.parquet"],
+            parquet_file_hashes={"path/a.parquet": "not_a_valid_64_char_hex_string"},
+        )
+
+
+def test_atomic_batch_publisher_with_trade_date_partitioning(tmp_path: Path) -> None:
+    """Verify AtomicBatchPublisher supports partition_by_date for trade_date Hive partitioning."""
+    publisher = AtomicBatchPublisher(root_dir=tmp_path)
+
+    models = [
+        DailyPrice(
+            trade_date="2026-09-25",
+            stock_id="2330",
+            market="TWSE",
+            open_price=100.0,
+            close_price=105.0,
+            trading_volume=1000,
+            trading_value=105000,
+            source="FinMind:TaiwanStockPrice",
+        ),
+        DailyPrice(
+            trade_date="2026-09-26",
+            stock_id="2330",
+            market="TWSE",
+            open_price=105.0,
+            close_price=108.0,
+            trading_volume=1200,
+            trading_value=129600,
+            source="FinMind:TaiwanStockPrice",
+        ),
+    ]
+
+    batch_id = "batch_partitioned"
+    manifest = publisher.publish_batch(
+        batch_id=batch_id,
+        dataset="daily_price",
+        models=models,
+        source_raw_hashes=[VALID_RAW_HASH_1],
+        partition_by_date=True,
+    )
+
+    assert manifest.status == BatchStatus.PUBLISHED
+    assert manifest.record_count == 2
+    assert len(manifest.published_filepaths) >= 2
+    assert set(manifest.published_filepaths) == set(manifest.parquet_file_hashes.keys())
+
+    for fp in manifest.published_filepaths:
+        assert Path(fp).exists()
+
+    cat_m = publisher.catalog.get_batch_manifest("daily_price", batch_id)
+    assert cat_m is not None
+    assert cat_m.record_count == 2
+
+
+def test_schema_contract_verification_and_mismatch_detection(tmp_path: Path) -> None:
+    """Verify ParquetStore.verify_schema_contract detects missing fields and type mismatches."""
+    output_file = tmp_path / "valid.parquet"
+    models = [
+        DailyPrice(
+            trade_date="2026-09-25",
+            stock_id="2330",
+            market="TWSE",
+            open_price=100.0,
+            close_price=105.0,
+            trading_volume=1000,
+            trading_value=105000,
+            source="FinMind:TaiwanStockPrice",
+        )
+    ]
+    ParquetStore.write_models(models, output_file)
+
+    # Valid schema passes contract verification
+    ParquetStore.verify_schema_contract(output_file, DailyPrice)
+
