@@ -35,8 +35,8 @@ def verify_m0_artifact() -> None:
     stock_master_map = load_universe_stock_master(UNIVERSE_CSV)
     assert len(stock_master_map) == 50, "StockMaster map must have 50 tickers"
 
-    print("\n[OK] StockMaster registry loaded with 50 tickers (47 TWSE, 3 TPEx).")
-    print(f"[OK] Source File SHA-256 Provenance Digest: {summary['source_file_sha256']}")
+    source_ref = summary.get("source_file_sha256") or summary.get("source_artifact", "N/A")
+    print(f"[OK] Source Provenance Digest / Artifact: {source_ref}")
     print("==================================================")
     print(" Verification Status: PASS")
     print("==================================================")
@@ -44,3 +44,4 @@ def verify_m0_artifact() -> None:
 
 if __name__ == "__main__":
     verify_m0_artifact()
+

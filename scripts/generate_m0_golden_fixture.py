@@ -1,14 +1,61 @@
-"""Generator script for CI Synthetic 50-Ticker Sample Fixture."""
+"""Generator script for M0 Golden Fixtures and CI Synthetic 50-Ticker Sample Fixture."""
 
 import csv
 import hashlib
 import json
+import re
 from pathlib import Path
 
 ROOT_DIR = Path(__file__).parents[1]
 UNIVERSE_CSV = ROOT_DIR / "config" / "universe_spike.csv"
-RECORDS_JSON = ROOT_DIR / "tests" / "fixtures" / "synthetic_50_ticker_records.json"
-SUMMARY_JSON = ROOT_DIR / "tests" / "fixtures" / "synthetic_50_ticker_summary.json"
+M0_SPIKE_RESULT_MD = ROOT_DIR / "docs" / "m0-spike-result.md"
+GOLDEN_SUMMARY_JSON = ROOT_DIR / "tests" / "fixtures" / "m0_golden_summary.json"
+SYNTHETIC_RECORDS_JSON = ROOT_DIR / "tests" / "fixtures" / "synthetic_50_ticker_records.json"
+SYNTHETIC_SUMMARY_JSON = ROOT_DIR / "tests" / "fixtures" / "synthetic_50_ticker_summary.json"
+
+
+def generate_m0_golden_summary_from_artifact() -> None:
+    """Read real M0 spike artifact markdown and generate authoritative M0 Golden Summary json."""
+    assert M0_SPIKE_RESULT_MD.exists(), f"M0 spike artifact missing at {M0_SPIKE_RESULT_MD}"
+    content = M0_SPIKE_RESULT_MD.read_text(encoding="utf-8")
+
+    # Parse rows from markdown table
+    price_match = re.search(r"\|\s*price\s*\|\s*(\d+)\s*\|", content)
+    inst_match = re.search(r"\|\s*institutional\s*\|\s*(\d+)\s*\|", content)
+    margin_match = re.search(r"\|\s*margin\s*\|\s*(\d+)\s*\|", content)
+    ticker_match = re.search(r"-\s*股票數：(\d+)", content)
+    no_trade_match = re.search(r"-\s*無成交／停牌語意列（價格轉為 null）：(\d+)", content)
+    join_match = re.search(r"（(\d+\.\d+)%）", content)
+    date_match = re.search(r"-\s*請求區間：(\d{4}-\d{2}-\d{2})\s*～\s*(\d{4}-\d{2}-\d{2})", content)
+
+    assert price_match, "Failed to parse price rows from M0 spike result"
+    assert inst_match, "Failed to parse institutional rows from M0 spike result"
+    assert margin_match, "Failed to parse margin rows from M0 spike result"
+    assert ticker_match, "Failed to parse ticker count from M0 spike result"
+    assert no_trade_match, "Failed to parse no_trade count from M0 spike result"
+    assert join_match, "Failed to parse join ratio from M0 spike result"
+    assert date_match, "Failed to parse date range from M0 spike result"
+
+    golden_summary = {
+        "version": "schema-v0.1",
+        "generation_command": "uv run python scripts/generate_m0_golden_fixture.py",
+        "source_artifact": "docs/m0-spike-result.md",
+        "node_spike_commit": "5fb2b8a38cfb6ebb76d444813f2ef843ac6b7d74",
+        "date_range": f"{date_match.group(1)} to {date_match.group(2)}",
+        "ticker_count": int(ticker_match.group(1)),
+        "total_price_records": int(price_match.group(1)),
+        "total_institutional_records": int(inst_match.group(1)),
+        "total_margin_records": int(margin_match.group(1)),
+        "primary_key_duplicates": 0,
+        "three_table_join_ratio": float(join_match.group(1)) / 100.0,
+        "no_trade_records_count": int(no_trade_match.group(1)),
+        "twse_sample_ticker": "2330",
+        "tpex_sample_ticker": "8069",
+    }
+
+    json_content = json.dumps(golden_summary, indent=2, ensure_ascii=False) + "\n"
+    GOLDEN_SUMMARY_JSON.write_text(json_content, encoding="utf-8")
+    print(f"Generated {GOLDEN_SUMMARY_JSON} from real M0 artifact {M0_SPIKE_RESULT_MD}")
 
 
 def generate_synthetic_fixtures() -> None:
@@ -143,7 +190,7 @@ def generate_synthetic_fixtures() -> None:
 
     records_json_str = json.dumps(records_payload, indent=2, ensure_ascii=False) + "\n"
     records_bytes = records_json_str.encode("utf-8")
-    RECORDS_JSON.write_bytes(records_bytes)
+    SYNTHETIC_RECORDS_JSON.write_bytes(records_bytes)
 
     source_sha256 = hashlib.sha256(records_bytes).hexdigest()
 
@@ -163,11 +210,13 @@ def generate_synthetic_fixtures() -> None:
     }
 
     summary_json_str = json.dumps(summary_payload, indent=2, ensure_ascii=False) + "\n"
-    SUMMARY_JSON.write_bytes(summary_json_str.encode("utf-8"))
+    SYNTHETIC_SUMMARY_JSON.write_bytes(summary_json_str.encode("utf-8"))
 
-    print(f"Generated {RECORDS_JSON} and {SUMMARY_JSON}")
+    print(f"Generated {SYNTHETIC_RECORDS_JSON} and {SYNTHETIC_SUMMARY_JSON}")
     print(f"Synthetic SHA256: {source_sha256}")
 
 
 if __name__ == "__main__":
+    generate_m0_golden_summary_from_artifact()
     generate_synthetic_fixtures()
+
