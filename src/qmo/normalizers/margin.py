@@ -74,35 +74,49 @@ class MarginNormalizer:
                 stock_id = str(row.get("stock_id", envelope.params.get("data_id", "")))
                 market = self.get_stock_market(stock_id)
 
-                required_keys = [
-                    "MarginPurchaseBuy",
-                    "MarginPurchaseSell",
-                    "MarginPurchaseCashRedemption",
-                    "MarginPurchaseTodayBalance",
-                    "MarginPurchaseLimit",
-                    "ShortSaleBuy",
-                    "ShortSaleSell",
-                    "ShortSaleCashRedemption",
-                    "ShortSaleTodayBalance",
-                    "ShortSaleLimit",
+                mp_red_val = (
+                    row.get("MarginPurchaseCashRepayment")
+                    if "MarginPurchaseCashRepayment" in row
+                    else row.get("MarginPurchaseCashRedemption")
+                )
+                ss_red_val = (
+                    row.get("ShortSaleCashRepayment")
+                    if "ShortSaleCashRepayment" in row
+                    else row.get("ShortSaleCashRedemption")
+                )
+
+                required_checks = [
+                    ("MarginPurchaseBuy", row.get("MarginPurchaseBuy")),
+                    ("MarginPurchaseSell", row.get("MarginPurchaseSell")),
+                    ("MarginPurchaseCashRepayment/Redemption", mp_red_val),
+                    ("MarginPurchaseTodayBalance", row.get("MarginPurchaseTodayBalance")),
+                    ("MarginPurchaseLimit", row.get("MarginPurchaseLimit")),
+                    ("ShortSaleBuy", row.get("ShortSaleBuy")),
+                    ("ShortSaleSell", row.get("ShortSaleSell")),
+                    ("ShortSaleCashRepayment/Redemption", ss_red_val),
+                    ("ShortSaleTodayBalance", row.get("ShortSaleTodayBalance")),
+                    ("ShortSaleLimit", row.get("ShortSaleLimit")),
                 ]
-                for key in required_keys:
-                    if key not in row or row[key] is None:
+                for key_name, val in required_checks:
+                    if val is None:
                         raise SchemaValidationError(
-                            f"Margin row missing required field '{key}'",
+                            f"Margin row missing required field '{key_name}'",
                             provider=envelope.provider_name,
                         )
+
+                assert mp_red_val is not None
+                assert ss_red_val is not None
 
                 try:
                     mp_buy = int(row["MarginPurchaseBuy"])
                     mp_sell = int(row["MarginPurchaseSell"])
-                    mp_red = int(row["MarginPurchaseCashRedemption"])
+                    mp_red = int(mp_red_val)
                     mp_bal = int(row["MarginPurchaseTodayBalance"])
                     mp_limit = int(row["MarginPurchaseLimit"])
 
                     ss_buy = int(row["ShortSaleBuy"])
                     ss_sell = int(row["ShortSaleSell"])
-                    ss_red = int(row["ShortSaleCashRedemption"])
+                    ss_red = int(ss_red_val)
                     ss_bal = int(row["ShortSaleTodayBalance"])
                     ss_limit = int(row["ShortSaleLimit"])
                 except (ValueError, TypeError) as e:

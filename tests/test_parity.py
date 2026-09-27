@@ -31,7 +31,31 @@ def test_m0_golden_summary_facts() -> None:
     assert math.isclose(golden_summary["three_table_join_ratio"], 0.9958, abs_tol=1e-4)
     assert golden_summary["no_trade_records_count"] == 3
     assert "generation_command" in golden_summary
-    assert "node_spike_commit" in golden_summary
+    assert "daily_price_csv_sha256" in golden_summary
+    assert "institutional_flow_csv_sha256" in golden_summary
+    assert "margin_csv_sha256" in golden_summary
+
+
+def test_real_m0_artifact_raw_and_csv_parity() -> None:
+    """Verify real M0 raw JSON payload artifact normalization and CSV parity."""
+    import sys
+
+    root_dir = Path(__file__).parents[1]
+    if str(root_dir) not in sys.path:
+        sys.path.insert(0, str(root_dir))
+
+    from scripts.verify_m0_artifact import verify_m0_artifact
+
+    summary = verify_m0_artifact()
+    assert summary["total_price_records"] == 24193
+    assert summary["total_institutional_records"] == 24185
+    assert summary["total_margin_records"] == 24107
+    assert summary["primary_key_duplicates"] == 0
+    assert summary["no_trade_records_count"] == 3
+    assert summary["three_table_join_ratio"] == 0.9958
+    assert len(summary["daily_price_csv_sha256"]) == 64
+    assert len(summary["institutional_flow_csv_sha256"]) == 64
+    assert len(summary["margin_csv_sha256"]) == 64
 
 
 def test_synthetic_50_ticker_parity_regression() -> None:
