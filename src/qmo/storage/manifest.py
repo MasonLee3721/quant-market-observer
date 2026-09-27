@@ -8,6 +8,8 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field, field_validator
 
+from qmo.storage.validation import validate_safe_identifier, validate_sha256_hex
+
 
 class BatchStatus(str, Enum):
     """Execution status for batch pipeline lifecycle."""
@@ -19,7 +21,7 @@ class BatchStatus(str, Enum):
 
 
 class BatchManifest(BaseModel):
-    """Metadata manifest tracking source hash, record count, and publish status."""
+    """Metadata manifest tracking source hash, Parquet hashes, record count, and publish status."""
 
     batch_id: str
     dataset: str
@@ -30,7 +32,23 @@ class BatchManifest(BaseModel):
     created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     status: BatchStatus = BatchStatus.STAGED
     published_filepaths: List[str] = Field(default_factory=list)
+    parquet_file_hashes: Dict[str, str] = Field(default_factory=dict)
     manifest_hash: str = ""
+
+    @field_validator("batch_id")
+    @classmethod
+    def check_batch_id(cls, v: str) -> str:
+        return validate_safe_identifier(v, "batch_id")
+
+    @field_validator("dataset")
+    @classmethod
+    def check_dataset(cls, v: str) -> str:
+        return validate_safe_identifier(v, "dataset")
+
+    @field_validator("source_raw_hashes")
+    @classmethod
+    def check_source_hashes(cls, v: List[str]) -> List[str]:
+        return [validate_sha256_hex(h, "source_raw_hash") for h in v]
 
     @field_validator("created_at")
     @classmethod
@@ -53,6 +71,8 @@ class BatchManifest(BaseModel):
             "partition_date_range": self.partition_date_range,
             "created_at": self.created_at,
             "status": self.status.value,
+            "published_filepaths": sorted(self.published_filepaths),
+            "parquet_file_hashes": dict(sorted(self.parquet_file_hashes.items())),
         }
         serialized = json.dumps(data_dict, sort_keys=True)
         return hashlib.sha256(serialized.encode("utf-8")).hexdigest()

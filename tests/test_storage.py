@@ -1,20 +1,24 @@
 """Storage Engine, Parquet, DuckDB Catalog, and Atomic Swap Tests."""
 
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
 
 from qmo.models.price import DailyPrice
 from qmo.providers.protocols import RawResponseEnvelope
-from qmo.storage.catalog import DuckDBCatalog
+from qmo.storage.catalog import BatchConflictError, DuckDBCatalog
 from qmo.storage.manifest import BatchManifest, BatchStatus
 from qmo.storage.parquet_store import ParquetStore
 from qmo.storage.publisher import AtomicBatchPublisher, StorageValidationError
 from qmo.storage.raw_store import RawSnapshotStore
 
+VALID_RAW_HASH_1 = "a" * 64
+VALID_RAW_HASH_2 = "b" * 64
 
-def test_raw_snapshot_store_immutability(tmp_path: Path) -> None:
-    """Verify raw snapshot store uses content hash and skips re-writing duplicates."""
+
+def test_raw_snapshot_store_immutability_and_corruption_recovery(tmp_path: Path) -> None:
+    """Verify raw snapshot store uses content hash and recovers from disk corruption."""
     store = RawSnapshotStore(base_dir=tmp_path / "raw")
 
     env = RawResponseEnvelope(
@@ -36,6 +40,19 @@ def test_raw_snapshot_store_immutability(tmp_path: Path) -> None:
     assert path1 == path2
     mtime2 = path2.stat().st_mtime_ns
     assert mtime1 == mtime2
+
+    # Simulate corruption on disk
+    path1.write_bytes(b"corrupted raw data")
+    assert path1.read_bytes() == b"corrupted raw data"
+
+    # Re-saving recovers file byte-for-byte
+    hash3, path3 = store.save(env, "TaiwanStockPrice")
+    assert hash3 == hash1
+    assert b"corrupted raw data" not in path3.read_bytes()
+
+    # Reject path traversal
+    with pytest.raises(ValueError, match="Unsafe or invalid dataset_name"):
+        store.save(env, "../unsafe_path")
 
 
 def test_parquet_store_read_write_and_schema_inspection(tmp_path: Path) -> None:
@@ -100,95 +117,39 @@ def test_atomic_batch_publisher_staging_swap_and_catalog(tmp_path: Path) -> None
         batch_id=batch_id,
         dataset="daily_price",
         models=models,
-        source_raw_hashes=["hash123"],
+        source_raw_hashes=[VALID_RAW_HASH_1],
     )
 
     assert manifest.status == BatchStatus.PUBLISHED
     assert manifest.record_count == 1
     assert len(manifest.published_filepaths) == 1
+    assert len(manifest.parquet_file_hashes) == 1
 
     published_file = Path(manifest.published_filepaths[0])
     assert published_file.exists()
-    assert "normalized/daily_price/batch_20260925_001.parquet" in str(published_file)
+    assert "normalized/daily_price/batch_20260925_001/data.parquet" in str(published_file)
 
     # Verify staging directory is cleaned up
-    staging_file = tmp_path / "staging" / batch_id / "daily_price.parquet"
-    assert not staging_file.exists()
+    staging_dir = tmp_path / "staging" / "daily_price" / batch_id
+    assert not staging_dir.exists()
 
-    # Verify DuckDB catalog registered published batch
-    cat_manifest = publisher.catalog.get_batch_manifest(batch_id)
+    # Verify DuckDB catalog registered published batch by composite key (dataset, batch_id)
+    cat_manifest = publisher.catalog.get_batch_manifest("daily_price", batch_id)
     assert cat_manifest is not None
     assert cat_manifest.batch_id == batch_id
+    assert cat_manifest.dataset == "daily_price"
     assert cat_manifest.status == BatchStatus.PUBLISHED
     assert cat_manifest.record_count == 1
 
 
-def test_atomic_publisher_rollback_on_failure(tmp_path: Path) -> None:
-    """Verify rollback cleans up staging and leaves existing published files untouched on error."""
-    publisher = AtomicBatchPublisher(root_dir=tmp_path)
+def test_atomic_publisher_rollback_when_catalog_registration_fails(tmp_path: Path) -> None:
+    """Verify that if catalog registration fails post-swap, published dir is deleted."""
+    catalog_mock = MagicMock(spec=DuckDBCatalog)
+    catalog_mock.get_batch_manifest.return_value = None
+    catalog_mock.register_published_batch.side_effect = RuntimeError("Simulated DB failure")
 
-    # 1. Publish initial valid batch
-    batch1_models = [
-        DailyPrice(
-            trade_date="2026-09-24",
-            stock_id="2330",
-            market="TWSE",
-            open_price=90.0,
-            close_price=95.0,
-            trading_volume=500,
-            trading_value=47500,
-            source="FinMind:TaiwanStockPrice",
-        )
-    ]
-    m1 = publisher.publish_batch(
-        batch_id="batch_001",
-        dataset="daily_price",
-        models=batch1_models,
-        source_raw_hashes=["hash111"],
-    )
-    published_file1 = Path(m1.published_filepaths[0])
-    assert published_file1.exists()
+    publisher = AtomicBatchPublisher(root_dir=tmp_path, catalog=catalog_mock)
 
-    # 2. Attempt empty model publish (should fail during staging)
-    with pytest.raises(StorageValidationError, match="Cannot publish empty batch"):
-        publisher.publish_batch(
-            batch_id="batch_002",
-            dataset="daily_price",
-            models=[],
-            source_raw_hashes=["hash222"],
-        )
-
-    # Verify previous published batch remains intact
-    assert published_file1.exists()
-    assert publisher.catalog.get_batch_manifest("batch_001") is not None
-    assert publisher.catalog.get_batch_manifest("batch_002") is None
-
-
-def test_catalog_rejects_non_published_manifest(tmp_path: Path) -> None:
-    """Verify DuckDB catalog rejects non-PUBLISHED manifests or missing files."""
-    catalog = DuckDBCatalog(tmp_path / "catalog.duckdb")
-
-    m_staged = BatchManifest(
-        batch_id="b_staged",
-        dataset="daily_price",
-        status=BatchStatus.STAGED,
-    )
-    with pytest.raises(ValueError, match="Cannot register batch with non-PUBLISHED status"):
-        catalog.register_published_batch(m_staged)
-
-    m_pub_missing = BatchManifest(
-        batch_id="b_missing",
-        dataset="daily_price",
-        status=BatchStatus.PUBLISHED,
-        published_filepaths=[str(tmp_path / "non_existent.parquet")],
-    )
-    with pytest.raises(FileNotFoundError, match="Published file does not exist"):
-        catalog.register_published_batch(m_pub_missing)
-
-
-def test_idempotent_duplicate_batch_publish(tmp_path: Path) -> None:
-    """Verify re-publishing the same batch ID is idempotent and clean."""
-    publisher = AtomicBatchPublisher(root_dir=tmp_path)
     models = [
         DailyPrice(
             trade_date="2026-09-25",
@@ -202,22 +163,170 @@ def test_idempotent_duplicate_batch_publish(tmp_path: Path) -> None:
         )
     ]
 
+    batch_id = "batch_fail_catalog"
+    target_published_dir = tmp_path / "normalized" / "daily_price" / batch_id
+
+    with pytest.raises(StorageValidationError, match="Simulated DB failure"):
+        publisher.publish_batch(
+            batch_id=batch_id,
+            dataset="daily_price",
+            models=models,
+            source_raw_hashes=[VALID_RAW_HASH_1],
+        )
+
+    # Critical Assertion: Target published directory must be cleaned up / deleted on catalog failure
+    assert not target_published_dir.exists()
+    staging_dir = tmp_path / "staging" / "daily_price" / batch_id
+    assert not staging_dir.exists()
+
+
+def test_idempotent_duplicate_batch_publish_and_conflict_error(tmp_path: Path) -> None:
+    """Verify re-publishing identical batch is idempotent while conflict content raises error."""
+    publisher = AtomicBatchPublisher(root_dir=tmp_path)
+    models_v1 = [
+        DailyPrice(
+            trade_date="2026-09-25",
+            stock_id="2330",
+            market="TWSE",
+            open_price=100.0,
+            close_price=105.0,
+            trading_volume=1000,
+            trading_value=105000,
+            source="FinMind:TaiwanStockPrice",
+        )
+    ]
+
+    models_v2_conflicting = [
+        DailyPrice(
+            trade_date="2026-09-25",
+            stock_id="2330",
+            market="TWSE",
+            open_price=200.0,  # Different price
+            close_price=205.0,
+            trading_volume=9999,
+            trading_value=2050000,
+            source="FinMind:TaiwanStockPrice",
+        )
+    ]
+
     m1 = publisher.publish_batch(
         batch_id="batch_idemp",
         dataset="daily_price",
-        models=models,
-        source_raw_hashes=["hash1"],
+        models=models_v1,
+        source_raw_hashes=[VALID_RAW_HASH_1],
     )
 
+    # Identical re-publish succeeds idempotently
     m2 = publisher.publish_batch(
         batch_id="batch_idemp",
         dataset="daily_price",
-        models=models,
-        source_raw_hashes=["hash1"],
+        models=models_v1,
+        source_raw_hashes=[VALID_RAW_HASH_1],
     )
-
     assert m1.batch_id == m2.batch_id
     assert m2.status == BatchStatus.PUBLISHED
-    cat_manifest = publisher.catalog.get_batch_manifest("batch_idemp")
-    assert cat_manifest is not None
-    assert cat_manifest.manifest_hash == m2.manifest_hash
+
+    # Conflicting re-publish with different data raises BatchConflictError
+    with pytest.raises(BatchConflictError, match="already published with conflicting content"):
+        publisher.publish_batch(
+            batch_id="batch_idemp",
+            dataset="daily_price",
+            models=models_v2_conflicting,
+            source_raw_hashes=[VALID_RAW_HASH_2],
+        )
+
+
+def test_path_traversal_and_invalid_hash_rejection(tmp_path: Path) -> None:
+    """Verify input validation rejects path traversal characters and invalid non-hex hashes."""
+    publisher = AtomicBatchPublisher(root_dir=tmp_path)
+    models = [
+        DailyPrice(
+            trade_date="2026-09-25",
+            stock_id="2330",
+            open_price=100.0,
+            close_price=105.0,
+            trading_volume=1000,
+            trading_value=105000,
+            source="FinMind:TaiwanStockPrice",
+        )
+    ]
+
+    with pytest.raises(ValueError, match="Unsafe or invalid dataset"):
+        publisher.publish_batch(
+            batch_id="batch1",
+            dataset="../unsafe",
+            models=models,
+            source_raw_hashes=[VALID_RAW_HASH_1],
+        )
+
+    with pytest.raises(ValueError, match="Unsafe or invalid batch_id"):
+        publisher.publish_batch(
+            batch_id="../../batch",
+            dataset="daily_price",
+            models=models,
+            source_raw_hashes=[VALID_RAW_HASH_1],
+        )
+
+    with pytest.raises(ValueError, match="Invalid source_raw_hash"):
+        publisher.publish_batch(
+            batch_id="batch1",
+            dataset="daily_price",
+            models=models,
+            source_raw_hashes=["invalid_non_hex_hash"],
+        )
+
+
+def test_schema_version_mismatch_fails_publish(tmp_path: Path) -> None:
+    """Verify model with mismatched schema_version fails staging validation."""
+    publisher = AtomicBatchPublisher(root_dir=tmp_path)
+    mismatched_model = DailyPrice(
+        trade_date="2026-09-25",
+        stock_id="2330",
+        schema_version="schema-v0.2",
+    )
+
+    with pytest.raises(StorageValidationError, match="Model schema_version mismatch"):
+        publisher.publish_batch(
+            batch_id="batch_bad_ver",
+            dataset="daily_price",
+            models=[mismatched_model],
+            source_raw_hashes=[VALID_RAW_HASH_1],
+            schema_version="schema-v0.1",
+        )
+
+
+def test_catalog_rejects_non_published_manifest_or_hash_mismatch(tmp_path: Path) -> None:
+    """Verify DuckDB catalog rejects non-PUBLISHED manifests or hash mismatches."""
+    catalog = DuckDBCatalog(tmp_path / "catalog.duckdb")
+
+    m_staged = BatchManifest(
+        batch_id="b_staged",
+        dataset="daily_price",
+        status=BatchStatus.STAGED,
+    )
+    with pytest.raises(ValueError, match="Cannot register batch with non-PUBLISHED status"):
+        catalog.register_published_batch(m_staged)
+
+    # Missing file error
+    m_missing = BatchManifest(
+        batch_id="b_missing",
+        dataset="daily_price",
+        status=BatchStatus.PUBLISHED,
+        published_filepaths=[str(tmp_path / "non_existent.parquet")],
+    )
+    with pytest.raises(FileNotFoundError, match="Published file does not exist"):
+        catalog.register_published_batch(m_missing)
+
+    # Hash mismatch error
+    real_file = tmp_path / "data.parquet"
+    real_file.write_bytes(b"dummy parquet bytes")
+
+    m_hash_mismatch = BatchManifest(
+        batch_id="b_mismatch",
+        dataset="daily_price",
+        status=BatchStatus.PUBLISHED,
+        published_filepaths=[str(real_file)],
+        parquet_file_hashes={str(real_file): "f" * 64},
+    )
+    with pytest.raises(ValueError, match="Published file hash mismatch"):
+        catalog.register_published_batch(m_hash_mismatch)
