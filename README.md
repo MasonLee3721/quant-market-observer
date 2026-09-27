@@ -8,7 +8,7 @@
 
 ## 專案狀態
 
-目前處於規劃階段。完整範圍、架構、里程碑與驗收標準請見 [PROJECT_PLAN.md](PROJECT_PLAN.md)。
+M0 研究規格與資料可行性已完成。完整範圍請見 [PROJECT_PLAN.md](PROJECT_PLAN.md)，實測結果與下一階段事項請見 [M0 完成狀態](docs/m0-status.md)。
 
 ## 核心輸出
 

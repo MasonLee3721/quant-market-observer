@@ -1,0 +1,25 @@
+theme,description,mvp_status
+半導體,晶圓代工 IC設計 記憶體 封裝測試,active
+電子代工,EMS ODM 伺服器組裝,active
+被動元件,電阻 電容 電感與保護元件,active
+電子零組件,電源供應 連接器與自動化零組件,active
+PCB,印刷電路板與IC載板,active
+網通,交換器 路由器與網路設備,active
+電腦週邊,品牌電腦與週邊裝置,active
+工業電腦,工業電腦與邊緣運算,active
+光學,鏡頭與光學元件,active
+顯示器,面板 電子紙與顯示技術,active
+金融,金控 銀行 證券 保險與租賃,active
+航運,貨櫃 散裝 航空與物流,active
+傳產原物料,塑化 鋼鐵 水泥 紡織與造紙,active
+民生消費,食品 製鞋與日常消費,active
+汽車,汽車 零組件 通路與自行車,active
+電信,固定與行動電信服務,active
+零售,實體零售與電商,active
+營建資產,營建 商用不動產與資產開發,active
+生技醫療,製藥 醫材與醫療服務,planned
+綠能環保,太陽能 儲能 風電與環保工程,planned
+軍工航太,航太零組件 無人機與國防供應鏈,planned
+機器人自動化,機器人 工控與自動化設備,planned
+觀光餐旅,飯店 餐飲 旅行與休閒,planned
+資安軟體,資安 軟體服務與雲端應用,planned
