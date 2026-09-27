@@ -13,11 +13,11 @@ class InstitutionalNormalizer:
 
     def normalize(self, envelope: RawResponseEnvelope) -> List[InstitutionalFlow]:
         """Convert raw payload envelope to a list of InstitutionalFlow instances."""
-        if not envelope.raw_body:
+        if not envelope.raw_body_bytes:
             raise SchemaValidationError("Empty raw response body", provider=envelope.provider_name)
 
         try:
-            payload = json.loads(envelope.raw_body)
+            payload = json.loads(envelope.raw_body_str)
         except Exception as e:
             raise SchemaValidationError(
                 f"Failed to parse JSON body: {e}", provider=envelope.provider_name
@@ -37,7 +37,6 @@ class InstitutionalNormalizer:
                     "FinMind payload missing 'data' list", provider=envelope.provider_name
                 )
 
-            # Group rows by date
             by_date: dict[str, dict[str, int]] = {}
             for row in data:
                 d = str(row.get("date", ""))

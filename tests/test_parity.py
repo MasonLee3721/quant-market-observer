@@ -24,7 +24,6 @@ def test_m0_50_ticker_parity_regression() -> None:
 
     normalizer = PriceNormalizer()
 
-    # Simulate M0 normalization regression for all 50 tickers
     for ticker in tickers:
         stock_id = ticker["stock_id"]
         market = ticker["market"]
@@ -50,7 +49,7 @@ def test_m0_50_ticker_parity_regression() -> None:
             endpoint="https://api.finmindtrade.com/api/v4/data",
             params={"data_id": stock_id},
             status_code=200,
-            raw_body=json.dumps(raw_payload),
+            raw_body_bytes=json.dumps(raw_payload).encode("utf-8"),
         )
 
         records = normalizer.normalize(envelope)

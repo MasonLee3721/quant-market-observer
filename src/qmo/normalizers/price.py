@@ -23,11 +23,11 @@ class PriceNormalizer:
 
     def normalize(self, envelope: RawResponseEnvelope) -> List[DailyPrice]:
         """Convert raw payload envelope to a list of DailyPrice instances."""
-        if not envelope.raw_body:
+        if not envelope.raw_body_bytes:
             raise SchemaValidationError("Empty raw response body", provider=envelope.provider_name)
 
         try:
-            payload = json.loads(envelope.raw_body)
+            payload = json.loads(envelope.raw_body_str)
         except Exception as e:
             raise SchemaValidationError(
                 f"Failed to parse JSON body: {e}", provider=envelope.provider_name

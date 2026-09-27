@@ -35,7 +35,7 @@ class TpexProvider:
             params=params,
             status_code=res.status_code,
             headers=res.headers,
-            raw_body=res.raw_body,
+            raw_body_bytes=res.raw_bytes,
         )
 
     def fetch_institutional_flow(
@@ -53,7 +53,7 @@ class TpexProvider:
             params=params,
             status_code=res.status_code,
             headers=res.headers,
-            raw_body=res.raw_body,
+            raw_body_bytes=res.raw_bytes,
         )
 
     def fetch_margin(self, symbol: str, start_date: str, end_date: str) -> RawResponseEnvelope:
@@ -69,5 +69,5 @@ class TpexProvider:
             params=params,
             status_code=res.status_code,
             headers=res.headers,
-            raw_body=res.raw_body,
+            raw_body_bytes=res.raw_bytes,
         )

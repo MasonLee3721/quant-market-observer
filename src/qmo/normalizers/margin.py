@@ -13,11 +13,11 @@ class MarginNormalizer:
 
     def normalize(self, envelope: RawResponseEnvelope) -> List[Margin]:
         """Convert raw payload envelope to a list of Margin instances."""
-        if not envelope.raw_body:
+        if not envelope.raw_body_bytes:
             raise SchemaValidationError("Empty raw response body", provider=envelope.provider_name)
 
         try:
-            payload = json.loads(envelope.raw_body)
+            payload = json.loads(envelope.raw_body_str)
         except Exception as e:
             raise SchemaValidationError(
                 f"Failed to parse JSON body: {e}", provider=envelope.provider_name

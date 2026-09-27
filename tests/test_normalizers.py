@@ -42,14 +42,14 @@ def test_price_normalizer_m0_no_trade_contract(
             }
         ]
     }
-    raw_body_str = json.dumps(payload_dict)
+    raw_body_bytes = json.dumps(payload_dict).encode("utf-8")
 
     envelope = RawResponseEnvelope(
         provider_name="finmind",
         endpoint="https://api.finmindtrade.com/api/v4/data",
         params={"data_id": "2330"},
         status_code=200,
-        raw_body=raw_body_str,
+        raw_body_bytes=raw_body_bytes,
     )
 
     normalizer = PriceNormalizer()
@@ -70,21 +70,25 @@ def test_normalizers_raise_schema_validation_error_on_invalid_data() -> None:
 
     # 1. Empty body
     empty_env = RawResponseEnvelope(
-        provider_name="finmind", endpoint="", params={}, status_code=200, raw_body=""
+        provider_name="finmind", endpoint="", params={}, status_code=200, raw_body_bytes=b""
     )
     with pytest.raises(SchemaValidationError):
         normalizer.normalize(empty_env)
 
     # 2. Corrupted JSON
     bad_json_env = RawResponseEnvelope(
-        provider_name="finmind", endpoint="", params={}, status_code=200, raw_body="{invalid"
+        provider_name="finmind", endpoint="", params={}, status_code=200, raw_body_bytes=b"{invalid"
     )
     with pytest.raises(SchemaValidationError):
         normalizer.normalize(bad_json_env)
 
     # 3. Missing 'data' array
     missing_data_env = RawResponseEnvelope(
-        provider_name="finmind", endpoint="", params={}, status_code=200, raw_body='{"msg": "ok"}'
+        provider_name="finmind",
+        endpoint="",
+        params={},
+        status_code=200,
+        raw_body_bytes=b'{"msg": "ok"}',
     )
     with pytest.raises(SchemaValidationError):
         normalizer.normalize(missing_data_env)
@@ -103,7 +107,7 @@ def test_institutional_normalizer_success() -> None:
         endpoint="",
         params={"data_id": "2330"},
         status_code=200,
-        raw_body=json.dumps(payload),
+        raw_body_bytes=json.dumps(payload).encode("utf-8"),
     )
     normalizer = InstitutionalNormalizer()
     records = normalizer.normalize(envelope)
@@ -137,7 +141,7 @@ def test_margin_normalizer_success() -> None:
         endpoint="",
         params={"data_id": "2330"},
         status_code=200,
-        raw_body=json.dumps(payload),
+        raw_body_bytes=json.dumps(payload).encode("utf-8"),
     )
     normalizer = MarginNormalizer()
     records = normalizer.normalize(envelope)

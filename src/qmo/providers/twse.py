@@ -31,14 +31,13 @@ class TwseProvider:
             params=params,
             status_code=res.status_code,
             headers=res.headers,
-            raw_body=res.raw_body,
+            raw_body_bytes=res.raw_bytes,
         )
 
     def fetch_institutional_flow(
         self, symbol: str, start_date: str, end_date: str
     ) -> RawResponseEnvelope:
         twse_date = start_date.replace("-", "")
-        # Official TWSE Institutional Investor Buy/Sell Daily Report endpoint is T86
         url = "https://www.twse.com.tw/rwd/zh/afterTrading/T86"
         params = {
             "date": twse_date,
@@ -52,7 +51,7 @@ class TwseProvider:
             params=params,
             status_code=res.status_code,
             headers=res.headers,
-            raw_body=res.raw_body,
+            raw_body_bytes=res.raw_bytes,
         )
 
     def fetch_margin(self, symbol: str, start_date: str, end_date: str) -> RawResponseEnvelope:
@@ -70,5 +69,5 @@ class TwseProvider:
             params=params,
             status_code=res.status_code,
             headers=res.headers,
-            raw_body=res.raw_body,
+            raw_body_bytes=res.raw_bytes,
         )

@@ -1,5 +1,6 @@
 """Comprehensive Provider, Transport, Retry, Backoff, and Security Tests."""
 
+import hashlib
 from typing import Any, Dict, Tuple
 
 import pytest
@@ -23,48 +24,59 @@ def test_provider_protocol_runtime_check() -> None:
     assert isinstance(tpex, ProviderProtocol)
 
 
-def test_raw_response_envelope_sha256_content_hash() -> None:
-    """Verify RawResponseEnvelope computes SHA-256 on unparsed raw_body bytes."""
-    raw_json_str = '{"msg": "success", "data": [{"stock_id": "2330", "close": 980.0}]}'
+def test_raw_response_envelope_sha256_exact_digest() -> None:
+    """Verify RawResponseEnvelope computes exact SHA-256 digest on raw bytes."""
+    raw_bytes = b'{"msg": "success", "data": [{"stock_id": "2330", "close": 980.0}]}'
+    expected_hash = hashlib.sha256(raw_bytes).hexdigest()
+
     envelope = RawResponseEnvelope(
         provider_name="finmind",
         endpoint="https://api.finmindtrade.com/api/v4/data",
         params={"data_id": "2330"},
         status_code=200,
-        raw_body=raw_json_str,
+        raw_body_bytes=raw_bytes,
     )
-    assert len(envelope.content_hash) == 64
-    assert envelope.provider_name == "finmind"
+    assert envelope.content_hash == expected_hash
+    assert envelope.raw_body_str == raw_bytes.decode("utf-8")
+
+    # Verify content mutation changes hash deterministically
+    raw_bytes_modified = b'{"msg": "success", "data": [{"stock_id": "2330", "close": 985.0}]}'
+    envelope_mod = RawResponseEnvelope(
+        provider_name="finmind",
+        endpoint="https://api.finmindtrade.com/api/v4/data",
+        params={"data_id": "2330"},
+        status_code=200,
+        raw_body_bytes=raw_bytes_modified,
+    )
+    assert envelope_mod.content_hash != expected_hash
 
 
 def test_token_masking_security() -> None:
     """Verify sensitive tokens are masked in envelope parameters."""
-    raw_json_str = '{"msg": "success", "data": []}'
+    raw_bytes = b'{"msg": "success", "data": []}'
 
     def mock_request(
         url: str, params: Dict[str, Any], headers: Dict[str, str]
-    ) -> Tuple[int, Dict[str, str], str]:
-        # Sensitive token MUST be present in outbound request
+    ) -> Tuple[int, Dict[str, str], bytes]:
         assert params.get("token") == "secret_api_key_12345"
-        return 200, {"Content-Type": "application/json"}, raw_json_str
+        return 200, {"Content-Type": "application/json"}, raw_bytes
 
     transport = HttpTransport(request_func=mock_request)
     provider = FinMindProvider(transport=transport, api_token="secret_api_key_12345")
     envelope = provider.fetch_daily_price("2330", "2026-09-01", "2026-09-02")
 
-    # Envelope params MUST be masked to prevent credential leaks in snapshots
     assert envelope.params["token"] == "***MASKED***"
-    assert envelope.raw_body == raw_json_str
+    assert envelope.raw_body_bytes == raw_bytes
 
 
 def test_transport_retry_and_backoff_success() -> None:
     """Test exponential backoff retry loop recovering on 2nd attempt."""
     attempts = 0
-    raw_json_str = '{"msg": "success", "data": []}'
+    raw_bytes = b'{"msg": "success", "data": []}'
 
     def mock_request(
         url: str, params: Dict[str, Any], headers: Dict[str, str]
-    ) -> Tuple[int, Dict[str, str], str]:
+    ) -> Tuple[int, Dict[str, str], bytes]:
         nonlocal attempts
         attempts += 1
         if attempts == 1:
@@ -75,13 +87,13 @@ def test_transport_retry_and_backoff_success() -> None:
                 {},
                 None,  # type: ignore[arg-type]
             )
-        return 200, {"Content-Type": "application/json"}, raw_json_str
+        return 200, {"Content-Type": "application/json"}, raw_bytes
 
     transport = HttpTransport(max_retries=2, backoff_factor=0.01, request_func=mock_request)
     res = transport.execute("https://api.finmindtrade.com/api/v4/data")
     assert attempts == 2
     assert res.status_code == 200
-    assert res.raw_body == raw_json_str
+    assert res.raw_bytes == raw_bytes
 
 
 def test_transport_rate_limit_error_429() -> None:
@@ -89,12 +101,12 @@ def test_transport_rate_limit_error_429() -> None:
 
     def mock_request(
         url: str, params: Dict[str, Any], headers: Dict[str, str]
-    ) -> Tuple[int, Dict[str, str], str]:
+    ) -> Tuple[int, Dict[str, str], bytes]:
         raise pytest.importorskip("urllib.error").HTTPError(
             url,
             429,
             "Too Many Requests",
-            {},
+            {"Retry-After": "1"},
             None,  # type: ignore[arg-type]
         )
 
@@ -109,7 +121,7 @@ def test_transport_non_retryable_404_error() -> None:
 
     def mock_request(
         url: str, params: Dict[str, Any], headers: Dict[str, str]
-    ) -> Tuple[int, Dict[str, str], str]:
+    ) -> Tuple[int, Dict[str, str], bytes]:
         nonlocal attempts
         attempts += 1
         raise pytest.importorskip("urllib.error").HTTPError(
@@ -124,7 +136,7 @@ def test_transport_non_retryable_404_error() -> None:
     with pytest.raises(ProviderError) as exc_info:
         transport.execute("https://api.finmindtrade.com/api/v4/data")
 
-    assert attempts == 1  # Fast fail without wasteful retries
+    assert attempts == 1
     assert exc_info.value.status_code == 404
 
 
@@ -133,9 +145,9 @@ def test_twse_t86_institutional_endpoint() -> None:
 
     def mock_request(
         url: str, params: Dict[str, Any], headers: Dict[str, str]
-    ) -> Tuple[int, Dict[str, str], str]:
+    ) -> Tuple[int, Dict[str, str], bytes]:
         assert "T86" in url
-        return 200, {"Content-Type": "application/json"}, '{"stat": "OK", "data": []}'
+        return 200, {"Content-Type": "application/json"}, b'{"stat": "OK", "data": []}'
 
     transport = HttpTransport(request_func=mock_request)
     provider = TwseProvider(transport=transport)
