@@ -19,7 +19,7 @@ SYNTHETIC_SUMMARY_JSON = ROOT_DIR / "tests" / "fixtures" / "synthetic_50_ticker_
 
 def generate_m0_golden_summary_from_artifact() -> None:
     """Run real raw JSON artifact normalizer pipeline and generate M0 Golden Summary json."""
-    verify_m0_artifact()
+    verify_m0_artifact(update_summary=True)
 
 
 def generate_synthetic_fixtures() -> None:

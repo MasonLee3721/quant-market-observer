@@ -32,8 +32,8 @@ def load_universe() -> List[Dict[str, str]]:
 def fetch_raw_payloads(universe: List[Dict[str, str]], max_workers: int = 5) -> None:
     def fetch_stock(stock: Dict[str, str]) -> None:
         s_id = stock["stock_id"]
-        for d_name, d_type in DATASETS.items():
-            out_file = RAW_DIR / d_name / f"{s_id}.json"
+        for _, d_type in DATASETS.items():
+            out_file = RAW_DIR / d_type / f"{s_id}.json"
             if not out_file.exists():
                 out_file.parent.mkdir(parents=True, exist_ok=True)
                 url = (
