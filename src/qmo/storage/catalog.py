@@ -41,11 +41,28 @@ class DuckDBCatalog:
             needs_migration = "parquet_file_hashes" not in cols
 
             if needs_migration:
-                # Migrate legacy schema to new composite primary key (dataset, batch_id) table
-                self.conn.execute("ALTER TABLE batch_manifests RENAME TO legacy_batch_manifests")
-                self._create_tables()
-                self._migrate_legacy_rows()
-                self.conn.execute("DROP TABLE legacy_batch_manifests")
+                # Migrate legacy schema inside transaction with row count validation
+                self.conn.execute("BEGIN TRANSACTION")
+                try:
+                    row_cnt_res = self.conn.execute(
+                        "SELECT count(*) FROM batch_manifests"
+                    ).fetchone()
+                    legacy_count = row_cnt_res[0] if row_cnt_res else 0
+                    alter_sql = "ALTER TABLE batch_manifests RENAME TO legacy_batch_manifests"
+                    self.conn.execute(alter_sql)
+                    self._create_tables()
+                    migrated_count = self._migrate_legacy_rows()
+                    if migrated_count != legacy_count:
+                        err_mig = (
+                            f"Migration count mismatch: expected {legacy_count}, "
+                            f"got {migrated_count}"
+                        )
+                        raise RuntimeError(err_mig)
+                    self.conn.execute("DROP TABLE legacy_batch_manifests")
+                    self.conn.execute("COMMIT")
+                except Exception as e:
+                    self.conn.execute("ROLLBACK")
+                    raise RuntimeError(f"Catalog schema migration failed: {e}") from e
         else:
             self._create_tables()
 
@@ -70,42 +87,41 @@ class DuckDBCatalog:
             """
         )
 
-    def _migrate_legacy_rows(self) -> None:
-        """Migrate rows from legacy_batch_manifests if present."""
-        try:
-            legacy_rows = self.conn.execute("SELECT * FROM legacy_batch_manifests").fetchall()
-            default_hash = "a" * 64
-            for row in legacy_rows:
-                # Handle legacy table structure safely
-                b_id = row[0]
-                ds = row[1] if len(row) > 1 else "unknown"
-                raw_h = row[2] if len(row) > 2 else "[]"
-                s_ver = row[3] if len(row) > 3 else "schema-v0.1"
-                r_cnt = row[4] if len(row) > 4 else 0
-                p_range = row[5] if len(row) > 5 else None
-                c_at = row[6] if len(row) > 6 else ""
-                st = row[7] if len(row) > 7 else "PUBLISHED"
-                p_files_raw = row[8] if len(row) > 8 else "[]"
-                m_hash = row[9] if len(row) > 9 else ""
+    def _migrate_legacy_rows(self) -> int:
+        """Migrate rows from legacy_batch_manifests and return migrated row count."""
+        legacy_rows = self.conn.execute("SELECT * FROM legacy_batch_manifests").fetchall()
+        default_hash = "a" * 64
+        migrated_count = 0
+        for row in legacy_rows:
+            b_id = row[0]
+            ds = row[1] if len(row) > 1 else "unknown"
+            raw_h = row[2] if len(row) > 2 else "[]"
+            s_ver = row[3] if len(row) > 3 else "schema-v0.1"
+            r_cnt = row[4] if len(row) > 4 else 0
+            p_range = row[5] if len(row) > 5 else None
+            c_at = row[6] if len(row) > 6 else ""
+            st = row[7] if len(row) > 7 else "PUBLISHED"
+            p_files_raw = row[8] if len(row) > 8 else "[]"
+            m_hash = row[9] if len(row) > 9 else ""
 
-                parsed_files = json.loads(p_files_raw) if p_files_raw else []
-                if not parsed_files:
-                    parsed_files = [f"normalized/{ds}/{b_id}/data.parquet"]
-                p_files = json.dumps(parsed_files)
-                pq_hashes = json.dumps({fp: default_hash for fp in parsed_files})
+            parsed_files = json.loads(p_files_raw) if p_files_raw else []
+            if not parsed_files:
+                parsed_files = [f"normalized/{ds}/{b_id}/data.parquet"]
+            p_files = json.dumps(parsed_files)
+            pq_hashes = json.dumps({fp: default_hash for fp in parsed_files})
 
-                self.conn.execute(
-                    """
-                    INSERT OR IGNORE INTO batch_manifests (
-                        dataset, batch_id, source_raw_hashes, schema_version,
-                        record_count, partition_date_range, created_at, status,
-                        published_filepaths, parquet_file_hashes, manifest_hash
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
-                    """,
-                    (ds, b_id, raw_h, s_ver, r_cnt, p_range, c_at, st, p_files, pq_hashes, m_hash),
-                )
-        except Exception:
-            pass
+            self.conn.execute(
+                """
+                INSERT INTO batch_manifests (
+                    dataset, batch_id, source_raw_hashes, schema_version,
+                    record_count, partition_date_range, created_at, status,
+                    published_filepaths, parquet_file_hashes, manifest_hash
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+                """,
+                (ds, b_id, raw_h, s_ver, r_cnt, p_range, c_at, st, p_files, pq_hashes, m_hash),
+            )
+            migrated_count += 1
+        return migrated_count
 
     def register_published_batch(self, manifest: BatchManifest) -> None:
         """Register a published batch manifest in DuckDB catalog using transaction safety.

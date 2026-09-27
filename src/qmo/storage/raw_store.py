@@ -33,13 +33,18 @@ class RawSnapshotStore:
         raw_file = dataset_dir / f"{content_hash}.raw"
         meta_file = dataset_dir / f"{content_hash}.meta.json"
 
-        # Byte-for-byte immutability & corruption verification
+        # Byte-for-byte immutability & sidecar metadata corruption verification
         if raw_file.exists() and meta_file.exists():
             existing_bytes = raw_file.read_bytes()
             existing_hash = hashlib.sha256(existing_bytes).hexdigest()
             if existing_hash == content_hash:
-                # Content matches perfectly byte-for-byte: skip re-writing
-                return content_hash, raw_file
+                try:
+                    meta_content = json.loads(meta_file.read_text(encoding="utf-8"))
+                    if meta_content.get("content_hash") == content_hash:
+                        # Content and metadata match perfectly: skip re-writing
+                        return content_hash, raw_file
+                except Exception:
+                    pass  # Metadata corrupted or missing key, proceed to re-write
 
         # Write exact raw_bytes byte-for-byte
         raw_file.write_bytes(raw_bytes)

@@ -477,3 +477,72 @@ def test_schema_contract_verification_and_mismatch_detection(tmp_path: Path) -> 
     # Valid schema passes contract verification
     ParquetStore.verify_schema_contract(output_file, DailyPrice)
 
+
+def test_raw_snapshot_sidecar_corruption_recovery(tmp_path: Path) -> None:
+    """Verify raw snapshot store recovers when sidecar .meta.json file is corrupted."""
+    store = RawSnapshotStore(base_dir=tmp_path / "raw")
+    raw_body_bytes = b'{"status": 200, "data": []}'
+    env = RawResponseEnvelope(
+        provider_name="twse",
+        endpoint="https://example.com/api",
+        params={},
+        status_code=200,
+        raw_body_bytes=raw_body_bytes,
+    )
+
+    h1, raw_path1 = store.save(env, "daily_price")
+    meta_path1 = raw_path1.with_suffix(".meta.json")
+    assert raw_path1.exists()
+    assert meta_path1.exists()
+
+    # Corrupt metadata sidecar file
+    meta_path1.write_text("corrupted json content {{{", encoding="utf-8")
+
+    # Re-saving recovers valid metadata sidecar without failing
+    h2, raw_path2 = store.save(env, "daily_price")
+    assert h1 == h2
+    assert "content_hash" in meta_path1.read_text(encoding="utf-8")
+
+
+def test_concurrent_rollback_safety_does_not_delete_peer_published_dir(tmp_path: Path) -> None:
+    """Verify rollback in one run instance does not delete target_published_dir owned by another."""
+    publisher = AtomicBatchPublisher(root_dir=tmp_path)
+    models = [
+        DailyPrice(
+            trade_date="2026-09-25",
+            stock_id="2330",
+            market="TWSE",
+            open_price=100.0,
+            close_price=105.0,
+            trading_volume=1000,
+            trading_value=105000,
+            source="FinMind:TaiwanStockPrice",
+        )
+    ]
+
+    manifest_a = publisher.publish_batch(
+        batch_id="batch_concurrent",
+        dataset="daily_price",
+        models=models,
+        source_raw_hashes=[VALID_RAW_HASH_1],
+    )
+    published_dir = Path(manifest_a.published_filepaths[0]).parent
+    assert published_dir.exists()
+
+    catalog_mock = MagicMock(spec=DuckDBCatalog)
+    catalog_mock.get_batch_manifest.return_value = None
+    catalog_mock.register_published_batch.side_effect = RuntimeError("B catalog fail")
+    publisher_b = AtomicBatchPublisher(root_dir=tmp_path, catalog=catalog_mock)
+
+    with pytest.raises(StorageValidationError, match="B catalog fail"):
+        publisher_b.publish_batch(
+            batch_id="batch_concurrent_b",
+            dataset="daily_price",
+            models=models,
+            source_raw_hashes=[VALID_RAW_HASH_1],
+        )
+
+    # Process A's published directory remains safe
+    assert published_dir.exists()
+
+

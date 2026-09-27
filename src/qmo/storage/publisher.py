@@ -66,8 +66,9 @@ class AtomicBatchPublisher:
         target_published_dir = target_dataset_dir / batch_id
         published_file = target_published_dir / "data.parquet"
 
-        # Process-isolated unique staging directory
-        run_uuid = uuid.uuid4().hex[:8]
+        # Process-isolated unique staging directory and ownership marker
+        run_uuid = uuid.uuid4().hex
+        owner_marker_name = f".owner_{run_uuid}"
         batch_staging_dir = self.staging_dir / dataset / f"{batch_id}_{run_uuid}"
         staged_file = (
             batch_staging_dir / "partitioned"
@@ -87,7 +88,9 @@ class AtomicBatchPublisher:
                     shutil.rmtree(batch_staging_dir, ignore_errors=True)
 
                 pub_files = (
-                    sorted(target_published_dir.glob("**/*.parquet"))
+                    sorted(
+                        p for p in target_published_dir.glob("**/*.parquet") if p.is_file()
+                    )
                     if partition_by_date
                     else ([published_file] if published_file.exists() else [])
                 )
@@ -182,13 +185,17 @@ class AtomicBatchPublisher:
                     f"Staging schema contract verification failed: {e}"
                 ) from e
 
+            # Write process ownership marker into staging before rename
+            owner_marker_file = batch_staging_dir / owner_marker_name
+            owner_marker_file.write_text(run_uuid)
+
             # 3. Prepare Target & Perform Atomic Directory Swap
             target_dataset_dir.mkdir(parents=True, exist_ok=True)
             batch_staging_dir.replace(target_published_dir)
 
             # Post-Swap Validation
             pub_files = (
-                sorted(target_published_dir.glob("**/*.parquet"))
+                sorted(p for p in target_published_dir.glob("**/*.parquet") if p.is_file())
                 if partition_by_date
                 else [published_file]
             )
@@ -230,26 +237,21 @@ class AtomicBatchPublisher:
             # 5. Register in DuckDB Catalog AFTER successful atomic swap
             self.catalog.register_published_batch(manifest)
 
+            # Cleanup ownership marker on successful publish
+            target_owner_file = target_published_dir / owner_marker_name
+            if target_owner_file.exists():
+                target_owner_file.unlink(missing_ok=True)
+
             msg = f"[OK] Published batch '{batch_id}' ({dataset}, {len(models)} rows)"
             logger.info(f"{msg} to {target_published_dir}")
             return manifest
 
         except Exception as e:
-            # Process-isolated Rollback
-            if target_published_dir.exists() and staged_hash:
-                pub_files = sorted(target_published_dir.glob("**/*.parquet"))
-                if pub_files:
-                    current_pub_hash = (
-                        hashlib.sha256(
-                            "".join(
-                                hashlib.sha256(pf.read_bytes()).hexdigest() for pf in pub_files
-                            ).encode("utf-8")
-                        ).hexdigest()
-                        if partition_by_date
-                        else hashlib.sha256(pub_files[0].read_bytes()).hexdigest()
-                    )
-                    if current_pub_hash == staged_hash:
-                        shutil.rmtree(target_published_dir, ignore_errors=True)
+            # Process-isolated Rollback: ONLY delete target_published_dir if it contains
+            # THIS process instance's owner marker file!
+            target_owner_file = target_published_dir / owner_marker_name
+            if target_published_dir.exists() and target_owner_file.exists():
+                shutil.rmtree(target_published_dir, ignore_errors=True)
 
             if batch_staging_dir.exists():
                 shutil.rmtree(batch_staging_dir, ignore_errors=True)
