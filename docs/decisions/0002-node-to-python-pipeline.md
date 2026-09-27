@@ -17,9 +17,12 @@
    - 型別檢查：`mypy` (Strict Mode)
    - 單元與整合測試：`pytest`
    - CLI 進入點：`click` (`qmo` 指令)
-3. **M0 資產重用策略**：
+3. **M0 資產重用與對照測試策略**：
    - 原 Node.js spike 腳本 (`scripts/m0_spike.mjs`) 與驗證檔保留於 repository，作為 Python 管線開發時的對照基準 (Regression Parity Baseline)。
-   - M1 Normalizer 與 Provider 產出的標準化資料須與 M0 spike 結果進行筆數、欄位與數值 100% 咬合測試。
+   - M1 Normalizer 產出之標準化資料進行跨語言對照測試時：
+     - **離散欄位**（股票代碼 `symbol`、交易日期 `date`、狀態標記 `no_trade` 等）須 **100% 完全一致**。
+     - **數值與浮點欄位**：固定單位（價格為元、成交量為股）與捨入政策（Banker's Rounding / Half-to-Even），價格欄位小數點保留至第 2 位，允許 `1e-4` 之浮點容許誤差（Epsilon Tolerance），避免跨語言進位或印出格式差異導致脆弱測試 (Brittle Tests)。
+
 
 ## 理由
 

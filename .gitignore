@@ -12,6 +12,8 @@ __pycache__/
 .mypy_cache/
 .ruff_cache/
 .venv/
+*.egg-info/
+
 
 # Research data and generated reports
 data/
