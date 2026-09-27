@@ -22,6 +22,7 @@ class InstitutionalFlow(BaseModel):
     dealer_sell: int = 0
     dealer_net: int = 0
     total_net: int = 0
+    categories: str = ""
     source: str = "finmind"
     retrieved_at: str = ""
     schema_version: str = "schema-v0.1"

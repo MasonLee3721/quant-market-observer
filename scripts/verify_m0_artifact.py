@@ -12,8 +12,8 @@ Verifies:
 4. 3 no_trade records (volume==0 and trading_money==0)
 5. 3-table join ratio (24,092 / 24,193 = 0.9958)
 6. Reads read-only Node baseline CSVs in data/spike/normalized/ without overwriting
-7. Computes SHA-256 digests from Node baseline CSVs
-8. 100% Field-by-Field Parity Check across all fields for all records
+7. Computes and asserts SHA-256 digests against Node baseline CSV hashes
+8. 100% Comprehensive Field-by-Field Parity Check across ALL schema contract fields
 """
 
 import csv
@@ -184,7 +184,26 @@ def verify_m0_artifact(update_summary: bool = False) -> Dict[str, Any]:
     print(f"Baseline Institutional Flow CSV SHA-256: {inst_csv_sha256}")
     print(f"Baseline Margin CSV SHA-256: {margin_csv_sha256}")
 
-    # 6. Comprehensive Field-by-Field Parity Check Against Baseline CSV Rows
+    # Load committed golden summary to verify hashes match baseline
+    with open(GOLDEN_SUMMARY_JSON, mode="r", encoding="utf-8") as f:
+        committed_summary = json.load(f)
+
+    if not update_summary:
+        price_golden = committed_summary.get("daily_price_csv_sha256")
+        inst_golden = committed_summary.get("institutional_flow_csv_sha256")
+        margin_golden = committed_summary.get("margin_csv_sha256")
+
+        assert price_csv_sha256 == price_golden, (
+            f"Price SHA-256 mismatch: {price_csv_sha256} vs {price_golden}"
+        )
+        assert inst_csv_sha256 == inst_golden, (
+            f"Inst SHA-256 mismatch: {inst_csv_sha256} vs {inst_golden}"
+        )
+        assert margin_csv_sha256 == margin_golden, (
+            f"Margin SHA-256 mismatch: {margin_csv_sha256} vs {margin_golden}"
+        )
+
+    # 6. Comprehensive Field-by-Field Parity Check Against Baseline CSV Rows across ALL fields
     with open(price_csv_path, mode="r", encoding="utf-8") as f:
         csv_prices = list(csv.DictReader(f))
     assert len(csv_prices) == len(price_models)
@@ -197,10 +216,26 @@ def verify_m0_artifact(update_summary: bool = False) -> Dict[str, Any]:
         assert int(csv_row["trades"]) == m.transaction_count
         assert csv_row["quality_flags"] == ("|".join(m.quality_flags))
         assert csv_row["schema_version"] == m.schema_version
+        if csv_row["open"]:
+            assert math.isclose(float(csv_row["open"]), m.open_price or 0.0, abs_tol=1e-4)
+        else:
+            assert m.open_price is None
+        if csv_row["high"]:
+            assert math.isclose(float(csv_row["high"]), m.high_price or 0.0, abs_tol=1e-4)
+        else:
+            assert m.high_price is None
+        if csv_row["low"]:
+            assert math.isclose(float(csv_row["low"]), m.low_price or 0.0, abs_tol=1e-4)
+        else:
+            assert m.low_price is None
         if csv_row["close"]:
-            assert float(csv_row["close"]) == m.close_price
+            assert math.isclose(float(csv_row["close"]), m.close_price or 0.0, abs_tol=1e-4)
         else:
             assert m.close_price is None
+        if csv_row["spread"]:
+            assert math.isclose(float(csv_row["spread"]), m.change or 0.0, abs_tol=1e-4)
+        else:
+            assert m.change is None
 
     with open(inst_csv_path, mode="r", encoding="utf-8") as f:
         csv_insts = list(csv.DictReader(f))
@@ -213,6 +248,7 @@ def verify_m0_artifact(update_summary: bool = False) -> Dict[str, Any]:
         assert int(csv_row["trust_net"]) == m.investment_trust_net
         assert int(csv_row["dealer_net"]) == m.dealer_net
         assert int(csv_row["total_net"]) == m.total_net
+        assert csv_row["categories"] == m.categories
         assert csv_row["schema_version"] == m.schema_version
 
     with open(margin_csv_path, mode="r", encoding="utf-8") as f:
@@ -226,13 +262,17 @@ def verify_m0_artifact(update_summary: bool = False) -> Dict[str, Any]:
         assert int(csv_row["margin_sell"]) == m.margin_purchase_sell
         assert int(csv_row["margin_cash_repayment"]) == m.margin_purchase_cash_redemption
         assert int(csv_row["margin_balance"]) == m.margin_purchase_balance
+        assert int(csv_row["margin_previous_balance"]) == m.margin_purchase_previous_balance
         assert int(csv_row["short_buy"]) == m.short_sale_buy
         assert int(csv_row["short_sell"]) == m.short_sale_sell
         assert int(csv_row["short_cash_repayment"]) == m.short_sale_cash_redemption
         assert int(csv_row["short_balance"]) == m.short_sale_balance
+        assert int(csv_row["short_previous_balance"]) == m.short_sale_previous_balance
+        assert int(csv_row["offset"]) == m.offset_loan_and_short
+        assert csv_row["note"].strip() == m.note.strip()
         assert csv_row["schema_version"] == m.schema_version
 
-    print("[OK] 100% Field Parity Matched for Price, Institutional, and Margin records.")
+    print("[OK] 100% Comprehensive Field-by-Field Parity Matched for all Schema Contract Fields.")
 
     # 7. Construct Golden Summary
     golden_summary = {

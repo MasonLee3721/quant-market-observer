@@ -16,12 +16,16 @@ class Margin(BaseModel):
     margin_purchase_sell: int = 0
     margin_purchase_cash_redemption: int = 0
     margin_purchase_balance: int = 0
+    margin_purchase_previous_balance: int = 0
     margin_purchase_quota: int = 0
     short_sale_buy: int = 0
     short_sale_sell: int = 0
     short_sale_cash_redemption: int = 0
     short_sale_balance: int = 0
+    short_sale_previous_balance: int = 0
     short_sale_quota: int = 0
+    offset_loan_and_short: int = 0
+    note: str = ""
     source: str = "finmind"
     retrieved_at: str = ""
     schema_version: str = "schema-v0.1"

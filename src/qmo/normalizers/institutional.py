@@ -1,7 +1,7 @@
 """Institutional Investor Flow Normalizer Implementation."""
 
 import json
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from qmo.models.institutional import InstitutionalFlow
 from qmo.models.stock import StockMaster, load_universe_stock_master
@@ -65,7 +65,7 @@ class InstitutionalNormalizer:
         results: List[InstitutionalFlow] = []
 
         try:
-            by_date: Dict[Tuple[str, str], Dict[str, int]] = {}
+            by_date: Dict[Tuple[str, str], Dict[str, Any]] = {}
             for row in data:
                 if not isinstance(row, dict):
                     raise SchemaValidationError(
@@ -95,8 +95,12 @@ class InstitutionalNormalizer:
                         "trust_sell": 0,
                         "dealer_buy": 0,
                         "dealer_sell": 0,
+                        "categories": set(),
                     }
                 name = str(row.get("name", ""))
+                if name:
+                    by_date[key_tuple]["categories"].add(name)
+
                 if (
                     "buy" not in row
                     or row["buy"] is None
@@ -141,6 +145,8 @@ class InstitutionalNormalizer:
                 d_sell = flow["dealer_sell"]
                 d_net = d_buy - d_sell
 
+                cats_str = "|".join(sorted(list(flow["categories"])))
+
                 record = InstitutionalFlow(
                     trade_date=d,
                     stock_id=stock_id,
@@ -155,6 +161,7 @@ class InstitutionalNormalizer:
                     dealer_sell=d_sell,
                     dealer_net=d_net,
                     total_net=f_net + t_net + d_net,
+                    categories=cats_str,
                     source=envelope.provider_name,
                     retrieved_at=envelope.retrieved_at,
                 )

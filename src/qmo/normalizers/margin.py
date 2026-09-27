@@ -112,13 +112,18 @@ class MarginNormalizer:
                     mp_sell = int(row["MarginPurchaseSell"])
                     mp_red = int(mp_red_val)
                     mp_bal = int(row["MarginPurchaseTodayBalance"])
+                    mp_prev = int(row.get("MarginPurchaseYesterdayBalance", 0) or 0)
                     mp_limit = int(row["MarginPurchaseLimit"])
 
                     ss_buy = int(row["ShortSaleBuy"])
                     ss_sell = int(row["ShortSaleSell"])
                     ss_red = int(ss_red_val)
                     ss_bal = int(row["ShortSaleTodayBalance"])
+                    ss_prev = int(row.get("ShortSaleYesterdayBalance", 0) or 0)
                     ss_limit = int(row["ShortSaleLimit"])
+
+                    offset_val = int(row.get("OffsetLoanAndShort", 0) or 0)
+                    note_val = str(row.get("Note", "") or "").strip()
                 except (ValueError, TypeError) as e:
                     raise SchemaValidationError(
                         f"Invalid integer value in margin field: {e}",
@@ -133,12 +138,16 @@ class MarginNormalizer:
                     margin_purchase_sell=mp_sell,
                     margin_purchase_cash_redemption=mp_red,
                     margin_purchase_balance=mp_bal,
+                    margin_purchase_previous_balance=mp_prev,
                     margin_purchase_quota=mp_limit,
                     short_sale_buy=ss_buy,
                     short_sale_sell=ss_sell,
                     short_sale_cash_redemption=ss_red,
                     short_sale_balance=ss_bal,
+                    short_sale_previous_balance=ss_prev,
                     short_sale_quota=ss_limit,
+                    offset_loan_and_short=offset_val,
+                    note=note_val,
                     source=envelope.provider_name,
                     retrieved_at=envelope.retrieved_at,
                 )
