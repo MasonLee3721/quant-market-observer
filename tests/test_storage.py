@@ -546,3 +546,66 @@ def test_concurrent_rollback_safety_does_not_delete_peer_published_dir(tmp_path:
     assert published_dir.exists()
 
 
+def test_catalog_migration_detects_primary_key_mismatch(tmp_path: Path) -> None:
+    """Verify DuckDBCatalog triggers migration when table has all columns but single primary key."""
+    db_file = tmp_path / "single_pk_catalog.duckdb"
+
+    # Create a database with parquet_file_hashes column but ONLY single primary key (batch_id)
+    conn = duckdb.connect(str(db_file))
+    conn.execute(
+        """
+        CREATE TABLE batch_manifests (
+            batch_id VARCHAR PRIMARY KEY,
+            dataset VARCHAR NOT NULL,
+            source_raw_hashes VARCHAR NOT NULL,
+            schema_version VARCHAR NOT NULL,
+            record_count BIGINT NOT NULL,
+            partition_date_range VARCHAR,
+            created_at VARCHAR NOT NULL,
+            status VARCHAR NOT NULL,
+            published_filepaths VARCHAR NOT NULL,
+            parquet_file_hashes VARCHAR NOT NULL,
+            manifest_hash VARCHAR NOT NULL
+        );
+        """
+    )
+    conn.execute(
+        """
+        INSERT INTO batch_manifests VALUES (
+            'b_pk1', 'daily_price', '[]', 'schema-v0.1', 5, '2026-09-25',
+            '2026-09-25T00:00:00Z', 'PUBLISHED', '["norm/data.parquet"]', '{}', 'hash_pk1'
+        );
+        """
+    )
+    conn.close()
+
+    # Opening DuckDBCatalog triggers migration when pk_cols != {"dataset", "batch_id"}
+    catalog = DuckDBCatalog(db_file)
+    m = catalog.get_batch_manifest("daily_price", "b_pk1")
+    assert m is not None
+    assert m.batch_id == "b_pk1"
+    catalog.close()
+
+
+def test_schema_contract_detects_nullability_mismatch(tmp_path: Path) -> None:
+    """Verify verify_schema_contract rejects files where required fields have nullable=True."""
+    output_file = tmp_path / "bad_nullable.parquet"
+
+    # Create a table where required stock_id string field is wrongly set to nullable=True
+    table = duckdb.connect(":memory:").execute(
+        "SELECT '2026-09-25' AS trade_date, '2330' AS stock_id, 'TWSE' AS market, "
+        "100.0 AS open_price, 105.0 AS high_price, 99.0 AS low_price, 104.0 AS close_price, "
+        "4.0 AS change, 1000 AS trading_volume, 104000 AS trading_value, 100 AS transaction_count, "
+        "false AS no_trade, 'finmind' AS source, '2026-09-25T00:00:00Z' AS retrieved_at, "
+        "'schema-v0.1' AS schema_version, ['none'] AS quality_flags"
+    ).to_arrow_table()
+
+    import pyarrow.parquet as pq
+    pq.write_table(table, output_file)
+
+    # DuckDB arrow table creates nullable=True by default for all columns.
+    # verify_schema_contract should catch required non-optional fields having nullable=True!
+    with pytest.raises(ValueError, match="nullability contract mismatch"):
+        ParquetStore.verify_schema_contract(output_file, DailyPrice)
+
+

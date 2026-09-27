@@ -35,10 +35,13 @@ class DuckDBCatalog:
         table_exists = res is not None and res[0] > 0
 
         if table_exists:
-            # Inspect existing columns
+            # Inspect existing columns and primary key constraint
             info = self.conn.execute("PRAGMA table_info('batch_manifests')").fetchall()
             cols = [r[1] for r in info]
-            needs_migration = "parquet_file_hashes" not in cols
+            pk_cols = {r[1] for r in info if r[5] > 0}
+            needs_migration = ("parquet_file_hashes" not in cols) or (
+                pk_cols != {"dataset", "batch_id"}
+            )
 
             if needs_migration:
                 # Migrate legacy schema inside transaction with row count validation
@@ -88,9 +91,8 @@ class DuckDBCatalog:
         )
 
     def _migrate_legacy_rows(self) -> int:
-        """Migrate rows from legacy_batch_manifests and return migrated row count."""
+        """Migrate rows from legacy_batch_manifests using real file hashes when available."""
         legacy_rows = self.conn.execute("SELECT * FROM legacy_batch_manifests").fetchall()
-        default_hash = "a" * 64
         migrated_count = 0
         for row in legacy_rows:
             b_id = row[0]
@@ -107,8 +109,18 @@ class DuckDBCatalog:
             parsed_files = json.loads(p_files_raw) if p_files_raw else []
             if not parsed_files:
                 parsed_files = [f"normalized/{ds}/{b_id}/data.parquet"]
+            pq_hashes_dict = {}
+            for fp in parsed_files:
+                p = Path(fp)
+                if p.exists() and p.is_file():
+                    pq_hashes_dict[fp] = hashlib.sha256(p.read_bytes()).hexdigest()
+                else:
+                    pq_hashes_dict[fp] = hashlib.sha256(
+                        b"LEGACY_UNVERIFIED_FILE_MISSING"
+                    ).hexdigest()
+
             p_files = json.dumps(parsed_files)
-            pq_hashes = json.dumps({fp: default_hash for fp in parsed_files})
+            pq_hashes = json.dumps(pq_hashes_dict)
 
             self.conn.execute(
                 """

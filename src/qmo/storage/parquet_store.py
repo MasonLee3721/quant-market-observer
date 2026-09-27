@@ -25,6 +25,49 @@ class ParquetStore:
         return schema_types
 
     @staticmethod
+    def build_pyarrow_schema(model_cls: type[BaseModel]) -> pa.Schema:
+        """Construct PyArrow schema with explicit types and nullability from Pydantic model."""
+        fields = []
+        for field_name, field_info in model_cls.model_fields.items():
+            annotation = field_info.annotation
+
+            is_optional = False
+            if annotation is not None:
+                origin = typing.get_origin(annotation)
+                if origin is typing.Union:
+                    args = typing.get_args(annotation)
+                    if type(None) in args:
+                        is_optional = True
+                elif annotation is type(None):
+                    is_optional = True
+
+            if field_info.default is None or not field_info.is_required():
+                is_optional = True
+
+            target_type = annotation
+            if is_optional and typing.get_origin(annotation) is typing.Union:
+                non_null_args = [a for a in typing.get_args(annotation) if a is not type(None)]
+                if non_null_args:
+                    target_type = non_null_args[0]
+
+            if target_type is float:
+                pa_type = pa.float64()
+            elif target_type is int:
+                pa_type = pa.int64()
+            elif target_type is str:
+                pa_type = pa.string()
+            elif target_type is bool:
+                pa_type = pa.bool_()
+            elif target_type is list or typing.get_origin(target_type) is list:
+                pa_type = pa.list_(pa.string())
+            else:
+                pa_type = pa.string()
+
+            fields.append(pa.field(field_name, pa_type, nullable=is_optional))
+
+        return pa.schema(fields)
+
+    @staticmethod
     def write_models(
         models: Sequence[BaseModel],
         output_path: Path,
@@ -40,7 +83,8 @@ class ParquetStore:
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
         dicts = [m.model_dump() for m in models]
-        table = pa.Table.from_pylist(dicts)
+        pa_schema = ParquetStore.build_pyarrow_schema(type(models[0]))
+        table = pa.Table.from_pylist(dicts, schema=pa_schema)
 
         if partition_cols:
             output_path.mkdir(parents=True, exist_ok=True)
@@ -131,6 +175,14 @@ class ParquetStore:
 
             if field_info.default is None or not field_info.is_required():
                 is_optional = True
+
+            # Verify PyArrow schema field nullability contract for non-partitioned single files
+            if not parquet_path.is_dir() and pa_field.nullable != is_optional:
+                err_null = (
+                    f"Field '{field_name}' nullability contract mismatch: "
+                    f"expected nullable={is_optional}, got nullable={pa_field.nullable}"
+                )
+                raise ValueError(err_null)
 
             if pa.types.is_null(pa_type):
                 if not is_optional:
