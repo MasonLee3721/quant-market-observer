@@ -1,8 +1,12 @@
 """Comprehensive Provider, Transport, Retry, Backoff, and Security Tests."""
 
 import hashlib
+from datetime import datetime, timezone
 from typing import Any, Dict, Tuple
 
+import pytest
+
+from qmo.providers.exceptions import NetworkError, ProviderError, RateLimitError
 from qmo.providers.finmind import FinMindProvider
 from qmo.providers.protocols import ProviderProtocol, RawResponseEnvelope
 from qmo.providers.tpex import TpexProvider
@@ -66,10 +70,16 @@ def test_token_masking_security() -> None:
     assert envelope.raw_body_bytes == raw_bytes
 
 
-def test_transport_status_code_classification_and_sleep_inject() -> None:
+def test_transport_status_code_classification_500_retry() -> None:
     """Verify Transport handles 500 status_code retries with sleep_func injection."""
     attempts = 0
     sleep_calls = []
+    clock_time = 0.0
+
+    def mock_clock() -> float:
+        nonlocal clock_time
+        clock_time += 1.0
+        return clock_time
 
     def mock_request(
         url: str, params: Dict[str, Any], headers: Dict[str, str]
@@ -88,21 +98,101 @@ def test_transport_status_code_classification_and_sleep_inject() -> None:
         backoff_factor=0.5,
         request_func=mock_request,
         sleep_func=mock_sleep,
+        clock_func=mock_clock,
     )
     res = transport.execute("https://api.finmindtrade.com/api/v4/data")
     assert attempts == 2
     assert res.status_code == 200
-    assert len(sleep_calls) >= 1
-    assert sleep_calls[0] == 0.5  # 0.5 * (2**0)
+    assert sleep_calls == [0.5]
 
 
-def test_parse_retry_after_integer_and_http_date() -> None:
-    """Test parse_retry_after helper supporting integer seconds and HTTP-date strings."""
-    assert parse_retry_after("120") == 120.0
-    assert parse_retry_after("") is None
-    # Test valid RFC-1123 HTTP-date
-    res = parse_retry_after("Wed, 21 Oct 2026 07:28:00 GMT")
-    assert res is not None or res == 0.0
+def test_transport_429_rate_limit_retries_and_raises() -> None:
+    """Verify HTTP 429 status code retries up to max_retries and raises RateLimitError."""
+    attempts = 0
+    sleep_calls = []
+    clock_time = 0.0
+
+    def mock_clock() -> float:
+        nonlocal clock_time
+        clock_time += 1.0
+        return clock_time
+
+    def mock_request(
+        url: str, params: Dict[str, Any], headers: Dict[str, str]
+    ) -> Tuple[int, Dict[str, str], bytes]:
+        nonlocal attempts
+        attempts += 1
+        return 429, {"Retry-After": "2"}, b'{"msg": "too many requests"}'
+
+    def mock_sleep(seconds: float) -> None:
+        sleep_calls.append(seconds)
+
+    transport = HttpTransport(
+        max_retries=2,
+        backoff_factor=0.5,
+        request_func=mock_request,
+        sleep_func=mock_sleep,
+        clock_func=mock_clock,
+    )
+    with pytest.raises(RateLimitError):
+        transport.execute("https://api.finmindtrade.com/api/v4/data")
+
+    assert attempts == 3  # 1 initial + 2 retries
+    assert sleep_calls == [2.0, 2.0]  # Respects Retry-After header delay
+
+
+def test_transport_404_fast_fail_immediately() -> None:
+    """Verify HTTP 404 client error raises ProviderError immediately without retrying."""
+    attempts = 0
+
+    def mock_request(
+        url: str, params: Dict[str, Any], headers: Dict[str, str]
+    ) -> Tuple[int, Dict[str, str], bytes]:
+        nonlocal attempts
+        attempts += 1
+        return 404, {}, b'{"msg": "not found"}'
+
+    transport = HttpTransport(max_retries=3, request_func=mock_request)
+    with pytest.raises(ProviderError) as exc_info:
+        transport.execute("https://api.finmindtrade.com/api/v4/data")
+
+    assert attempts == 1  # Fast fail without retrying!
+    assert exc_info.value.status_code == 404
+
+
+def test_transport_network_error_backoff_and_exhaustion() -> None:
+    """Verify connection failure backoffs and raises NetworkError after retries."""
+    attempts = 0
+
+    def mock_request(
+        url: str, params: Dict[str, Any], headers: Dict[str, str]
+    ) -> Tuple[int, Dict[str, str], bytes]:
+        nonlocal attempts
+        attempts += 1
+        raise OSError("Connection refused")
+
+    transport = HttpTransport(max_retries=2, backoff_factor=0.1, request_func=mock_request)
+    with pytest.raises(NetworkError):
+        transport.execute("https://api.finmindtrade.com/api/v4/data")
+
+    assert attempts == 3  # 1 initial + 2 retries
+
+
+def test_parse_retry_after_exact_http_date_with_fixed_clock() -> None:
+    """Test parse_retry_after with fixed UTC clock injection."""
+    fixed_now = datetime(2026, 9, 27, 3, 0, 0, tzinfo=timezone.utc)
+
+    def fixed_clock() -> datetime:
+        return fixed_now
+
+    assert parse_retry_after("60", now_func=fixed_clock) == 60.0
+
+    # Retry-After: 0.0 is valid zero delay (not falsy override)
+    assert parse_retry_after("0", now_func=fixed_clock) == 0.0
+
+    http_date = "Sun, 27 Sep 2026 03:02:00 GMT"
+    diff = parse_retry_after(http_date, now_func=fixed_clock)
+    assert diff == 120.0
 
 
 def test_twse_t86_institutional_endpoint() -> None:
