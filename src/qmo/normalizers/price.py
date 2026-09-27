@@ -4,16 +4,19 @@ import json
 from typing import Any, List, Optional
 
 from qmo.models.price import DailyPrice
+from qmo.models.stock import load_universe_stock_master
 from qmo.providers.exceptions import SchemaValidationError
 from qmo.providers.protocols import RawResponseEnvelope
 
-# Default stock to market lookup table for M0 50-ticker universe
-TPEX_TICKERS = {"8069", "8299", "6690"}
+# Dynamic stock master lookup table
+STOCK_MASTER_REGISTRY = load_universe_stock_master()
 
 
 def get_stock_market(stock_id: str) -> str:
-    """Return TWSE or TPEx for stock_id."""
-    return "TPEx" if stock_id in TPEX_TICKERS else "TWSE"
+    """Return TWSE or TPEx for stock_id from stock master metadata."""
+    if stock_id in STOCK_MASTER_REGISTRY:
+        return STOCK_MASTER_REGISTRY[stock_id].market
+    return "TPEx" if stock_id in {"8069", "8299", "6690"} else "TWSE"
 
 
 def _parse_positive_float(val: Any) -> Optional[float]:
@@ -40,7 +43,13 @@ class PriceNormalizer:
 
     def normalize(self, envelope: RawResponseEnvelope) -> List[DailyPrice]:
         """Convert raw payload envelope to a list of DailyPrice instances."""
-        if envelope.provider_name not in ["finmind", "twse", "tpex"]:
+        if envelope.provider_name in ["twse", "tpex"]:
+            raise SchemaValidationError(
+                f"Normalizer for provider '{envelope.provider_name}' not yet implemented",
+                provider=envelope.provider_name,
+            )
+
+        if envelope.provider_name != "finmind":
             raise SchemaValidationError(
                 f"Unsupported provider for PriceNormalizer: {envelope.provider_name}",
                 provider=envelope.provider_name,
@@ -61,16 +70,21 @@ class PriceNormalizer:
                 "Payload must be a JSON object", provider=envelope.provider_name
             )
 
+        data = payload.get("data")
+        if data is None or not isinstance(data, list):
+            raise SchemaValidationError(
+                "FinMind payload missing 'data' list", provider=envelope.provider_name
+            )
+
         results: List[DailyPrice] = []
 
-        if envelope.provider_name == "finmind":
-            data = payload.get("data")
-            if data is None or not isinstance(data, list):
-                raise SchemaValidationError(
-                    "FinMind payload missing 'data' list", provider=envelope.provider_name
-                )
-
+        try:
             for row in data:
+                if not isinstance(row, dict):
+                    raise SchemaValidationError(
+                        "Row item is not a dictionary", provider=envelope.provider_name
+                    )
+
                 stock_id = str(row.get("stock_id", envelope.params.get("data_id", "")))
                 vol = int(row.get("Trading_Volume", 0))
                 val = int(row.get("Trading_money", 0))
@@ -108,4 +122,11 @@ class PriceNormalizer:
                     quality_flags=q_flags,
                 )
                 results.append(record)
+        except SchemaValidationError:
+            raise
+        except (ValueError, TypeError, KeyError, AttributeError) as e:
+            raise SchemaValidationError(
+                f"Schema drift or row parsing failure: {e}", provider=envelope.provider_name
+            ) from e
+
         return results

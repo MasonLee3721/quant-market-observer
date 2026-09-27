@@ -1,0 +1,10 @@
+{
+  "version": "v0.1-golden",
+  "ticker_count": 50,
+  "total_price_records": 24193,
+  "primary_key_duplicates": 0,
+  "three_table_join_ratio": 0.9958,
+  "no_trade_records_count": 3,
+  "twse_sample_ticker": "2330",
+  "tpex_sample_ticker": "8069"
+}

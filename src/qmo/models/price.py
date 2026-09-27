@@ -37,12 +37,16 @@ class DailyPrice(BaseModel):
 
     @field_validator("retrieved_at")
     @classmethod
-    def validate_iso_retrieved_at(cls, v: str) -> str:
+    def validate_utc_iso_datetime(cls, v: str) -> str:
         if v:
             try:
-                datetime.fromisoformat(v)
+                dt = datetime.fromisoformat(v)
+                if dt.tzinfo is None:
+                    raise ValueError(
+                        f"retrieved_at must be UTC timezone-aware ISO string, got: {v}"
+                    )
             except ValueError as e:
-                raise ValueError(f"retrieved_at must be valid ISO datetime, got: {v}") from e
+                raise ValueError(f"retrieved_at must be valid UTC ISO datetime, got: {v}") from e
         return v
 
     @model_validator(mode="after")
@@ -52,7 +56,6 @@ class DailyPrice(BaseModel):
             self.no_trade = True
             if "no_trade" not in self.quality_flags:
                 self.quality_flags.append("no_trade")
-            # Nullify all price fields on no_trade
             self.open_price = None
             self.high_price = None
             self.low_price = None

@@ -14,7 +14,13 @@ class InstitutionalNormalizer:
 
     def normalize(self, envelope: RawResponseEnvelope) -> List[InstitutionalFlow]:
         """Convert raw payload envelope to a list of InstitutionalFlow instances."""
-        if envelope.provider_name not in ["finmind", "twse", "tpex"]:
+        if envelope.provider_name in ["twse", "tpex"]:
+            raise SchemaValidationError(
+                f"Normalizer for provider '{envelope.provider_name}' not yet implemented",
+                provider=envelope.provider_name,
+            )
+
+        if envelope.provider_name != "finmind":
             raise SchemaValidationError(
                 f"Unsupported provider for InstitutionalNormalizer: {envelope.provider_name}",
                 provider=envelope.provider_name,
@@ -35,18 +41,22 @@ class InstitutionalNormalizer:
                 "Payload must be a JSON object", provider=envelope.provider_name
             )
 
+        data = payload.get("data")
+        if data is None or not isinstance(data, list):
+            raise SchemaValidationError(
+                "FinMind payload missing 'data' list", provider=envelope.provider_name
+            )
+
         results: List[InstitutionalFlow] = []
 
-        if envelope.provider_name == "finmind":
-            data = payload.get("data")
-            if data is None or not isinstance(data, list):
-                raise SchemaValidationError(
-                    "FinMind payload missing 'data' list", provider=envelope.provider_name
-                )
-
-            # Group and accumulate rows by date
+        try:
             by_date: Dict[str, Dict[str, int]] = {}
             for row in data:
+                if not isinstance(row, dict):
+                    raise SchemaValidationError(
+                        "Row item is not a dictionary", provider=envelope.provider_name
+                    )
+
                 d = str(row.get("date", ""))
                 if not d:
                     continue
@@ -63,15 +73,12 @@ class InstitutionalNormalizer:
                 buy = int(row.get("buy", 0))
                 sell = int(row.get("sell", 0))
 
-                # Accumulate foreign investors (Foreign_Investor, Foreign_Dealer_Self)
                 if "Foreign" in name or "外資" in name:
                     by_date[d]["foreign_buy"] += buy
                     by_date[d]["foreign_sell"] += sell
-                # Accumulate investment trusts
                 elif "Investment" in name or "投信" in name:
                     by_date[d]["trust_buy"] += buy
                     by_date[d]["trust_sell"] += sell
-                # Accumulate dealers (Dealer_Self, Dealer_Hedging)
                 elif "Dealer" in name or "自營商" in name:
                     by_date[d]["dealer_buy"] += buy
                     by_date[d]["dealer_sell"] += sell
@@ -110,5 +117,11 @@ class InstitutionalNormalizer:
                     retrieved_at=envelope.retrieved_at,
                 )
                 results.append(record)
+        except SchemaValidationError:
+            raise
+        except (ValueError, TypeError, KeyError, AttributeError) as e:
+            raise SchemaValidationError(
+                f"Schema drift or row parsing failure: {e}", provider=envelope.provider_name
+            ) from e
 
         return results

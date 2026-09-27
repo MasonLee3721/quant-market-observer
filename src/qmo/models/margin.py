@@ -35,3 +35,17 @@ class Margin(BaseModel):
         except ValueError as e:
             raise ValueError(f"trade_date must be a valid ISO date YYYY-MM-DD, got: {v}") from e
         return v
+
+    @field_validator("retrieved_at")
+    @classmethod
+    def validate_utc_iso_datetime(cls, v: str) -> str:
+        if v:
+            try:
+                dt = datetime.fromisoformat(v)
+                if dt.tzinfo is None:
+                    raise ValueError(
+                        f"retrieved_at must be UTC timezone-aware ISO string, got: {v}"
+                    )
+            except ValueError as e:
+                raise ValueError(f"retrieved_at must be valid UTC ISO datetime, got: {v}") from e
+        return v

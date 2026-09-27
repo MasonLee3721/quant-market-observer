@@ -14,7 +14,13 @@ class MarginNormalizer:
 
     def normalize(self, envelope: RawResponseEnvelope) -> List[Margin]:
         """Convert raw payload envelope to a list of Margin instances."""
-        if envelope.provider_name not in ["finmind", "twse", "tpex"]:
+        if envelope.provider_name in ["twse", "tpex"]:
+            raise SchemaValidationError(
+                f"Normalizer for provider '{envelope.provider_name}' not yet implemented",
+                provider=envelope.provider_name,
+            )
+
+        if envelope.provider_name != "finmind":
             raise SchemaValidationError(
                 f"Unsupported provider for MarginNormalizer: {envelope.provider_name}",
                 provider=envelope.provider_name,
@@ -35,16 +41,21 @@ class MarginNormalizer:
                 "Payload must be a JSON object", provider=envelope.provider_name
             )
 
+        data = payload.get("data")
+        if data is None or not isinstance(data, list):
+            raise SchemaValidationError(
+                "FinMind payload missing 'data' list", provider=envelope.provider_name
+            )
+
         results: List[Margin] = []
 
-        if envelope.provider_name == "finmind":
-            data = payload.get("data")
-            if data is None or not isinstance(data, list):
-                raise SchemaValidationError(
-                    "FinMind payload missing 'data' list", provider=envelope.provider_name
-                )
-
+        try:
             for row in data:
+                if not isinstance(row, dict):
+                    raise SchemaValidationError(
+                        "Row item is not a dictionary", provider=envelope.provider_name
+                    )
+
                 stock_id = str(row.get("stock_id", envelope.params.get("data_id", "")))
                 market = get_stock_market(stock_id)
 
@@ -66,5 +77,11 @@ class MarginNormalizer:
                     retrieved_at=envelope.retrieved_at,
                 )
                 results.append(record)
+        except SchemaValidationError:
+            raise
+        except (ValueError, TypeError, KeyError, AttributeError) as e:
+            raise SchemaValidationError(
+                f"Schema drift or row parsing failure: {e}", provider=envelope.provider_name
+            ) from e
 
         return results
