@@ -221,6 +221,8 @@ def verify_m0_artifact(update_summary: bool = False) -> Dict[str, Any]:
         assert int(csv_row["trading_money"]) == m.trading_value
         assert int(csv_row["trades"]) == m.transaction_count
         assert csv_row["quality_flags"] == ("|".join(m.quality_flags))
+        assert m.source.lower() in csv_row["source"].lower()
+        assert len(csv_row["retrieved_at"]) > 0
         assert csv_row["schema_version"] == m.schema_version
         if csv_row["open"]:
             assert math.isclose(float(csv_row["open"]), m.open_price or 0.0, abs_tol=1e-4)
@@ -255,6 +257,8 @@ def verify_m0_artifact(update_summary: bool = False) -> Dict[str, Any]:
         assert int(csv_row["dealer_net"]) == m.dealer_net
         assert int(csv_row["total_net"]) == m.total_net
         assert csv_row["categories"] == m.categories
+        assert m.source.lower() in csv_row["source"].lower()
+        assert len(csv_row["retrieved_at"]) > 0
         assert csv_row["schema_version"] == m.schema_version
 
     with open(margin_csv_path, mode="r", encoding="utf-8") as f:
@@ -276,9 +280,11 @@ def verify_m0_artifact(update_summary: bool = False) -> Dict[str, Any]:
         assert int(csv_row["short_previous_balance"]) == m.short_sale_previous_balance
         assert int(csv_row["offset"]) == m.offset_loan_and_short
         assert csv_row["note"].strip() == m.note.strip()
+        assert m.source.lower() in csv_row["source"].lower()
+        assert len(csv_row["retrieved_at"]) > 0
         assert csv_row["schema_version"] == m.schema_version
 
-    print("[OK] 100% Comprehensive Field-by-Field Parity Matched for all Schema Contract Fields.")
+    print("[OK] All comparable contract schema fields parity matched for Price, Inst, and Margin.")
 
     # 7. Construct Golden Summary
     golden_summary = {
