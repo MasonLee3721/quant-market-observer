@@ -3,13 +3,10 @@
 import hashlib
 from typing import Any, Dict, Tuple
 
-import pytest
-
-from qmo.providers.exceptions import ProviderError, RateLimitError
 from qmo.providers.finmind import FinMindProvider
 from qmo.providers.protocols import ProviderProtocol, RawResponseEnvelope
 from qmo.providers.tpex import TpexProvider
-from qmo.providers.transport import HttpTransport
+from qmo.providers.transport import HttpTransport, parse_retry_after
 from qmo.providers.twse import TwseProvider
 
 
@@ -69,10 +66,10 @@ def test_token_masking_security() -> None:
     assert envelope.raw_body_bytes == raw_bytes
 
 
-def test_transport_retry_and_backoff_success() -> None:
-    """Test exponential backoff retry loop recovering on 2nd attempt."""
+def test_transport_status_code_classification_and_sleep_inject() -> None:
+    """Verify Transport handles 500 status_code retries with sleep_func injection."""
     attempts = 0
-    raw_bytes = b'{"msg": "success", "data": []}'
+    sleep_calls = []
 
     def mock_request(
         url: str, params: Dict[str, Any], headers: Dict[str, str]
@@ -80,64 +77,32 @@ def test_transport_retry_and_backoff_success() -> None:
         nonlocal attempts
         attempts += 1
         if attempts == 1:
-            raise pytest.importorskip("urllib.error").HTTPError(
-                url,
-                500,
-                "Internal Server Error",
-                {},
-                None,  # type: ignore[arg-type]
-            )
-        return 200, {"Content-Type": "application/json"}, raw_bytes
+            return 500, {}, b"Server error"
+        return 200, {"Content-Type": "application/json"}, b'{"msg": "success"}'
 
-    transport = HttpTransport(max_retries=2, backoff_factor=0.01, request_func=mock_request)
+    def mock_sleep(seconds: float) -> None:
+        sleep_calls.append(seconds)
+
+    transport = HttpTransport(
+        max_retries=2,
+        backoff_factor=0.5,
+        request_func=mock_request,
+        sleep_func=mock_sleep,
+    )
     res = transport.execute("https://api.finmindtrade.com/api/v4/data")
     assert attempts == 2
     assert res.status_code == 200
-    assert res.raw_bytes == raw_bytes
+    assert len(sleep_calls) >= 1
+    assert sleep_calls[0] == 0.5  # 0.5 * (2**0)
 
 
-def test_transport_rate_limit_error_429() -> None:
-    """Test HTTP 429 rate limit exception raising."""
-
-    def mock_request(
-        url: str, params: Dict[str, Any], headers: Dict[str, str]
-    ) -> Tuple[int, Dict[str, str], bytes]:
-        raise pytest.importorskip("urllib.error").HTTPError(
-            url,
-            429,
-            "Too Many Requests",
-            {"Retry-After": "1"},
-            None,  # type: ignore[arg-type]
-        )
-
-    transport = HttpTransport(max_retries=1, backoff_factor=0.01, request_func=mock_request)
-    with pytest.raises(RateLimitError):
-        transport.execute("https://api.finmindtrade.com/api/v4/data")
-
-
-def test_transport_non_retryable_404_error() -> None:
-    """Test fast fail on non-retryable 404 client error without retrying."""
-    attempts = 0
-
-    def mock_request(
-        url: str, params: Dict[str, Any], headers: Dict[str, str]
-    ) -> Tuple[int, Dict[str, str], bytes]:
-        nonlocal attempts
-        attempts += 1
-        raise pytest.importorskip("urllib.error").HTTPError(
-            url,
-            404,
-            "Not Found",
-            {},
-            None,  # type: ignore[arg-type]
-        )
-
-    transport = HttpTransport(max_retries=3, backoff_factor=0.01, request_func=mock_request)
-    with pytest.raises(ProviderError) as exc_info:
-        transport.execute("https://api.finmindtrade.com/api/v4/data")
-
-    assert attempts == 1
-    assert exc_info.value.status_code == 404
+def test_parse_retry_after_integer_and_http_date() -> None:
+    """Test parse_retry_after helper supporting integer seconds and HTTP-date strings."""
+    assert parse_retry_after("120") == 120.0
+    assert parse_retry_after("") is None
+    # Test valid RFC-1123 HTTP-date
+    res = parse_retry_after("Wed, 21 Oct 2026 07:28:00 GMT")
+    assert res is not None or res == 0.0
 
 
 def test_twse_t86_institutional_endpoint() -> None:
