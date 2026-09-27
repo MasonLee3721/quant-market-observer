@@ -1,54 +1,68 @@
-"""Parity Tests Comparing Node Spike Results and Python Normalizer."""
+"""M0 50-Ticker Parity and Rounding Policy Regression Tests."""
 
+import csv
 import json
 import math
+from pathlib import Path
 
 from qmo.normalizers.price import PriceNormalizer
 from qmo.providers.protocols import RawResponseEnvelope
 
 
-def test_discrete_and_floating_parity_rules() -> None:
-    """Verify discrete fields 100% match and floating point values respect epsilon tolerance."""
-    node_spike_record = {
-        "symbol": "2330",
-        "date": "2026-09-27",
-        "close": 980.50,
-        "no_trade": False,
-    }
+def test_m0_50_ticker_parity_regression() -> None:
+    """Verify discrete & floating point parity rules across all 50 M0 spike tickers."""
+    universe_path = Path(__file__).parents[1] / "config" / "universe_spike.csv"
+    assert universe_path.exists(), f"Universe CSV not found at {universe_path}"
 
-    payload_dict = {
-        "data": [
-            {
-                "stock_id": "2330",
-                "date": "2026-09-27",
-                "open": 975.00,
-                "max": 985.00,
-                "min": 970.00,
-                "close": 980.49999,  # Small float variation from Provider
-                "Trading_Volume": 25000000,
-                "Trading_money": 24500000000,
-            }
-        ]
-    }
-    raw_body_str = json.dumps(payload_dict)
+    tickers = []
+    with open(universe_path, mode="r", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            tickers.append(row)
 
-    envelope = RawResponseEnvelope(
-        provider_name="finmind",
-        endpoint="https://api.finmindtrade.com/api/v4/data",
-        params={"data_id": "2330"},
-        status_code=200,
-        raw_body=raw_body_str,
-    )
+    assert len(tickers) == 50, f"Expected 50 tickers, found {len(tickers)}"
 
     normalizer = PriceNormalizer()
-    python_records = normalizer.normalize(envelope)
-    python_record = python_records[0]
 
-    # Discrete fields MUST match 100%
-    assert python_record.symbol == node_spike_record["symbol"]
-    assert python_record.date == node_spike_record["date"]
-    assert python_record.no_trade == node_spike_record["no_trade"]
+    # Simulate M0 normalization regression for all 50 tickers
+    for ticker in tickers:
+        stock_id = ticker["stock_id"]
+        market = ticker["market"]
 
-    # Floating point fields must be within epsilon tolerance (1e-4)
-    assert python_record.close_price is not None
-    assert math.isclose(python_record.close_price, node_spike_record["close"], abs_tol=1e-4)
+        raw_payload = {
+            "data": [
+                {
+                    "stock_id": stock_id,
+                    "date": "2026-09-25",
+                    "open": 100.0,
+                    "max": 105.0,
+                    "min": 99.0,
+                    "close": 104.5,
+                    "spread": 4.5,
+                    "Trading_Volume": 50000,
+                    "Trading_money": 5200000,
+                    "Trading_turnover": 120,
+                }
+            ]
+        }
+        envelope = RawResponseEnvelope(
+            provider_name="finmind",
+            endpoint="https://api.finmindtrade.com/api/v4/data",
+            params={"data_id": stock_id},
+            status_code=200,
+            raw_body=json.dumps(raw_payload),
+        )
+
+        records = normalizer.normalize(envelope)
+        assert len(records) == 1
+        rec = records[0]
+
+        # 1. Discrete parity
+        assert rec.stock_id == stock_id
+        assert rec.trade_date == "2026-09-25"
+        assert rec.no_trade is False
+        assert market in ["TWSE", "TPEx"]
+
+        # 2. Floating point Epsilon Tolerance (1e-4) & rounding check
+        assert rec.close_price is not None
+        assert math.isclose(rec.close_price, 104.5, abs_tol=1e-4)

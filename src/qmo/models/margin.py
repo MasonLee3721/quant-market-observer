@@ -1,13 +1,17 @@
-"""Margin Trading Data Model."""
+"""Margin Trading Data Model adhering to M0 Data Contract Schema."""
 
-from pydantic import BaseModel
+import re
+from typing import List
+
+from pydantic import BaseModel, Field, field_validator
 
 
 class Margin(BaseModel):
     """Normalized Margin Purchase and Short Sale Record."""
 
-    symbol: str
-    date: str  # YYYY-MM-DD
+    trade_date: str  # YYYY-MM-DD
+    stock_id: str
+    market: str = "TWSE"
     margin_purchase_buy: int = 0
     margin_purchase_sell: int = 0
     margin_purchase_cash_redemption: int = 0
@@ -20,4 +24,12 @@ class Margin(BaseModel):
     short_sale_quota: int = 0
     source: str = "finmind"
     retrieved_at: str = ""
-    schema_version: str = "1.0"
+    schema_version: str = "v0.1"
+    quality_flags: List[str] = Field(default_factory=list)
+
+    @field_validator("trade_date")
+    @classmethod
+    def validate_iso_date(cls, v: str) -> str:
+        if not re.match(r"^\d{4}-\d{2}-\d{2}$", v):
+            raise ValueError(f"trade_date must be in ISO format YYYY-MM-DD, got: {v}")
+        return v

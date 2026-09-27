@@ -1,15 +1,17 @@
-"""Daily Price Data Model with Strict Null / No-Trade Semantics."""
+"""Daily Price Data Model adhering to M0 Data Contract Schema."""
 
-from typing import Optional
+import re
+from typing import List, Optional
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class DailyPrice(BaseModel):
-    """Normalized Daily Stock Price Record."""
+    """Normalized Daily Stock Price Record (M0 Data Contract Schema)."""
 
-    symbol: str
-    date: str  # YYYY-MM-DD
+    trade_date: str  # YYYY-MM-DD ISO 8601
+    stock_id: str
+    market: str = "TWSE"  # TWSE / TPEx
     open_price: Optional[float] = None
     high_price: Optional[float] = None
     low_price: Optional[float] = None
@@ -21,15 +23,21 @@ class DailyPrice(BaseModel):
     no_trade: bool = False
     source: str = "finmind"
     retrieved_at: str = ""
-    schema_version: str = "1.0"
+    schema_version: str = "v0.1"
+    quality_flags: List[str] = Field(default_factory=list)
+
+    @field_validator("trade_date")
+    @classmethod
+    def validate_iso_date(cls, v: str) -> str:
+        if not re.match(r"^\d{4}-\d{2}-\d{2}$", v):
+            raise ValueError(f"trade_date must be in ISO format YYYY-MM-DD, got: {v}")
+        return v
 
     @model_validator(mode="after")
-    def validate_no_trade_semantics(self) -> "DailyPrice":
-        # If trading volume is 0 or price is None, no_trade must be True
-        if self.trading_volume == 0 or self.close_price is None:
+    def validate_m0_no_trade_contract(self) -> "DailyPrice":
+        # M0 Contract: no_trade is True if volume == 0 and trading_value == 0
+        if self.trading_volume == 0 and self.trading_value == 0:
             self.no_trade = True
-            self.open_price = None
-            self.high_price = None
-            self.low_price = None
-            self.close_price = None
+            if "no_trade" not in self.quality_flags:
+                self.quality_flags.append("no_trade")
         return self
