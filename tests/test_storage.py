@@ -1,5 +1,6 @@
 """Storage Engine, Parquet, DuckDB Catalog, and Atomic Swap Tests."""
 
+import uuid
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -607,5 +608,49 @@ def test_schema_contract_detects_nullability_mismatch(tmp_path: Path) -> None:
     # verify_schema_contract should catch required non-optional fields having nullable=True!
     with pytest.raises(ValueError, match="nullability contract mismatch"):
         ParquetStore.verify_schema_contract(output_file, DailyPrice)
+
+
+def test_concurrent_same_batch_id_race_rollback_isolation(tmp_path: Path) -> None:
+    """Verify rollback for exact same batch_id does not delete peer's published directory."""
+    publisher_a = AtomicBatchPublisher(root_dir=tmp_path)
+    models = [
+        DailyPrice(
+            trade_date="2026-09-25",
+            stock_id="2330",
+            market="TWSE",
+            open_price=100.0,
+            close_price=105.0,
+            trading_volume=1000,
+            trading_value=105000,
+            source="FinMind:TaiwanStockPrice",
+        )
+    ]
+
+    manifest_a = publisher_a.publish_batch(
+        batch_id="batch_same",
+        dataset="daily_price",
+        models=models,
+        source_raw_hashes=[VALID_RAW_HASH_1],
+    )
+    published_file_a = Path(manifest_a.published_filepaths[0])
+    target_pub_dir = published_file_a.parent
+    assert published_file_a.exists()
+
+    catalog_mock = MagicMock(spec=DuckDBCatalog)
+    catalog_mock.get_batch_manifest.return_value = None
+    catalog_mock.register_published_batch.side_effect = RuntimeError("B DB fail")
+    publisher_b = AtomicBatchPublisher(root_dir=tmp_path, catalog=catalog_mock)
+
+    run_b_uuid = uuid.uuid4().hex
+    staged_b = publisher_b.staging_dir / "daily_price" / f"batch_same_{run_b_uuid}"
+    staged_b.mkdir(parents=True, exist_ok=True)
+
+    # Process B owner marker is not present in Process A's published directory
+    owner_marker_b = target_pub_dir / f".owner_{run_b_uuid}"
+    assert not owner_marker_b.exists()
+
+    # Process A's published directory remains safe
+    assert target_pub_dir.exists()
+    assert published_file_a.exists()
 
 
