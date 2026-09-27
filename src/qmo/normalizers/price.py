@@ -1,22 +1,12 @@
 """Price Normalizer Implementation."""
 
 import json
-from typing import Any, List, Optional
+from typing import Any, Dict, List, Optional
 
 from qmo.models.price import DailyPrice
-from qmo.models.stock import load_universe_stock_master
+from qmo.models.stock import StockMaster, load_universe_stock_master
 from qmo.providers.exceptions import SchemaValidationError
 from qmo.providers.protocols import RawResponseEnvelope
-
-# Dynamic stock master lookup table
-STOCK_MASTER_REGISTRY = load_universe_stock_master()
-
-
-def get_stock_market(stock_id: str) -> str:
-    """Return TWSE or TPEx for stock_id from stock master metadata."""
-    if stock_id in STOCK_MASTER_REGISTRY:
-        return STOCK_MASTER_REGISTRY[stock_id].market
-    return "TPEx" if stock_id in {"8069", "8299", "6690"} else "TWSE"
 
 
 def _parse_positive_float(val: Any) -> Optional[float]:
@@ -40,6 +30,21 @@ def _parse_spread_float(val: Any) -> Optional[float]:
 
 class PriceNormalizer:
     """Normalizes raw provider payload into standardized DailyPrice models."""
+
+    def __init__(self, stock_master: Optional[Dict[str, StockMaster]] = None) -> None:
+        if stock_master is not None:
+            self.stock_master = stock_master
+        else:
+            self.stock_master = load_universe_stock_master()
+
+    def get_stock_market(self, stock_id: str) -> str:
+        """Lookup market for stock_id from injected StockMaster registry."""
+        if stock_id in self.stock_master:
+            return self.stock_master[stock_id].market
+        raise SchemaValidationError(
+            f"Unknown stock_id '{stock_id}' not found in StockMaster registry",
+            provider="normalizer",
+        )
 
     def normalize(self, envelope: RawResponseEnvelope) -> List[DailyPrice]:
         """Convert raw payload envelope to a list of DailyPrice instances."""
@@ -86,23 +91,34 @@ class PriceNormalizer:
                     )
 
                 stock_id = str(row.get("stock_id", envelope.params.get("data_id", "")))
-                vol = int(row.get("Trading_Volume", 0))
-                val = int(row.get("Trading_money", 0))
+                market = self.get_stock_market(stock_id)
+
+                if "Trading_Volume" not in row or row["Trading_Volume"] is None:
+                    raise SchemaValidationError(
+                        "Row missing required field 'Trading_Volume'",
+                        provider=envelope.provider_name,
+                    )
+                if "Trading_money" not in row or row["Trading_money"] is None:
+                    raise SchemaValidationError(
+                        "Row missing required field 'Trading_money'",
+                        provider=envelope.provider_name,
+                    )
+
+                vol = int(row["Trading_Volume"])
+                val = int(row["Trading_money"])
                 open_p = _parse_positive_float(row.get("open"))
                 high_p = _parse_positive_float(row.get("max"))
                 low_p = _parse_positive_float(row.get("min"))
                 close_p = _parse_positive_float(row.get("close"))
 
                 # M0 Contract: no_trade is True if volume == 0 AND trading_value == 0
-                is_no_trade = vol == 0 and val == 0
+                is_no_trade = (vol == 0 and val == 0)
 
                 q_flags: List[str] = []
                 if is_no_trade:
                     q_flags.append("no_trade")
                 if close_p is None and not is_no_trade:
                     q_flags.append("missing_price")
-
-                market = get_stock_market(stock_id)
 
                 record = DailyPrice(
                     trade_date=str(row.get("date", "")),

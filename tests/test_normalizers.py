@@ -16,8 +16,8 @@ from qmo.providers.protocols import RawResponseEnvelope
     "trading_volume,trading_value,open_p,close_p,expected_no_trade",
     [
         (1000, 100000, 100.0, 105.0, False),  # Normal trade
-        (0, 0, None, None, True),  # M0 no_trade: vol==0 & val==0
-        (0, 0, 100.0, 105.0, True),  # M0 no_trade: prices should be nullified
+        (0, 0, None, None, True),             # M0 no_trade: vol==0 & val==0
+        (0, 0, 100.0, 105.0, True),           # M0 no_trade: prices should be nullified
     ],
 )
 def test_price_normalizer_m0_no_trade_contract(
@@ -67,6 +67,29 @@ def test_price_normalizer_m0_no_trade_contract(
         assert rec.close_price is None
 
 
+def test_utc_datetime_validation_strictness() -> None:
+    """Verify retrieved_at validator accepts UTC and rejects non-UTC offsets or naive datetimes."""
+    # 1. Valid UTC ISO with Z
+    p1 = DailyPrice(trade_date="2026-09-27", stock_id="2330", retrieved_at="2026-09-27T03:00:00Z")
+    assert p1.retrieved_at == "2026-09-27T03:00:00Z"
+
+    # 2. Valid UTC ISO with +00:00
+    p2 = DailyPrice(
+        trade_date="2026-09-27", stock_id="2330", retrieved_at="2026-09-27T03:00:00+00:00"
+    )
+    assert "+00:00" in p2.retrieved_at
+
+    # 3. Invalid non-UTC offset (+08:00) fails
+    with pytest.raises(ValueError, match="must be UTC timezone-aware"):
+        DailyPrice(
+            trade_date="2026-09-27", stock_id="2330", retrieved_at="2026-09-27T11:00:00+08:00"
+        )
+
+    # 4. Naive datetime without offset fails
+    with pytest.raises(ValueError, match="must be UTC timezone-aware"):
+        DailyPrice(trade_date="2026-09-27", stock_id="2330", retrieved_at="2026-09-27T11:00:00")
+
+
 def test_invalid_date_validation_fails() -> None:
     """Verify invalid dates like 2026-99-99 raise ValueError."""
     with pytest.raises(ValueError, match="trade_date must be a valid ISO date"):
@@ -95,6 +118,32 @@ def test_normalizers_raise_schema_validation_error_on_unsupported_provider() -> 
         MarginNormalizer().normalize(envelope)
 
 
+def test_normalizer_dependency_injection_and_unregistered_stock_error() -> None:
+    """Verify custom stock_master registry injection and error on unregistered stock_id."""
+    custom_normalizer = PriceNormalizer(stock_master={})
+    raw_payload = {
+        "data": [
+            {
+                "stock_id": "9999",
+                "date": "2026-09-27",
+                "open": 10.0,
+                "close": 10.0,
+                "Trading_Volume": 1000,
+                "Trading_money": 10000,
+            }
+        ]
+    }
+    envelope = RawResponseEnvelope(
+        provider_name="finmind",
+        endpoint="",
+        params={"data_id": "9999"},
+        status_code=200,
+        raw_body_bytes=json.dumps(raw_payload).encode("utf-8"),
+    )
+    with pytest.raises(SchemaValidationError, match="Unknown stock_id '9999'"):
+        custom_normalizer.normalize(envelope)
+
+
 def test_institutional_normalizer_multi_row_accumulation() -> None:
     """Verify InstitutionalNormalizer accumulates multi-row Foreign and Dealer sub-categories."""
     payload = {
@@ -109,7 +158,7 @@ def test_institutional_normalizer_multi_row_accumulation() -> None:
     envelope = RawResponseEnvelope(
         provider_name="finmind",
         endpoint="",
-        params={"data_id": "8069"},  # TPEx ticker
+        params={"data_id": "8069"},
         status_code=200,
         raw_body_bytes=json.dumps(payload).encode("utf-8"),
     )
@@ -119,7 +168,7 @@ def test_institutional_normalizer_multi_row_accumulation() -> None:
     assert len(records) == 1
     rec = records[0]
     assert rec.stock_id == "8069"
-    assert rec.market == "TPEx"  # Verified market lookup!
+    assert rec.market == "TPEx"  # Verified market lookup from StockMaster registry!
     assert rec.foreign_buy == 1200
     assert rec.foreign_sell == 450
     assert rec.foreign_net == 750
@@ -128,3 +177,80 @@ def test_institutional_normalizer_multi_row_accumulation() -> None:
     assert rec.dealer_sell == 150
     assert rec.dealer_net == 250
     assert rec.total_net == 750 + 400 + 250
+
+
+def test_margin_normalizer_success() -> None:
+    """Verify MarginNormalizer parses FinMind margin trading payload."""
+    payload = {
+        "data": [
+            {
+                "date": "2026-09-27",
+                "stock_id": "2330",
+                "MarginPurchaseBuy": 100,
+                "MarginPurchaseSell": 30,
+                "MarginPurchaseTodayBalance": 500,
+                "ShortSaleBuy": 20,
+                "ShortSaleSell": 50,
+                "ShortSaleTodayBalance": 200,
+            }
+        ]
+    }
+    envelope = RawResponseEnvelope(
+        provider_name="finmind",
+        endpoint="",
+        params={"data_id": "2330"},
+        status_code=200,
+        raw_body_bytes=json.dumps(payload).encode("utf-8"),
+    )
+    normalizer = MarginNormalizer()
+    records = normalizer.normalize(envelope)
+
+    assert len(records) == 1
+    rec = records[0]
+    assert rec.stock_id == "2330"
+    assert rec.market == "TWSE"
+    assert rec.margin_purchase_buy == 100
+    assert rec.margin_purchase_balance == 500
+    assert rec.short_sale_sell == 50
+    assert rec.short_sale_balance == 200
+
+
+def test_missing_required_fields_raise_schema_validation_error() -> None:
+    """Verify missing essential schema fields cause SchemaValidationError."""
+    # 1. Missing Trading_Volume in PriceNormalizer
+    price_payload = {
+        "data": [{"stock_id": "2330", "date": "2026-09-27", "open": 10.0, "close": 10.0}]
+    }
+    env_price = RawResponseEnvelope(
+        provider_name="finmind",
+        endpoint="",
+        params={"data_id": "2330"},
+        status_code=200,
+        raw_body_bytes=json.dumps(price_payload).encode("utf-8"),
+    )
+    with pytest.raises(SchemaValidationError, match="missing required field 'Trading_Volume'"):
+        PriceNormalizer().normalize(env_price)
+
+    # 2. Missing buy/sell in InstitutionalNormalizer
+    inst_payload = {"data": [{"date": "2026-09-27", "name": "Foreign_Investor"}]}
+    env_inst = RawResponseEnvelope(
+        provider_name="finmind",
+        endpoint="",
+        params={"data_id": "2330"},
+        status_code=200,
+        raw_body_bytes=json.dumps(inst_payload).encode("utf-8"),
+    )
+    with pytest.raises(SchemaValidationError, match="missing required field 'buy' or 'sell'"):
+        InstitutionalNormalizer().normalize(env_inst)
+
+    # 3. Missing MarginPurchaseBuy in MarginNormalizer
+    margin_payload = {"data": [{"date": "2026-09-27", "stock_id": "2330"}]}
+    env_margin = RawResponseEnvelope(
+        provider_name="finmind",
+        endpoint="",
+        params={"data_id": "2330"},
+        status_code=200,
+        raw_body_bytes=json.dumps(margin_payload).encode("utf-8"),
+    )
+    with pytest.raises(SchemaValidationError, match="missing required field 'MarginPurchaseBuy'"):
+        MarginNormalizer().normalize(env_margin)

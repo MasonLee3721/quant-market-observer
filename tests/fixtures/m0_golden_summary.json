@@ -1,5 +1,10 @@
 {
-  "version": "v0.1-golden",
+  "version": "schema-v0.1",
+  "generation_command": "node scripts/m0_spike.mjs && node scripts/test_m0.mjs",
+  "source_dataset": "FinMind/TWSE/TPEx 50-ticker feasibility spike",
+  "source_file_sha256": "7a9b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b",
+  "node_spike_commit": "5fb2b8a38cfb6ebb76d444813f2ef843ac6b7d74",
+  "date_range": "2022-09-01 to 2026-09-25",
   "ticker_count": 50,
   "total_price_records": 24193,
   "primary_key_duplicates": 0,

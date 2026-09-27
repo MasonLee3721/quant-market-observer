@@ -1,6 +1,6 @@
 """Institutional Flow Data Model adhering to M0 Data Contract Schema."""
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import List
 
 from pydantic import BaseModel, Field, field_validator
@@ -40,12 +40,12 @@ class InstitutionalFlow(BaseModel):
     @classmethod
     def validate_utc_iso_datetime(cls, v: str) -> str:
         if v:
+            iso_str = v.replace("Z", "+00:00") if v.endswith("Z") else v
             try:
-                dt = datetime.fromisoformat(v)
-                if dt.tzinfo is None:
-                    raise ValueError(
-                        f"retrieved_at must be UTC timezone-aware ISO string, got: {v}"
-                    )
+                dt = datetime.fromisoformat(iso_str)
             except ValueError as e:
                 raise ValueError(f"retrieved_at must be valid UTC ISO datetime, got: {v}") from e
+
+            if dt.tzinfo is None or dt.utcoffset() != timedelta(0):
+                raise ValueError(f"retrieved_at must be UTC timezone-aware (+00:00 or Z), got: {v}")
         return v

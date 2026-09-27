@@ -1,16 +1,31 @@
 """Institutional Investor Flow Normalizer Implementation."""
 
 import json
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from qmo.models.institutional import InstitutionalFlow
-from qmo.normalizers.price import get_stock_market
+from qmo.models.stock import StockMaster, load_universe_stock_master
 from qmo.providers.exceptions import SchemaValidationError
 from qmo.providers.protocols import RawResponseEnvelope
 
 
 class InstitutionalNormalizer:
     """Normalizes raw provider payload into standardized InstitutionalFlow models."""
+
+    def __init__(self, stock_master: Optional[Dict[str, StockMaster]] = None) -> None:
+        if stock_master is not None:
+            self.stock_master = stock_master
+        else:
+            self.stock_master = load_universe_stock_master()
+
+    def get_stock_market(self, stock_id: str) -> str:
+        """Lookup market for stock_id from injected StockMaster registry."""
+        if stock_id in self.stock_master:
+            return self.stock_master[stock_id].market
+        raise SchemaValidationError(
+            f"Unknown stock_id '{stock_id}' not found in StockMaster registry",
+            provider="normalizer",
+        )
 
     def normalize(self, envelope: RawResponseEnvelope) -> List[InstitutionalFlow]:
         """Convert raw payload envelope to a list of InstitutionalFlow instances."""
@@ -70,8 +85,18 @@ class InstitutionalNormalizer:
                         "dealer_sell": 0,
                     }
                 name = str(row.get("name", ""))
-                buy = int(row.get("buy", 0))
-                sell = int(row.get("sell", 0))
+                if (
+                    "buy" not in row
+                    or row["buy"] is None
+                    or "sell" not in row
+                    or row["sell"] is None
+                ):
+                    raise SchemaValidationError(
+                        "Institutional row missing required field 'buy' or 'sell'",
+                        provider=envelope.provider_name,
+                    )
+                buy = int(row["buy"])
+                sell = int(row["sell"])
 
                 if "Foreign" in name or "外資" in name:
                     by_date[d]["foreign_buy"] += buy
@@ -84,7 +109,7 @@ class InstitutionalNormalizer:
                     by_date[d]["dealer_sell"] += sell
 
             stock_id = str(envelope.params.get("data_id", ""))
-            market = get_stock_market(stock_id)
+            market = self.get_stock_market(stock_id)
 
             for d, flow in by_date.items():
                 f_buy = flow["foreign_buy"]
