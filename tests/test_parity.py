@@ -24,9 +24,15 @@ def test_m0_50_ticker_parity_regression() -> None:
 
     normalizer = PriceNormalizer()
 
+    # Verify market mapping count: 47 TWSE, 3 TPEx in M0 spike universe
+    tpex_count = sum(1 for t in tickers if t["market"] == "TPEx")
+    twse_count = sum(1 for t in tickers if t["market"] == "TWSE")
+    assert tpex_count == 3
+    assert twse_count == 47
+
     for ticker in tickers:
         stock_id = ticker["stock_id"]
-        market = ticker["market"]
+        expected_market = ticker["market"]
 
         raw_payload = {
             "data": [
@@ -56,11 +62,12 @@ def test_m0_50_ticker_parity_regression() -> None:
         assert len(records) == 1
         rec = records[0]
 
-        # 1. Discrete parity
+        # 1. Discrete parity & market classification check
         assert rec.stock_id == stock_id
         assert rec.trade_date == "2026-09-25"
+        assert rec.market == expected_market  # Strict TWSE / TPEx classification
         assert rec.no_trade is False
-        assert market in ["TWSE", "TPEx"]
+        assert rec.schema_version == "schema-v0.1"
 
         # 2. Floating point Epsilon Tolerance (1e-4) & rounding check
         assert rec.close_price is not None

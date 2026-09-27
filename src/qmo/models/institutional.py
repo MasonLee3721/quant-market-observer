@@ -1,6 +1,6 @@
 """Institutional Flow Data Model adhering to M0 Data Contract Schema."""
 
-import re
+from datetime import datetime
 from typing import List
 
 from pydantic import BaseModel, Field, field_validator
@@ -24,12 +24,14 @@ class InstitutionalFlow(BaseModel):
     total_net: int = 0
     source: str = "finmind"
     retrieved_at: str = ""
-    schema_version: str = "v0.1"
+    schema_version: str = "schema-v0.1"
     quality_flags: List[str] = Field(default_factory=list)
 
     @field_validator("trade_date")
     @classmethod
-    def validate_iso_date(cls, v: str) -> str:
-        if not re.match(r"^\d{4}-\d{2}-\d{2}$", v):
-            raise ValueError(f"trade_date must be in ISO format YYYY-MM-DD, got: {v}")
+    def validate_real_date(cls, v: str) -> str:
+        try:
+            datetime.strptime(v, "%Y-%m-%d")
+        except ValueError as e:
+            raise ValueError(f"trade_date must be a valid ISO date YYYY-MM-DD, got: {v}") from e
         return v

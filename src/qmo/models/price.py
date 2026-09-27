@@ -1,6 +1,6 @@
 """Daily Price Data Model adhering to M0 Data Contract Schema."""
 
-import re
+from datetime import datetime
 from typing import List, Optional
 
 from pydantic import BaseModel, Field, field_validator, model_validator
@@ -23,14 +23,26 @@ class DailyPrice(BaseModel):
     no_trade: bool = False
     source: str = "finmind"
     retrieved_at: str = ""
-    schema_version: str = "v0.1"
+    schema_version: str = "schema-v0.1"
     quality_flags: List[str] = Field(default_factory=list)
 
     @field_validator("trade_date")
     @classmethod
-    def validate_iso_date(cls, v: str) -> str:
-        if not re.match(r"^\d{4}-\d{2}-\d{2}$", v):
-            raise ValueError(f"trade_date must be in ISO format YYYY-MM-DD, got: {v}")
+    def validate_real_date(cls, v: str) -> str:
+        try:
+            datetime.strptime(v, "%Y-%m-%d")
+        except ValueError as e:
+            raise ValueError(f"trade_date must be a valid ISO date YYYY-MM-DD, got: {v}") from e
+        return v
+
+    @field_validator("retrieved_at")
+    @classmethod
+    def validate_iso_retrieved_at(cls, v: str) -> str:
+        if v:
+            try:
+                datetime.fromisoformat(v)
+            except ValueError as e:
+                raise ValueError(f"retrieved_at must be valid ISO datetime, got: {v}") from e
         return v
 
     @model_validator(mode="after")
@@ -40,4 +52,10 @@ class DailyPrice(BaseModel):
             self.no_trade = True
             if "no_trade" not in self.quality_flags:
                 self.quality_flags.append("no_trade")
+            # Nullify all price fields on no_trade
+            self.open_price = None
+            self.high_price = None
+            self.low_price = None
+            self.close_price = None
+            self.change = None
         return self

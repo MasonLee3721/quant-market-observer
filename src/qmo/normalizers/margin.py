@@ -4,6 +4,7 @@ import json
 from typing import List
 
 from qmo.models.margin import Margin
+from qmo.normalizers.price import get_stock_market
 from qmo.providers.exceptions import SchemaValidationError
 from qmo.providers.protocols import RawResponseEnvelope
 
@@ -13,6 +14,12 @@ class MarginNormalizer:
 
     def normalize(self, envelope: RawResponseEnvelope) -> List[Margin]:
         """Convert raw payload envelope to a list of Margin instances."""
+        if envelope.provider_name not in ["finmind", "twse", "tpex"]:
+            raise SchemaValidationError(
+                f"Unsupported provider for MarginNormalizer: {envelope.provider_name}",
+                provider=envelope.provider_name,
+            )
+
         if not envelope.raw_body_bytes:
             raise SchemaValidationError("Empty raw response body", provider=envelope.provider_name)
 
@@ -38,9 +45,13 @@ class MarginNormalizer:
                 )
 
             for row in data:
+                stock_id = str(row.get("stock_id", envelope.params.get("data_id", "")))
+                market = get_stock_market(stock_id)
+
                 record = Margin(
                     trade_date=str(row.get("date", "")),
-                    stock_id=str(row.get("stock_id", envelope.params.get("data_id", ""))),
+                    stock_id=stock_id,
+                    market=market,
                     margin_purchase_buy=int(row.get("MarginPurchaseBuy", 0)),
                     margin_purchase_sell=int(row.get("MarginPurchaseSell", 0)),
                     margin_purchase_cash_redemption=int(row.get("MarginPurchaseCashRedemption", 0)),
