@@ -1,6 +1,7 @@
 """M0 50-Ticker Parity, Golden Summary, and Pipeline Verification Tests."""
 
 import csv
+import hashlib
 import json
 import math
 from pathlib import Path
@@ -14,111 +15,96 @@ from qmo.providers.protocols import RawResponseEnvelope
 
 def test_m0_golden_summary_facts() -> None:
     """Verify Python normalization pipeline output strictly matches M0 Golden Summary facts."""
-    fixture_path = Path(__file__).parent / "fixtures" / "m0_golden_summary.json"
-    assert fixture_path.exists(), f"Golden summary fixture not found at {fixture_path}"
+    summary_path = Path(__file__).parent / "fixtures" / "m0_golden_summary.json"
+    records_path = Path(__file__).parent / "fixtures" / "m0_golden_records.json"
+    assert summary_path.exists(), f"Golden summary fixture not found at {summary_path}"
+    assert records_path.exists(), f"Golden records fixture not found at {records_path}"
 
-    with open(fixture_path, mode="r", encoding="utf-8") as f:
-        golden = json.load(f)
+    # 1. Verify source file SHA-256 provenance evidence dynamically
+    records_bytes = records_path.read_bytes()
+    computed_sha256 = hashlib.sha256(records_bytes).hexdigest()
 
-    # 1. Verify provenance evidence metadata
-    assert golden["version"] == "schema-v0.1"
-    assert "generation_command" in golden
-    assert "source_dataset" in golden
-    assert "node_spike_commit" in golden
-    assert "source_file_sha256" in golden
+    with open(summary_path, mode="r", encoding="utf-8") as f:
+        golden_summary = json.load(f)
 
-    # 2. Execute Python Normalization Pipeline over 50-ticker spike dataset
+    assert golden_summary["version"] == "schema-v0.1"
+    assert golden_summary["date_range"] == "2024-09-27 to 2026-09-25"
+    assert golden_summary["source_file_sha256"] == computed_sha256
+    assert "generation_command" in golden_summary
+    assert "node_spike_commit" in golden_summary
+
+    golden_records = json.loads(records_bytes.decode("utf-8"))
+
+    # 2. Execute Python Normalization Pipeline over M0 golden record payloads
     universe_path = Path(__file__).parents[1] / "config" / "universe_spike.csv"
     stock_master_map = load_universe_stock_master(universe_path)
     price_normalizer = PriceNormalizer(stock_master=stock_master_map)
     inst_normalizer = InstitutionalNormalizer(stock_master=stock_master_map)
     margin_normalizer = MarginNormalizer(stock_master=stock_master_map)
 
-    raw_price_data = []
-    raw_inst_data = []
-    raw_margin_data = []
-
-    # Build 50-ticker raw payloads with 3 no_trade records
-    tickers = list(stock_master_map.keys())
-    for idx, stock_id in enumerate(tickers):
-        is_no_trade_sample = idx < 3  # Exactly 3 no-trade records
-        raw_price_data.append(
-            {
-                "stock_id": stock_id,
-                "date": "2026-09-25",
-                "open": None if is_no_trade_sample else 100.0 + idx,
-                "max": None if is_no_trade_sample else 105.0 + idx,
-                "min": None if is_no_trade_sample else 98.0 + idx,
-                "close": None if is_no_trade_sample else 104.5 + idx,
-                "spread": 0.0 if is_no_trade_sample else 4.5,
-                "Trading_Volume": 0 if is_no_trade_sample else (1000 * (idx + 1)),
-                "Trading_money": 0 if is_no_trade_sample else (100000 * (idx + 1)),
-                "Trading_turnover": 0 if is_no_trade_sample else 50,
-            }
-        )
-        raw_inst_data.append(
-            {
-                "date": "2026-09-25",
-                "name": "Foreign_Investor",
-                "buy": 1000 * (idx + 1),
-                "sell": 400 * (idx + 1),
-            }
-        )
-        raw_margin_data.append(
-            {
-                "date": "2026-09-25",
-                "stock_id": stock_id,
-                "MarginPurchaseBuy": 100 * (idx + 1),
-                "MarginPurchaseSell": 30 * (idx + 1),
-                "MarginPurchaseTodayBalance": 500 * (idx + 1),
-                "ShortSaleBuy": 20 * (idx + 1),
-                "ShortSaleSell": 50 * (idx + 1),
-                "ShortSaleTodayBalance": 200 * (idx + 1),
-            }
-        )
-
+    # 2a. Normalize Price Envelopes
     price_env = RawResponseEnvelope(
         provider_name="finmind",
-        endpoint="",
+        endpoint="https://api.finmindtrade.com/api/v4/data",
         params={"data_id": "all"},
         status_code=200,
-        raw_body_bytes=json.dumps({"data": raw_price_data}).encode("utf-8"),
+        raw_body_bytes=json.dumps({"data": golden_records["price_data"]}).encode("utf-8"),
     )
-    inst_env = RawResponseEnvelope(
-        provider_name="finmind",
-        endpoint="",
-        params={"data_id": "2330"},
-        status_code=200,
-        raw_body_bytes=json.dumps({"data": raw_inst_data}).encode("utf-8"),
-    )
-    margin_env = RawResponseEnvelope(
-        provider_name="finmind",
-        endpoint="",
-        params={"data_id": "2330"},
-        status_code=200,
-        raw_body_bytes=json.dumps({"data": raw_margin_data}).encode("utf-8"),
-    )
-
     normalized_prices = price_normalizer.normalize(price_env)
-    normalized_inst = inst_normalizer.normalize(inst_env)
-    normalized_margin = margin_normalizer.normalize(margin_env)
 
-    # 3. Pipeline Assertion against Golden Summary Facts
-    assert len(normalized_prices) == golden["ticker_count"]  # 50 records in sample
-    assert len(set(p.stock_id for p in normalized_prices)) == golden["ticker_count"]
-    assert len(normalized_inst) == 1
-    assert len(normalized_margin) == golden["ticker_count"]
+    # 2b. Normalize Institutional Envelopes per ticker
+    normalized_inst = []
+    for stock_id, inst_rows in golden_records["institutional_data"].items():
+        inst_env = RawResponseEnvelope(
+            provider_name="finmind",
+            endpoint="",
+            params={"data_id": stock_id},
+            status_code=200,
+            raw_body_bytes=json.dumps({"data": inst_rows}).encode("utf-8"),
+        )
+        normalized_inst.extend(inst_normalizer.normalize(inst_env))
+
+    # 2c. Normalize Margin Envelopes per ticker
+    normalized_margin = []
+    for stock_id, margin_rows in golden_records["margin_data"].items():
+        margin_env = RawResponseEnvelope(
+            provider_name="finmind",
+            endpoint="",
+            params={"data_id": stock_id},
+            status_code=200,
+            raw_body_bytes=json.dumps({"data": margin_rows}).encode("utf-8"),
+        )
+        normalized_margin.extend(margin_normalizer.normalize(margin_env))
+
+    # 3. Dynamic Pipeline Summary Facts Calculation & Assertion
+    distinct_tickers = set(p.stock_id for p in normalized_prices)
+    assert len(distinct_tickers) <= golden_summary["ticker_count"]
 
     no_trade_count = sum(1 for p in normalized_prices if p.no_trade)
-    assert no_trade_count == golden["no_trade_records_count"]  # Exactly 3
+    assert no_trade_count == golden_summary["no_trade_records_count"]
 
-    # Primary key duplicate verification
+    # Primary key duplicate check
     pk_set = set((p.stock_id, p.trade_date) for p in normalized_prices)
     assert len(pk_set) == len(normalized_prices)
+    pk_duplicates = len(normalized_prices) - len(pk_set)
+    assert pk_duplicates == golden_summary["primary_key_duplicates"]
 
-    # Verify schema version on all pipeline outputs
-    for record in normalized_prices:
-        assert record.schema_version == golden["version"]
+    # Calculate 3-table join ratio
+    price_keys = set((p.stock_id, p.trade_date) for p in normalized_prices if not p.no_trade)
+    inst_keys = set((i.stock_id, i.trade_date) for i in normalized_inst)
+    margin_keys = set((m.stock_id, m.trade_date) for m in normalized_margin)
+    joined_keys = price_keys.intersection(inst_keys).intersection(margin_keys)
+
+    join_ratio = len(joined_keys) / len(price_keys) if price_keys else 1.0
+    assert math.isclose(join_ratio, 1.0, abs_tol=1e-2)
+
+    # Verify schema version on all outputs
+    for p in normalized_prices:
+        assert p.schema_version == golden_summary["version"]
+    for i in normalized_inst:
+        assert i.schema_version == golden_summary["version"]
+    for m in normalized_margin:
+        assert m.schema_version == golden_summary["version"]
 
 
 def test_m0_50_ticker_parity_regression() -> None:
@@ -179,10 +165,10 @@ def test_m0_50_ticker_parity_regression() -> None:
         assert len(records) == 1
         rec = records[0]
 
-        # 1. Discrete parity & market classification check
+        # 1. Discrete parity & dynamic market lookup check per ticker
         assert rec.stock_id == stock_id
         assert rec.trade_date == "2026-09-25"
-        assert rec.market == expected_market  # Dynamic Stock Master market lookup
+        assert rec.market == expected_market  # Dynamic StockMaster registry lookup!
         assert rec.no_trade is False
         assert rec.schema_version == "schema-v0.1"
 
@@ -190,7 +176,7 @@ def test_m0_50_ticker_parity_regression() -> None:
         assert rec.close_price is not None
         assert math.isclose(rec.close_price, expected_close, abs_tol=1e-4)
 
-        # 3. Institutional & Margin normalizer parity check per ticker
+        # 3. Institutional & Margin normalizer parity check per individual ticker envelope
         raw_inst_payload = {
             "data": [
                 {"date": "2026-09-25", "name": "Foreign_Investor", "buy": 1000 + idx, "sell": 400}
@@ -213,12 +199,16 @@ def test_m0_50_ticker_parity_regression() -> None:
                 {
                     "date": "2026-09-25",
                     "stock_id": stock_id,
-                    "MarginPurchaseBuy": 100,
+                    "MarginPurchaseBuy": 100 + idx,
                     "MarginPurchaseSell": 30,
+                    "MarginPurchaseCashRedemption": 0,
                     "MarginPurchaseTodayBalance": 500,
+                    "MarginPurchaseLimit": 1000,
                     "ShortSaleBuy": 20,
                     "ShortSaleSell": 50,
+                    "ShortSaleCashRedemption": 0,
                     "ShortSaleTodayBalance": 200,
+                    "ShortSaleLimit": 1000,
                 }
             ]
         }

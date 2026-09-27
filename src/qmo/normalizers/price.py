@@ -9,23 +9,27 @@ from qmo.providers.exceptions import SchemaValidationError
 from qmo.providers.protocols import RawResponseEnvelope
 
 
-def _parse_positive_float(val: Any) -> Optional[float]:
+def _parse_positive_float(val: Any, field_name: str, provider: str) -> Optional[float]:
     if val is None:
         return None
     try:
         f = float(val)
         return f if f > 0 else None
-    except (ValueError, TypeError):
-        return None
+    except (ValueError, TypeError) as e:
+        raise SchemaValidationError(
+            f"Invalid numeric value for field '{field_name}': {val}", provider=provider
+        ) from e
 
 
-def _parse_spread_float(val: Any) -> Optional[float]:
+def _parse_spread_float(val: Any, field_name: str, provider: str) -> Optional[float]:
     if val is None:
         return None
     try:
         return float(val)
-    except (ValueError, TypeError):
-        return None
+    except (ValueError, TypeError) as e:
+        raise SchemaValidationError(
+            f"Invalid numeric value for field '{field_name}': {val}", provider=provider
+        ) from e
 
 
 class PriceNormalizer:
@@ -104,15 +108,22 @@ class PriceNormalizer:
                         provider=envelope.provider_name,
                     )
 
-                vol = int(row["Trading_Volume"])
-                val = int(row["Trading_money"])
-                open_p = _parse_positive_float(row.get("open"))
-                high_p = _parse_positive_float(row.get("max"))
-                low_p = _parse_positive_float(row.get("min"))
-                close_p = _parse_positive_float(row.get("close"))
+                try:
+                    vol = int(row["Trading_Volume"])
+                    val = int(row["Trading_money"])
+                except (ValueError, TypeError) as e:
+                    raise SchemaValidationError(
+                        f"Invalid integer for Trading_Volume/Trading_money: {e}",
+                        provider=envelope.provider_name,
+                    ) from e
+
+                open_p = _parse_positive_float(row.get("open"), "open", envelope.provider_name)
+                high_p = _parse_positive_float(row.get("max"), "max", envelope.provider_name)
+                low_p = _parse_positive_float(row.get("min"), "min", envelope.provider_name)
+                close_p = _parse_positive_float(row.get("close"), "close", envelope.provider_name)
 
                 # M0 Contract: no_trade is True if volume == 0 AND trading_value == 0
-                is_no_trade = (vol == 0 and val == 0)
+                is_no_trade = vol == 0 and val == 0
 
                 q_flags: List[str] = []
                 if is_no_trade:
@@ -128,7 +139,7 @@ class PriceNormalizer:
                     high_price=high_p,
                     low_price=low_p,
                     close_price=close_p,
-                    change=_parse_spread_float(row.get("spread")),
+                    change=_parse_spread_float(row.get("spread"), "spread", envelope.provider_name),
                     trading_volume=vol,
                     trading_value=val,
                     transaction_count=int(row.get("Trading_turnover", 0)),

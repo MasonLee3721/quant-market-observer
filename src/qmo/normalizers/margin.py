@@ -77,10 +77,14 @@ class MarginNormalizer:
                 required_keys = [
                     "MarginPurchaseBuy",
                     "MarginPurchaseSell",
+                    "MarginPurchaseCashRedemption",
                     "MarginPurchaseTodayBalance",
+                    "MarginPurchaseLimit",
                     "ShortSaleBuy",
                     "ShortSaleSell",
+                    "ShortSaleCashRedemption",
                     "ShortSaleTodayBalance",
+                    "ShortSaleLimit",
                 ]
                 for key in required_keys:
                     if key not in row or row[key] is None:
@@ -89,20 +93,38 @@ class MarginNormalizer:
                             provider=envelope.provider_name,
                         )
 
+                try:
+                    mp_buy = int(row["MarginPurchaseBuy"])
+                    mp_sell = int(row["MarginPurchaseSell"])
+                    mp_red = int(row["MarginPurchaseCashRedemption"])
+                    mp_bal = int(row["MarginPurchaseTodayBalance"])
+                    mp_limit = int(row["MarginPurchaseLimit"])
+
+                    ss_buy = int(row["ShortSaleBuy"])
+                    ss_sell = int(row["ShortSaleSell"])
+                    ss_red = int(row["ShortSaleCashRedemption"])
+                    ss_bal = int(row["ShortSaleTodayBalance"])
+                    ss_limit = int(row["ShortSaleLimit"])
+                except (ValueError, TypeError) as e:
+                    raise SchemaValidationError(
+                        f"Invalid integer value in margin field: {e}",
+                        provider=envelope.provider_name,
+                    ) from e
+
                 record = Margin(
                     trade_date=str(row.get("date", "")),
                     stock_id=stock_id,
                     market=market,
-                    margin_purchase_buy=int(row["MarginPurchaseBuy"]),
-                    margin_purchase_sell=int(row["MarginPurchaseSell"]),
-                    margin_purchase_cash_redemption=int(row.get("MarginPurchaseCashRedemption", 0)),
-                    margin_purchase_balance=int(row["MarginPurchaseTodayBalance"]),
-                    margin_purchase_quota=int(row.get("MarginPurchaseLimit", 0)),
-                    short_sale_buy=int(row["ShortSaleBuy"]),
-                    short_sale_sell=int(row["ShortSaleSell"]),
-                    short_sale_cash_redemption=int(row.get("ShortSaleCashRedemption", 0)),
-                    short_sale_balance=int(row["ShortSaleTodayBalance"]),
-                    short_sale_quota=int(row.get("ShortSaleLimit", 0)),
+                    margin_purchase_buy=mp_buy,
+                    margin_purchase_sell=mp_sell,
+                    margin_purchase_cash_redemption=mp_red,
+                    margin_purchase_balance=mp_bal,
+                    margin_purchase_quota=mp_limit,
+                    short_sale_buy=ss_buy,
+                    short_sale_sell=ss_sell,
+                    short_sale_cash_redemption=ss_red,
+                    short_sale_balance=ss_bal,
+                    short_sale_quota=ss_limit,
                     source=envelope.provider_name,
                     retrieved_at=envelope.retrieved_at,
                 )

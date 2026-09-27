@@ -1,7 +1,7 @@
 """Institutional Investor Flow Normalizer Implementation."""
 
 import json
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 from qmo.models.institutional import InstitutionalFlow
 from qmo.models.stock import StockMaster, load_universe_stock_master
@@ -65,18 +65,30 @@ class InstitutionalNormalizer:
         results: List[InstitutionalFlow] = []
 
         try:
-            by_date: Dict[str, Dict[str, int]] = {}
+            by_date: Dict[Tuple[str, str], Dict[str, int]] = {}
             for row in data:
                 if not isinstance(row, dict):
                     raise SchemaValidationError(
                         "Row item is not a dictionary", provider=envelope.provider_name
                     )
 
+                stock_id_row = str(row.get("stock_id", envelope.params.get("data_id", "")))
+                if not stock_id_row:
+                    raise SchemaValidationError(
+                        "Institutional row missing stock_id and envelope params missing data_id",
+                        provider=envelope.provider_name,
+                    )
+
                 d = str(row.get("date", ""))
                 if not d:
-                    continue
-                if d not in by_date:
-                    by_date[d] = {
+                    raise SchemaValidationError(
+                        "Institutional row missing required field 'date'",
+                        provider=envelope.provider_name,
+                    )
+
+                key_tuple = (stock_id_row, d)
+                if key_tuple not in by_date:
+                    by_date[key_tuple] = {
                         "foreign_buy": 0,
                         "foreign_sell": 0,
                         "trust_buy": 0,
@@ -95,23 +107,28 @@ class InstitutionalNormalizer:
                         "Institutional row missing required field 'buy' or 'sell'",
                         provider=envelope.provider_name,
                     )
-                buy = int(row["buy"])
-                sell = int(row["sell"])
+                try:
+                    buy = int(row["buy"])
+                    sell = int(row["sell"])
+                except (ValueError, TypeError) as e:
+                    raise SchemaValidationError(
+                        f"Invalid integer for institutional buy/sell: {e}",
+                        provider=envelope.provider_name,
+                    ) from e
 
                 if "Foreign" in name or "外資" in name:
-                    by_date[d]["foreign_buy"] += buy
-                    by_date[d]["foreign_sell"] += sell
+                    by_date[key_tuple]["foreign_buy"] += buy
+                    by_date[key_tuple]["foreign_sell"] += sell
                 elif "Investment" in name or "投信" in name:
-                    by_date[d]["trust_buy"] += buy
-                    by_date[d]["trust_sell"] += sell
+                    by_date[key_tuple]["trust_buy"] += buy
+                    by_date[key_tuple]["trust_sell"] += sell
                 elif "Dealer" in name or "自營商" in name:
-                    by_date[d]["dealer_buy"] += buy
-                    by_date[d]["dealer_sell"] += sell
+                    by_date[key_tuple]["dealer_buy"] += buy
+                    by_date[key_tuple]["dealer_sell"] += sell
 
-            stock_id = str(envelope.params.get("data_id", ""))
-            market = self.get_stock_market(stock_id)
+            for (stock_id, d), flow in by_date.items():
+                market = self.get_stock_market(stock_id)
 
-            for d, flow in by_date.items():
                 f_buy = flow["foreign_buy"]
                 f_sell = flow["foreign_sell"]
                 f_net = f_buy - f_sell

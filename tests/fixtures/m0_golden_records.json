@@ -1,0 +1,135 @@
+{
+  "dataset": "m0_golden_records_v0.1",
+  "tickers": [
+    "2330", "2317", "2454", "2308", "2382", "2303", "2881", "2882", "2891", "2886",
+    "5880", "2892", "2884", "2885", "2880", "1301", "1303", "1326", "2002", "1101",
+    "1216", "2912", "2207", "2603", "2609", "2615", "2618", "2610", "3008", "2379",
+    "3034", "2379", "3035", "2408", "3711", "2357", "2395", "3231", "2356", "6669",
+    "2345", "3045", "2412", "3044", "4904", "4938", "2377", "8069", "8299", "6690"
+  ],
+  "price_data": [
+    {
+      "stock_id": "2330", "date": "2026-09-25",
+      "open": 980.0, "max": 990.0, "min": 975.0, "close": 985.0, "spread": 5.0,
+      "Trading_Volume": 25430000, "Trading_money": 25048550000, "Trading_turnover": 35200
+    },
+    {
+      "stock_id": "8069", "date": "2026-09-25",
+      "open": 120.0, "max": 123.0, "min": 119.5, "close": 122.5, "spread": 2.5,
+      "Trading_Volume": 1500000, "Trading_money": 183750000, "Trading_turnover": 1800
+    },
+    {
+      "stock_id": "8299", "date": "2026-09-25",
+      "open": 450.0, "max": 455.0, "min": 448.0, "close": 452.0, "spread": 2.0,
+      "Trading_Volume": 820000, "Trading_money": 370640000, "Trading_turnover": 950
+    },
+    {
+      "stock_id": "6690", "date": "2026-09-25",
+      "open": 310.0, "max": 315.0, "min": 308.0, "close": 312.0, "spread": 2.0,
+      "Trading_Volume": 450000, "Trading_money": 140400000, "Trading_turnover": 520
+    },
+    {
+      "stock_id": "2330", "date": "2026-09-24",
+      "open": 0.0, "max": 0.0, "min": 0.0, "close": 0.0, "spread": 0.0,
+      "Trading_Volume": 0, "Trading_money": 0, "Trading_turnover": 0
+    },
+    {
+      "stock_id": "8069", "date": "2026-09-24",
+      "open": 0.0, "max": 0.0, "min": 0.0, "close": 0.0, "spread": 0.0,
+      "Trading_Volume": 0, "Trading_money": 0, "Trading_turnover": 0
+    },
+    {
+      "stock_id": "6690", "date": "2026-09-24",
+      "open": 0.0, "max": 0.0, "min": 0.0, "close": 0.0, "spread": 0.0,
+      "Trading_Volume": 0, "Trading_money": 0, "Trading_turnover": 0
+    }
+  ],
+  "institutional_data": {
+    "2330": [
+      {"date": "2026-09-25", "name": "Foreign_Investor", "buy": 15000000, "sell": 8000000},
+      {"date": "2026-09-25", "name": "Investment_Trust", "buy": 2000000, "sell": 500000},
+      {"date": "2026-09-25", "name": "Dealer_Self", "buy": 1000000, "sell": 300000}
+    ],
+    "8069": [
+      {"date": "2026-09-25", "name": "Foreign_Investor", "buy": 500000, "sell": 200000},
+      {"date": "2026-09-25", "name": "Investment_Trust", "buy": 100000, "sell": 30000},
+      {"date": "2026-09-25", "name": "Dealer_Self", "buy": 50000, "sell": 20000}
+    ],
+    "8299": [
+      {"date": "2026-09-25", "name": "Foreign_Investor", "buy": 300000, "sell": 150000},
+      {"date": "2026-09-25", "name": "Investment_Trust", "buy": 50000, "sell": 10000},
+      {"date": "2026-09-25", "name": "Dealer_Self", "buy": 20000, "sell": 5000}
+    ],
+    "6690": [
+      {"date": "2026-09-25", "name": "Foreign_Investor", "buy": 150000, "sell": 80000},
+      {"date": "2026-09-25", "name": "Investment_Trust", "buy": 30000, "sell": 5000},
+      {"date": "2026-09-25", "name": "Dealer_Self", "buy": 10000, "sell": 2000}
+    ]
+  },
+  "margin_data": {
+    "2330": [
+      {
+        "date": "2026-09-25",
+        "stock_id": "2330",
+        "MarginPurchaseBuy": 1200,
+        "MarginPurchaseSell": 450,
+        "MarginPurchaseCashRedemption": 10,
+        "MarginPurchaseTodayBalance": 15400,
+        "MarginPurchaseLimit": 250000,
+        "ShortSaleBuy": 150,
+        "ShortSaleSell": 300,
+        "ShortSaleCashRedemption": 5,
+        "ShortSaleTodayBalance": 3200,
+        "ShortSaleLimit": 250000
+      }
+    ],
+    "8069": [
+      {
+        "date": "2026-09-25",
+        "stock_id": "8069",
+        "MarginPurchaseBuy": 300,
+        "MarginPurchaseSell": 100,
+        "MarginPurchaseCashRedemption": 0,
+        "MarginPurchaseTodayBalance": 4200,
+        "MarginPurchaseLimit": 50000,
+        "ShortSaleBuy": 20,
+        "ShortSaleSell": 60,
+        "ShortSaleCashRedemption": 0,
+        "ShortSaleTodayBalance": 800,
+        "ShortSaleLimit": 50000
+      }
+    ],
+    "8299": [
+      {
+        "date": "2026-09-25",
+        "stock_id": "8299",
+        "MarginPurchaseBuy": 200,
+        "MarginPurchaseSell": 80,
+        "MarginPurchaseCashRedemption": 0,
+        "MarginPurchaseTodayBalance": 2100,
+        "MarginPurchaseLimit": 30000,
+        "ShortSaleBuy": 10,
+        "ShortSaleSell": 30,
+        "ShortSaleCashRedemption": 0,
+        "ShortSaleTodayBalance": 400,
+        "ShortSaleLimit": 30000
+      }
+    ],
+    "6690": [
+      {
+        "date": "2026-09-25",
+        "stock_id": "6690",
+        "MarginPurchaseBuy": 100,
+        "MarginPurchaseSell": 40,
+        "MarginPurchaseCashRedemption": 0,
+        "MarginPurchaseTodayBalance": 1200,
+        "MarginPurchaseLimit": 20000,
+        "ShortSaleBuy": 5,
+        "ShortSaleSell": 15,
+        "ShortSaleCashRedemption": 0,
+        "ShortSaleTodayBalance": 200,
+        "ShortSaleLimit": 20000
+      }
+    ]
+  }
+}

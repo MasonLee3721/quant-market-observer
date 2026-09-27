@@ -16,8 +16,8 @@ from qmo.providers.protocols import RawResponseEnvelope
     "trading_volume,trading_value,open_p,close_p,expected_no_trade",
     [
         (1000, 100000, 100.0, 105.0, False),  # Normal trade
-        (0, 0, None, None, True),             # M0 no_trade: vol==0 & val==0
-        (0, 0, 100.0, 105.0, True),           # M0 no_trade: prices should be nullified
+        (0, 0, None, None, True),  # M0 no_trade: vol==0 & val==0
+        (0, 0, 100.0, 105.0, True),  # M0 no_trade: prices should be nullified
     ],
 )
 def test_price_normalizer_m0_no_trade_contract(
@@ -188,10 +188,14 @@ def test_margin_normalizer_success() -> None:
                 "stock_id": "2330",
                 "MarginPurchaseBuy": 100,
                 "MarginPurchaseSell": 30,
+                "MarginPurchaseCashRedemption": 10,
                 "MarginPurchaseTodayBalance": 500,
+                "MarginPurchaseLimit": 1000,
                 "ShortSaleBuy": 20,
                 "ShortSaleSell": 50,
+                "ShortSaleCashRedemption": 5,
                 "ShortSaleTodayBalance": 200,
+                "ShortSaleLimit": 1000,
             }
         ]
     }
@@ -210,9 +214,13 @@ def test_margin_normalizer_success() -> None:
     assert rec.stock_id == "2330"
     assert rec.market == "TWSE"
     assert rec.margin_purchase_buy == 100
+    assert rec.margin_purchase_cash_redemption == 10
     assert rec.margin_purchase_balance == 500
+    assert rec.margin_purchase_quota == 1000
     assert rec.short_sale_sell == 50
+    assert rec.short_sale_cash_redemption == 5
     assert rec.short_sale_balance == 200
+    assert rec.short_sale_quota == 1000
 
 
 def test_missing_required_fields_raise_schema_validation_error() -> None:
