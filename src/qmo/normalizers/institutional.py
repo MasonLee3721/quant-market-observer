@@ -146,6 +146,11 @@ class InstitutionalNormalizer:
                 d_net = d_buy - d_sell
 
                 cats_str = "|".join(sorted(list(flow["categories"])))
+                src_str = (
+                    "FinMind:TaiwanStockInstitutionalInvestorsBuySell"
+                    if envelope.provider_name == "finmind"
+                    else envelope.provider_name
+                )
 
                 record = InstitutionalFlow(
                     trade_date=d,
@@ -162,7 +167,7 @@ class InstitutionalNormalizer:
                     dealer_net=d_net,
                     total_net=f_net + t_net + d_net,
                     categories=cats_str,
-                    source=envelope.provider_name,
+                    source=src_str,
                     retrieved_at=envelope.retrieved_at,
                 )
                 results.append(record)

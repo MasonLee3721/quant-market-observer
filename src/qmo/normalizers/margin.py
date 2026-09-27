@@ -130,6 +130,12 @@ class MarginNormalizer:
                         provider=envelope.provider_name,
                     ) from e
 
+                src_str = (
+                    "FinMind:TaiwanStockMarginPurchaseShortSale"
+                    if envelope.provider_name == "finmind"
+                    else envelope.provider_name
+                )
+
                 record = Margin(
                     trade_date=str(row.get("date", "")),
                     stock_id=stock_id,
@@ -148,7 +154,7 @@ class MarginNormalizer:
                     short_sale_quota=ss_limit,
                     offset_loan_and_short=offset_val,
                     note=note_val,
-                    source=envelope.provider_name,
+                    source=src_str,
                     retrieved_at=envelope.retrieved_at,
                 )
                 results.append(record)

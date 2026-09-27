@@ -199,14 +199,18 @@ def verify_m0_artifact(update_summary: bool = False) -> Dict[str, Any]:
         inst_golden = committed_summary.get("institutional_flow_csv_sha256")
         margin_golden = committed_summary.get("margin_csv_sha256")
 
-        assert price_golden == KNOWN_NODE_BASELINE_HASHES["daily_price"], (
-            f"Golden Price SHA-256 mismatch: {price_golden} vs Node baseline"
+        node_price = KNOWN_NODE_BASELINE_HASHES["daily_price"]
+        node_inst = KNOWN_NODE_BASELINE_HASHES["institutional_flow"]
+        node_margin = KNOWN_NODE_BASELINE_HASHES["margin"]
+
+        assert price_csv_sha256 == price_golden == node_price, (
+            f"Price SHA-256 mismatch: {price_csv_sha256} vs {price_golden} vs {node_price}"
         )
-        assert inst_golden == KNOWN_NODE_BASELINE_HASHES["institutional_flow"], (
-            f"Golden Inst SHA-256 mismatch: {inst_golden} vs Node baseline"
+        assert inst_csv_sha256 == inst_golden == node_inst, (
+            f"Inst SHA-256 mismatch: {inst_csv_sha256} vs {inst_golden} vs {node_inst}"
         )
-        assert margin_golden == KNOWN_NODE_BASELINE_HASHES["margin"], (
-            f"Golden Margin SHA-256 mismatch: {margin_golden} vs Node baseline"
+        assert margin_csv_sha256 == margin_golden == node_margin, (
+            f"Margin SHA-256 mismatch: {margin_csv_sha256} vs {margin_golden} vs {node_margin}"
         )
 
     # 6. Comprehensive Field-by-Field Parity Check Against Baseline CSV Rows across ALL fields
@@ -221,8 +225,8 @@ def verify_m0_artifact(update_summary: bool = False) -> Dict[str, Any]:
         assert int(csv_row["trading_money"]) == m.trading_value
         assert int(csv_row["trades"]) == m.transaction_count
         assert csv_row["quality_flags"] == ("|".join(m.quality_flags))
-        assert m.source.lower() in csv_row["source"].lower()
-        assert len(csv_row["retrieved_at"]) > 0
+        assert csv_row["source"] == m.source
+        assert len(csv_row["retrieved_at"]) > 0 and len(m.retrieved_at) > 0
         assert csv_row["schema_version"] == m.schema_version
         if csv_row["open"]:
             assert math.isclose(float(csv_row["open"]), m.open_price or 0.0, abs_tol=1e-4)
@@ -257,8 +261,8 @@ def verify_m0_artifact(update_summary: bool = False) -> Dict[str, Any]:
         assert int(csv_row["dealer_net"]) == m.dealer_net
         assert int(csv_row["total_net"]) == m.total_net
         assert csv_row["categories"] == m.categories
-        assert m.source.lower() in csv_row["source"].lower()
-        assert len(csv_row["retrieved_at"]) > 0
+        assert csv_row["source"] == m.source
+        assert len(csv_row["retrieved_at"]) > 0 and len(m.retrieved_at) > 0
         assert csv_row["schema_version"] == m.schema_version
 
     with open(margin_csv_path, mode="r", encoding="utf-8") as f:
@@ -280,8 +284,8 @@ def verify_m0_artifact(update_summary: bool = False) -> Dict[str, Any]:
         assert int(csv_row["short_previous_balance"]) == m.short_sale_previous_balance
         assert int(csv_row["offset"]) == m.offset_loan_and_short
         assert csv_row["note"].strip() == m.note.strip()
-        assert m.source.lower() in csv_row["source"].lower()
-        assert len(csv_row["retrieved_at"]) > 0
+        assert csv_row["source"] == m.source
+        assert len(csv_row["retrieved_at"]) > 0 and len(m.retrieved_at) > 0
         assert csv_row["schema_version"] == m.schema_version
 
     print("[OK] All comparable contract schema fields parity matched for Price, Inst, and Margin.")

@@ -131,6 +131,11 @@ class PriceNormalizer:
                 if close_p is None and not is_no_trade:
                     q_flags.append("missing_price")
 
+                src_str = (
+                    "FinMind:TaiwanStockPrice"
+                    if envelope.provider_name == "finmind"
+                    else envelope.provider_name
+                )
                 record = DailyPrice(
                     trade_date=str(row.get("date", "")),
                     stock_id=stock_id,
@@ -144,7 +149,7 @@ class PriceNormalizer:
                     trading_value=val,
                     transaction_count=int(row.get("Trading_turnover", 0)),
                     no_trade=is_no_trade,
-                    source=envelope.provider_name,
+                    source=src_str,
                     retrieved_at=envelope.retrieved_at,
                     quality_flags=q_flags,
                 )
