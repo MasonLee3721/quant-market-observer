@@ -3,6 +3,7 @@
 from pathlib import Path
 from unittest.mock import MagicMock
 
+import duckdb
 import pytest
 
 from qmo.models.price import DailyPrice
@@ -17,42 +18,88 @@ VALID_RAW_HASH_1 = "a" * 64
 VALID_RAW_HASH_2 = "b" * 64
 
 
-def test_raw_snapshot_store_immutability_and_corruption_recovery(tmp_path: Path) -> None:
-    """Verify raw snapshot store uses content hash and recovers from disk corruption."""
+def test_raw_snapshot_store_byte_for_byte_immutability_and_recovery(tmp_path: Path) -> None:
+    """Verify raw snapshot store preserves exact raw_body_bytes and recovers from corruption."""
     store = RawSnapshotStore(base_dir=tmp_path / "raw")
 
+    raw_body_bytes = b'{"status": 200, "msg": "success", "data": [{"stock_id": "2330"}]}'
     env = RawResponseEnvelope(
         provider_name="finmind",
         endpoint="https://api.finmindtrade.com/api/v4/data",
         params={"dataset": "TaiwanStockPrice", "data_id": "2330"},
         status_code=200,
-        raw_body_bytes=b'{"status": 200, "msg": "success", "data": []}',
+        raw_body_bytes=raw_body_bytes,
     )
 
-    hash1, path1 = store.save(env, "TaiwanStockPrice")
-    assert path1.exists()
-    assert hash1 in path1.name
-    mtime1 = path1.stat().st_mtime_ns
+    hash1, raw_path1 = store.save(env, "TaiwanStockPrice")
+    assert raw_path1.exists()
+    assert raw_path1.read_bytes() == raw_body_bytes
+    assert hash1 in raw_path1.name
 
-    # Re-saving identical payload content hash skips re-writing
-    hash2, path2 = store.save(env, "TaiwanStockPrice")
+    # Re-saving identical payload skips re-writing
+    mtime1 = raw_path1.stat().st_mtime_ns
+    hash2, raw_path2 = store.save(env, "TaiwanStockPrice")
     assert hash1 == hash2
-    assert path1 == path2
-    mtime2 = path2.stat().st_mtime_ns
-    assert mtime1 == mtime2
+    assert raw_path1 == raw_path2
+    assert raw_path2.stat().st_mtime_ns == mtime1
 
     # Simulate corruption on disk
-    path1.write_bytes(b"corrupted raw data")
-    assert path1.read_bytes() == b"corrupted raw data"
+    raw_path1.write_bytes(b"corrupted raw data")
+    assert raw_path1.read_bytes() == b"corrupted raw data"
 
-    # Re-saving recovers file byte-for-byte
-    hash3, path3 = store.save(env, "TaiwanStockPrice")
+    # Re-saving recovers exact raw_body_bytes
+    hash3, raw_path3 = store.save(env, "TaiwanStockPrice")
     assert hash3 == hash1
-    assert b"corrupted raw data" not in path3.read_bytes()
+    assert raw_path3.read_bytes() == raw_body_bytes
 
     # Reject path traversal
     with pytest.raises(ValueError, match="Unsafe or invalid dataset_name"):
         store.save(env, "../unsafe_path")
+
+
+def test_duckdb_catalog_schema_migration_from_legacy_db(tmp_path: Path) -> None:
+    """Verify DuckDBCatalog detects legacy DB schema and migrates to composite primary key."""
+    db_file = tmp_path / "legacy_catalog.duckdb"
+
+    # 1. Create a legacy DuckDB database with old single primary key (batch_id)
+    conn = duckdb.connect(str(db_file))
+    conn.execute(
+        """
+        CREATE TABLE batch_manifests (
+            batch_id VARCHAR PRIMARY KEY,
+            dataset VARCHAR NOT NULL,
+            source_raw_hashes VARCHAR NOT NULL,
+            schema_version VARCHAR NOT NULL,
+            record_count BIGINT NOT NULL,
+            partition_date_range VARCHAR,
+            created_at VARCHAR NOT NULL,
+            status VARCHAR NOT NULL,
+            published_filepaths VARCHAR NOT NULL,
+            manifest_hash VARCHAR NOT NULL
+        );
+        """
+    )
+    conn.execute(
+        """
+        INSERT INTO batch_manifests VALUES (
+            'legacy_b1', 'daily_price', '[]', 'schema-v0.1', 10, '2026-09-25',
+            '2026-09-25T00:00:00Z', 'PUBLISHED', '[]', 'hash_legacy_1'
+        );
+        """
+    )
+    conn.close()
+
+    # 2. Open catalog with new DuckDBCatalog class (triggers migration)
+    catalog = DuckDBCatalog(db_file)
+
+    # 3. Verify legacy row was migrated into composite primary key table
+    m = catalog.get_batch_manifest("daily_price", "legacy_b1")
+    assert m is not None
+    assert m.batch_id == "legacy_b1"
+    assert m.dataset == "daily_price"
+    assert m.record_count == 10
+
+    catalog.close()
 
 
 def test_parquet_store_read_write_and_schema_inspection(tmp_path: Path) -> None:
@@ -129,10 +176,6 @@ def test_atomic_batch_publisher_staging_swap_and_catalog(tmp_path: Path) -> None
     assert published_file.exists()
     assert "normalized/daily_price/batch_20260925_001/data.parquet" in str(published_file)
 
-    # Verify staging directory is cleaned up
-    staging_dir = tmp_path / "staging" / "daily_price" / batch_id
-    assert not staging_dir.exists()
-
     # Verify DuckDB catalog registered published batch by composite key (dataset, batch_id)
     cat_manifest = publisher.catalog.get_batch_manifest("daily_price", batch_id)
     assert cat_manifest is not None
@@ -176,12 +219,10 @@ def test_atomic_publisher_rollback_when_catalog_registration_fails(tmp_path: Pat
 
     # Critical Assertion: Target published directory must be cleaned up / deleted on catalog failure
     assert not target_published_dir.exists()
-    staging_dir = tmp_path / "staging" / "daily_price" / batch_id
-    assert not staging_dir.exists()
 
 
-def test_idempotent_duplicate_batch_publish_and_conflict_error(tmp_path: Path) -> None:
-    """Verify re-publishing identical batch is idempotent while conflict content raises error."""
+def test_idempotency_verifies_full_provenance(tmp_path: Path) -> None:
+    """Verify re-publishing identical batch is idempotent while different raw hashes raise error."""
     publisher = AtomicBatchPublisher(root_dir=tmp_path)
     models_v1 = [
         DailyPrice(
@@ -196,43 +237,43 @@ def test_idempotent_duplicate_batch_publish_and_conflict_error(tmp_path: Path) -
         )
     ]
 
-    models_v2_conflicting = [
-        DailyPrice(
-            trade_date="2026-09-25",
-            stock_id="2330",
-            market="TWSE",
-            open_price=200.0,  # Different price
-            close_price=205.0,
-            trading_volume=9999,
-            trading_value=2050000,
-            source="FinMind:TaiwanStockPrice",
-        )
-    ]
-
     m1 = publisher.publish_batch(
-        batch_id="batch_idemp",
+        batch_id="batch_prov",
         dataset="daily_price",
         models=models_v1,
         source_raw_hashes=[VALID_RAW_HASH_1],
+        partition_date_range="2026-09-25",
     )
 
     # Identical re-publish succeeds idempotently
     m2 = publisher.publish_batch(
-        batch_id="batch_idemp",
+        batch_id="batch_prov",
         dataset="daily_price",
         models=models_v1,
         source_raw_hashes=[VALID_RAW_HASH_1],
+        partition_date_range="2026-09-25",
     )
     assert m1.batch_id == m2.batch_id
     assert m2.status == BatchStatus.PUBLISHED
 
-    # Conflicting re-publish with different data raises BatchConflictError
-    with pytest.raises(BatchConflictError, match="already published with conflicting content"):
+    # Re-publish with DIFFERENT source_raw_hashes raises BatchConflictError
+    with pytest.raises(BatchConflictError, match="conflicting provenance or content"):
         publisher.publish_batch(
-            batch_id="batch_idemp",
+            batch_id="batch_prov",
             dataset="daily_price",
-            models=models_v2_conflicting,
+            models=models_v1,
             source_raw_hashes=[VALID_RAW_HASH_2],
+            partition_date_range="2026-09-25",
+        )
+
+    # Re-publish with DIFFERENT partition_date_range raises BatchConflictError
+    with pytest.raises(BatchConflictError, match="conflicting provenance or content"):
+        publisher.publish_batch(
+            batch_id="batch_prov",
+            dataset="daily_price",
+            models=models_v1,
+            source_raw_hashes=[VALID_RAW_HASH_1],
+            partition_date_range="2026-09-26",
         )
 
 

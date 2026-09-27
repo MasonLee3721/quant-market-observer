@@ -1,5 +1,4 @@
-"""DuckDB Catalog Metadata Indexer implementation with composite primary keys."""
-
+"""DuckDB Catalog Metadata Indexer implementation with schema migrations."""
 
 import hashlib
 import json
@@ -26,10 +25,32 @@ class DuckDBCatalog:
         else:
             self.conn = duckdb.connect(":memory:")
 
-        self._init_schema()
+        self._init_and_migrate_schema()
 
-    def _init_schema(self) -> None:
-        """Create catalog metadata tables with composite primary key (dataset, batch_id)."""
+    def _init_and_migrate_schema(self) -> None:
+        """Create catalog metadata tables and automatically migrate legacy schema if present."""
+        res = self.conn.execute(
+            "SELECT count(*) FROM information_schema.tables WHERE table_name = 'batch_manifests'"
+        ).fetchone()
+        table_exists = res is not None and res[0] > 0
+
+        if table_exists:
+            # Inspect existing columns
+            info = self.conn.execute("PRAGMA table_info('batch_manifests')").fetchall()
+            cols = [r[1] for r in info]
+            needs_migration = "parquet_file_hashes" not in cols
+
+            if needs_migration:
+                # Migrate legacy schema to new composite primary key (dataset, batch_id) table
+                self.conn.execute("ALTER TABLE batch_manifests RENAME TO legacy_batch_manifests")
+                self._create_tables()
+                self._migrate_legacy_rows()
+                self.conn.execute("DROP TABLE legacy_batch_manifests")
+        else:
+            self._create_tables()
+
+    def _create_tables(self) -> None:
+        """Create standard catalog tables."""
         self.conn.execute(
             """
             CREATE TABLE IF NOT EXISTS batch_manifests (
@@ -48,6 +69,37 @@ class DuckDBCatalog:
             );
             """
         )
+
+    def _migrate_legacy_rows(self) -> None:
+        """Migrate rows from legacy_batch_manifests if present."""
+        try:
+            legacy_rows = self.conn.execute("SELECT * FROM legacy_batch_manifests").fetchall()
+            for row in legacy_rows:
+                # Handle legacy table structure safely
+                b_id = row[0]
+                ds = row[1] if len(row) > 1 else "unknown"
+                raw_h = row[2] if len(row) > 2 else "[]"
+                s_ver = row[3] if len(row) > 3 else "schema-v0.1"
+                r_cnt = row[4] if len(row) > 4 else 0
+                p_range = row[5] if len(row) > 5 else None
+                c_at = row[6] if len(row) > 6 else ""
+                st = row[7] if len(row) > 7 else "PUBLISHED"
+                p_files = row[8] if len(row) > 8 else "[]"
+                m_hash = row[9] if len(row) > 9 else ""
+                pq_hashes = "{}"
+
+                self.conn.execute(
+                    """
+                    INSERT OR IGNORE INTO batch_manifests (
+                        dataset, batch_id, source_raw_hashes, schema_version,
+                        record_count, partition_date_range, created_at, status,
+                        published_filepaths, parquet_file_hashes, manifest_hash
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+                    """,
+                    (ds, b_id, raw_h, s_ver, r_cnt, p_range, c_at, st, p_files, pq_hashes, m_hash),
+                )
+        except Exception:
+            pass
 
     def register_published_batch(self, manifest: BatchManifest) -> None:
         """Register a published batch manifest in DuckDB catalog using transaction safety.

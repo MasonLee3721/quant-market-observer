@@ -1,4 +1,4 @@
-"""Immutable Raw Snapshot Store implementation with byte-for-byte preservation."""
+"""Immutable Raw Snapshot Store implementation with sidecar metadata."""
 
 import hashlib
 import json
@@ -10,7 +10,7 @@ from qmo.storage.validation import validate_safe_identifier
 
 
 class RawSnapshotStore:
-    """Stores raw provider response payloads with content-addressed immutability."""
+    """Stores raw provider response payloads with byte-for-byte content-addressed immutability."""
 
     def __init__(self, base_dir: Path) -> None:
         self.base_dir = Path(base_dir)
@@ -18,7 +18,7 @@ class RawSnapshotStore:
     def save(self, envelope: RawResponseEnvelope, dataset_name: str) -> Tuple[str, Path]:
         """Save raw payload to immutable path keyed by content SHA-256 hash.
 
-        Preserves exact raw payload bytes byte-for-byte. Returns (content_hash, target_file).
+        Preserves exact raw payload bytes byte-for-byte. Returns (content_hash, raw_file_path).
         """
         validate_safe_identifier(dataset_name, "dataset_name")
 
@@ -30,28 +30,22 @@ class RawSnapshotStore:
         dataset_dir = self.base_dir / dataset_name
         dataset_dir.mkdir(parents=True, exist_ok=True)
 
-        target_file = dataset_dir / f"{content_hash}.json"
+        raw_file = dataset_dir / f"{content_hash}.raw"
+        meta_file = dataset_dir / f"{content_hash}.meta.json"
 
-        # Byte-for-byte preservation and corruption verification
-        if target_file.exists():
-            existing_bytes = target_file.read_bytes()
+        # Byte-for-byte immutability & corruption verification
+        if raw_file.exists() and meta_file.exists():
+            existing_bytes = raw_file.read_bytes()
             existing_hash = hashlib.sha256(existing_bytes).hexdigest()
-            if existing_hash != content_hash:
-                # File corrupted on disk: overwrite with valid byte-for-byte payload
-                self._write_snapshot_file(target_file, envelope, content_hash)
-        else:
-            self._write_snapshot_file(target_file, envelope, content_hash)
+            if existing_hash == content_hash:
+                # Content matches perfectly byte-for-byte: skip re-writing
+                return content_hash, raw_file
 
-        return content_hash, target_file
+        # Write exact raw_bytes byte-for-byte
+        raw_file.write_bytes(raw_bytes)
 
-    def _write_snapshot_file(
-        self,
-        target_file: Path,
-        envelope: RawResponseEnvelope,
-        content_hash: str,
-    ) -> None:
-        """Write metadata envelope and exact byte-for-byte raw body payload."""
-        payload_dict = {
+        # Write metadata sidecar
+        meta_dict = {
             "provider_name": envelope.provider_name,
             "endpoint": envelope.endpoint,
             "status_code": envelope.status_code,
@@ -60,5 +54,7 @@ class RawSnapshotStore:
             "params": envelope.params,
             "raw_body_str": envelope.raw_body_str,
         }
-        encoded_json = json.dumps(payload_dict, indent=2, ensure_ascii=False).encode("utf-8")
-        target_file.write_bytes(encoded_json + b"\n")
+        meta_json = json.dumps(meta_dict, indent=2, ensure_ascii=False).encode("utf-8")
+        meta_file.write_bytes(meta_json + b"\n")
+
+        return content_hash, raw_file

@@ -1,8 +1,9 @@
-"""Atomic Batch Publisher implementation with staging validation, atomic swap, and rollback."""
+"""Atomic Batch Publisher implementation with full provenance validation."""
 
 import hashlib
 import logging
 import shutil
+import uuid
 from pathlib import Path
 from typing import List, Optional, Sequence
 
@@ -46,12 +47,12 @@ class AtomicBatchPublisher:
 
         Workflow:
           1. Input validation for safety and contract schema consistency.
-          2. Idempotency & Conflict checking against published storage and catalog.
-          3. Write models to staging directory.
+          2. Full provenance Idempotency & Conflict checking against catalog.
+          3. Write models to unique process staging directory.
           4. Validate record count, schema, and SHA-256 integrity.
           5. Atomic directory swap from staging to final normalized directory.
           6. Index manifest in DuckDB catalog.
-          7. Automatic rollback & cleanup if catalog or post-swap validation fails.
+          7. Process-isolated rollback if catalog or post-swap validation fails.
         """
         validate_safe_identifier(dataset, "dataset")
         validate_safe_identifier(batch_id, "batch_id")
@@ -74,45 +75,63 @@ class AtomicBatchPublisher:
         target_published_dir = target_dataset_dir / batch_id
         published_file = target_published_dir / "data.parquet"
 
-        batch_staging_dir = self.staging_dir / dataset / batch_id
+        # Process-isolated unique staging directory
+        run_uuid = uuid.uuid4().hex[:8]
+        batch_staging_dir = self.staging_dir / dataset / f"{batch_id}_{run_uuid}"
         staged_file = batch_staging_dir / "data.parquet"
 
-        # Check existing published storage & catalog for Idempotence vs Conflict
+        # Check existing published storage & catalog for Full Provenance Idempotence vs Conflict
         existing_catalog_manifest = self.catalog.get_batch_manifest(dataset, batch_id)
         if target_published_dir.exists() or existing_catalog_manifest is not None:
             if target_published_dir.exists() and published_file.exists():
                 actual_pub_hash = hashlib.sha256(published_file.read_bytes()).hexdigest()
                 read_pub_rows = ParquetStore.read_record_count(published_file)
-                if read_pub_rows == len(models):
-                    # Check if model list matches
-                    staged_temp_hash = ParquetStore.write_models(models, staged_file)
-                    if batch_staging_dir.exists():
-                        shutil.rmtree(batch_staging_dir, ignore_errors=True)
 
-                    if actual_pub_hash == staged_temp_hash:
-                        # Idempotent re-execution: exact match, return existing catalog manifest
-                        if existing_catalog_manifest:
-                            return existing_catalog_manifest
-                        else:
-                            # Re-index if catalog was missing
-                            manifest = BatchManifest(
-                                batch_id=batch_id,
-                                dataset=dataset,
-                                source_raw_hashes=clean_raw_hashes,
-                                schema_version=schema_version,
-                                record_count=len(models),
-                                partition_date_range=partition_date_range,
-                                status=BatchStatus.PUBLISHED,
-                                published_filepaths=[str(published_file)],
-                                parquet_file_hashes={str(published_file): actual_pub_hash},
-                            )
-                            self.catalog.register_published_batch(manifest)
-                            return manifest
+                # Write temporary staging Parquet to compute exact staged hash
+                staged_temp_hash = ParquetStore.write_models(models, staged_file)
+                if batch_staging_dir.exists():
+                    shutil.rmtree(batch_staging_dir, ignore_errors=True)
 
-            # If existing published batch has different rows or hash -> throw conflict
+                # Full provenance equality check
+                is_hash_match = actual_pub_hash == staged_temp_hash
+                is_rows_match = read_pub_rows == len(models)
+                cat_hashes = (
+                    sorted(existing_catalog_manifest.source_raw_hashes)
+                    if existing_catalog_manifest
+                    else []
+                )
+                is_raw_hashes_match = (
+                    existing_catalog_manifest is not None
+                    and cat_hashes == sorted(clean_raw_hashes)
+                )
+                is_range_match = (
+                    existing_catalog_manifest is None
+                    or existing_catalog_manifest.partition_date_range == partition_date_range
+                )
+
+                if is_hash_match and is_rows_match and is_raw_hashes_match and is_range_match:
+                    # Idempotent re-execution: exact provenance & content match, return manifest
+                    if existing_catalog_manifest:
+                        return existing_catalog_manifest
+                    else:
+                        manifest = BatchManifest(
+                            batch_id=batch_id,
+                            dataset=dataset,
+                            source_raw_hashes=clean_raw_hashes,
+                            schema_version=schema_version,
+                            record_count=len(models),
+                            partition_date_range=partition_date_range,
+                            status=BatchStatus.PUBLISHED,
+                            published_filepaths=[str(published_file)],
+                            parquet_file_hashes={str(published_file): actual_pub_hash},
+                        )
+                        self.catalog.register_published_batch(manifest)
+                        return manifest
+
+            # Conflicting batch detected
             err_conflict = (
                 f"Batch '{batch_id}' in dataset '{dataset}' "
-                "already published with conflicting content"
+                "already published with conflicting provenance or content"
             )
             raise BatchConflictError(err_conflict)
 
@@ -126,8 +145,9 @@ class AtomicBatchPublisher:
             status=BatchStatus.STAGED,
         )
 
+        staged_hash: Optional[str] = None
         try:
-            # 1. Write to Staging Directory
+            # 1. Write to Process Staging Directory
             staged_hash = ParquetStore.write_models(models, staged_file)
 
             # 2. Staging Validation
@@ -184,9 +204,13 @@ class AtomicBatchPublisher:
             return manifest
 
         except Exception as e:
-            # Rollback: cleanup newly published directory and staging directory
-            if target_published_dir.exists():
-                shutil.rmtree(target_published_dir, ignore_errors=True)
+            # Process-isolated Rollback: only delete published directory if it was created
+            # by THIS run instance (verified by matching staged_hash)
+            if target_published_dir.exists() and published_file.exists() and staged_hash:
+                current_pub_hash = hashlib.sha256(published_file.read_bytes()).hexdigest()
+                if current_pub_hash == staged_hash:
+                    shutil.rmtree(target_published_dir, ignore_errors=True)
+
             if batch_staging_dir.exists():
                 shutil.rmtree(batch_staging_dir, ignore_errors=True)
 
