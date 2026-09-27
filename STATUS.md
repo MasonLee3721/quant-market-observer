@@ -27,14 +27,14 @@ M0 已完成：50 檔、23 個代表主題、最近兩年的價量／法人／�
 - TWSE 2330 與 TPEx 8069 的 OHLC、成交股數與成交金額完全一致。
 - FinLab 不是必要依賴；TWSE／TPEx 為權威來源，FinMind 為歷史整合層。
 
-## 當前優先順序
+## M1 工作包與認領入口
 
-1. 決定 M1 正式執行環境與依賴管理方式。
-2. 建立 provider／normalizer／validator／storage 邊界。
-3. 將 TWSE、TPEx、FinMind 接口正式模組化。
-4. 建立原始快照、標準化資料及品質紀錄。
-5. 提供 `update`、`validate`、`status` 三個 CLI 指令。
-6. 對法人與融資補上官方抽樣對帳。
+1. [#1 Python 專案骨架與工具鏈](https://github.com/MasonLee3721/quant-market-observer/issues/1)
+2. [#2 FinMind、TWSE、TPEx Providers](https://github.com/MasonLee3721/quant-market-observer/issues/2)
+3. [#3 資料模型與 Normalizer](https://github.com/MasonLee3721/quant-market-observer/issues/3)
+4. [#4 Parquet、DuckDB 與批次追蹤](https://github.com/MasonLee3721/quant-market-observer/issues/4)
+5. [#5 Validator 與官方對帳](https://github.com/MasonLee3721/quant-market-observer/issues/5)
+6. [#6 CLI、runbook 與上手流程](https://github.com/MasonLee3721/quant-market-observer/issues/6)
 
 ## 協作者從哪裡開始
 
@@ -51,8 +51,3 @@ M0 已完成：50 檔、23 個代表主題、最近兩年的價量／法人／�
 - 歷史股票池、下市股票與有效期間尚未完成。
 - 法人與融資尚未完成官方值抽樣對帳。
 - 大量原始資料不提交至公開 repository。
-
-## 最近 Commit
-
-- `5fb2b8a` — 完成 M0 資料可行性 spike。
-- `0bfc056` — 建立完整專案計畫。
