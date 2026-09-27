@@ -1,3 +1,18 @@
+Metadata-Version: 2.4
+Name: quant-market-observer
+Version: 0.1.0
+Summary: Quant Market Observer — TWSE/TPEx Quantitative Market Pipeline MVP
+Author: MasonLee3721
+License: MIT
+Requires-Python: >=3.12
+Description-Content-Type: text/markdown
+Requires-Dist: click>=8.1.0
+Requires-Dist: pydantic>=2.0.0
+Provides-Extra: dev
+Requires-Dist: pytest>=8.0.0; extra == "dev"
+Requires-Dist: ruff>=0.3.0; extra == "dev"
+Requires-Dist: mypy>=1.8.0; extra == "dev"
+
 # Quant Market Observer
 
 台股量化市場觀察與策略驗證系統。
@@ -33,24 +48,3 @@ M0 研究規格與資料可行性已完成，目前準備進入 M1 資料管線 
 3. 嚴格防範未來函數、倖存者偏誤與過度擬合。
 4. 先完成可解釋的規則模型，再評估機器學習。
 5. 報告呈現觀察證據，不提供保證獲利或明牌。
-
-## 開發與快速開始 (Python 3.12)
-
-```bash
-# 安裝開發依賴
-pip install -e ".[dev]"
-
-# 或使用 uv (推薦)
-uv venv && uv pip install -e ".[dev]"
-
-# 執行測試與靜態檢查
-uv run pytest
-uv run ruff check .
-uv run mypy src/qmo
-
-# 執行 CLI
-uv run qmo status
-uv run qmo update --date latest
-uv run qmo validate
-```
-

@@ -1,0 +1,11 @@
+README.md
+pyproject.toml
+src/qmo/__init__.py
+src/qmo/cli.py
+src/quant_market_observer.egg-info/PKG-INFO
+src/quant_market_observer.egg-info/SOURCES.txt
+src/quant_market_observer.egg-info/dependency_links.txt
+src/quant_market_observer.egg-info/entry_points.txt
+src/quant_market_observer.egg-info/requires.txt
+src/quant_market_observer.egg-info/top_level.txt
+tests/test_cli.py
