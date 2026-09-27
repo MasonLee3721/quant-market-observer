@@ -1,5 +1,5 @@
 {
-  "dataset": "m0_golden_records_v0.1",
+  "dataset": "synthetic_50_ticker_sample_v0.1",
   "tickers": [
     "1101",
     "1216",

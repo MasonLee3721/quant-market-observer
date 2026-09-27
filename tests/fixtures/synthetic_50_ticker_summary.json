@@ -1,0 +1,14 @@
+{
+  "version": "schema-v0.1",
+  "type": "synthetic_sample",
+  "generation_command": "uv run python scripts/generate_m0_golden_fixture.py",
+  "source_file": "tests/fixtures/synthetic_50_ticker_records.json",
+  "source_file_sha256": "af44c871b309f1b7eb39dfe3c4d2da494348cdae10b7227a2d7369580936fb54",
+  "ticker_count": 50,
+  "total_price_records": 100,
+  "total_institutional_records": 97,
+  "total_margin_records": 97,
+  "primary_key_duplicates": 0,
+  "three_table_join_ratio": 1.0,
+  "no_trade_records_count": 3
+}

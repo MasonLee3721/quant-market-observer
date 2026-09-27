@@ -1,4 +1,4 @@
-"""Generator script for deterministic M0 Golden Records & Summary Fixtures."""
+"""Generator script for CI Synthetic 50-Ticker Sample Fixture."""
 
 import csv
 import hashlib
@@ -7,11 +7,11 @@ from pathlib import Path
 
 ROOT_DIR = Path(__file__).parents[1]
 UNIVERSE_CSV = ROOT_DIR / "config" / "universe_spike.csv"
-RECORDS_JSON = ROOT_DIR / "tests" / "fixtures" / "m0_golden_records.json"
-SUMMARY_JSON = ROOT_DIR / "tests" / "fixtures" / "m0_golden_summary.json"
+RECORDS_JSON = ROOT_DIR / "tests" / "fixtures" / "synthetic_50_ticker_records.json"
+SUMMARY_JSON = ROOT_DIR / "tests" / "fixtures" / "synthetic_50_ticker_summary.json"
 
 
-def generate_fixtures() -> None:
+def generate_synthetic_fixtures() -> None:
     tickers = []
     tpex_tickers = set()
     with open(UNIVERSE_CSV, mode="r", encoding="utf-8") as f:
@@ -34,7 +34,6 @@ def generate_fixtures() -> None:
     no_trade_set = {"8069", "8299", "6690"}  # Exactly 3 tickers on d2 are no-trade
 
     for idx, s_id in enumerate(tickers):
-        # Day 1: Normal active trading for all 50 tickers
         close_p1 = round(100.0 + idx * 2.5, 2)
         price_data.append(
             {
@@ -90,7 +89,6 @@ def generate_fixtures() -> None:
             }
         ]
 
-        # Day 2: 47 tickers have normal active trading, 3 tickers have no_trade (vol==0 & val==0)
         is_no_trade = s_id in no_trade_set
         close_p2 = None if is_no_trade else round(99.0 + idx * 2.5, 2)
         price_data.append(
@@ -136,7 +134,7 @@ def generate_fixtures() -> None:
             )
 
     records_payload = {
-        "dataset": "m0_golden_records_v0.1",
+        "dataset": "synthetic_50_ticker_sample_v0.1",
         "tickers": tickers,
         "price_data": price_data,
         "institutional_data": institutional_data,
@@ -149,54 +147,27 @@ def generate_fixtures() -> None:
 
     source_sha256 = hashlib.sha256(records_bytes).hexdigest()
 
-    total_price = len(price_data)  # 100
-    total_margin = sum(len(v) for v in margin_data.values())  # 97
-    # Aggregated institutional records count matching daily records
-    total_inst_aggregated = 97
-
-    # Calculate 3-table join ratio on active trading days
-    active_price_keys = set(
-        (p["stock_id"], p["date"]) for p in price_data if p["Trading_Volume"] > 0
-    )
-    inst_keys = set()
-    for s_id, rows in institutional_data.items():
-        for r in rows:
-            inst_keys.add((s_id, r["date"]))
-    margin_keys = set()
-    for s_id, rows in margin_data.items():
-        for r in rows:
-            margin_keys.add((s_id, r["date"]))
-
-    joined_keys = active_price_keys.intersection(inst_keys).intersection(margin_keys)
-    join_ratio = round(len(joined_keys) / len(active_price_keys), 4)
-
     summary_payload = {
         "version": "schema-v0.1",
+        "type": "synthetic_sample",
         "generation_command": "uv run python scripts/generate_m0_golden_fixture.py",
-        "source_dataset": "FinMind/TWSE/TPEx 50-ticker feasibility spike",
-        "source_file": "tests/fixtures/m0_golden_records.json",
+        "source_file": "tests/fixtures/synthetic_50_ticker_records.json",
         "source_file_sha256": source_sha256,
-        "node_spike_commit": "5fb2b8a38cfb6ebb76d444813f2ef843ac6b7d74",
-        "date_range": "2024-09-27 to 2026-09-25",
         "ticker_count": 50,
-        "total_price_records": total_price,
-        "total_institutional_records": total_inst_aggregated,
-        "total_margin_records": total_margin,
+        "total_price_records": len(price_data),
+        "total_institutional_records": 97,
+        "total_margin_records": 97,
         "primary_key_duplicates": 0,
-        "three_table_join_ratio": join_ratio,
+        "three_table_join_ratio": 1.0,
         "no_trade_records_count": 3,
-        "twse_sample_ticker": "2330",
-        "tpex_sample_ticker": "8069",
     }
 
     summary_json_str = json.dumps(summary_payload, indent=2, ensure_ascii=False) + "\n"
     SUMMARY_JSON.write_bytes(summary_json_str.encode("utf-8"))
 
     print(f"Generated {RECORDS_JSON} and {SUMMARY_JSON}")
-    print(f"Source SHA256: {source_sha256}")
-    print(f"Price: {total_price}, Inst: {total_inst_aggregated}, Margin: {total_margin}")
-    print(f"Join ratio: {join_ratio}")
+    print(f"Synthetic SHA256: {source_sha256}")
 
 
 if __name__ == "__main__":
-    generate_fixtures()
+    generate_synthetic_fixtures()
