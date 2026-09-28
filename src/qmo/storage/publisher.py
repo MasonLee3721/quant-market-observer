@@ -3,6 +3,7 @@
 import hashlib
 import json
 import logging
+import os
 import shutil
 import uuid
 from pathlib import Path
@@ -10,16 +11,12 @@ from typing import Any, Callable, List, Optional, Sequence
 
 from pydantic import BaseModel
 
-from qmo.storage.catalog import BatchConflictError, DuckDBCatalog
+from qmo.storage.catalog import BatchConflictError, DuckDBCatalog, StorageValidationError
 from qmo.storage.manifest import BatchManifest, BatchStatus
 from qmo.storage.parquet_store import ParquetStore
 from qmo.storage.validation import validate_safe_identifier, validate_sha256_hex
 
 logger = logging.getLogger(__name__)
-
-
-class StorageValidationError(Exception):
-    """Raised when staging parquet file validation fails prior to atomic publish."""
 
 
 class AtomicBatchPublisher:
@@ -151,18 +148,63 @@ class AtomicBatchPublisher:
         quality_report: Optional[Any] = None,
     ) -> BatchManifest:
         """Create BatchManifest including parquet/report hashes and register catalog atomically."""
+        created_target_files: List[Path] = []
         if quality_report is not None:
             qr_json = target_published_dir / "quality_report.json"
             qr_md = target_published_dir / "quality_report.md"
-            try:
-                if not qr_json.exists():
-                    qr_json.write_text(quality_report.to_json())
-                if not qr_md.exists():
-                    qr_md.write_text(quality_report.to_markdown())
-            except Exception as e:
-                raise StorageValidationError(
-                    f"Failed to persist QualityReport to published directory: {e}"
-                ) from e
+            existed_json = qr_json.exists()
+            existed_md = qr_md.exists()
+
+            if not existed_json or not existed_md:
+                staged_qr_dir = (
+                    self.staging_dir / dataset / f".qr_stage_{uuid.uuid4().hex}"
+                )
+                staged_qr_dir.mkdir(parents=True, exist_ok=True)
+                try:
+                    staged_json = staged_qr_dir / "quality_report.json"
+                    staged_md = staged_qr_dir / "quality_report.md"
+
+                    if not existed_json:
+                        staged_json.write_text(quality_report.to_json())
+                        from qmo.validation.models import QualityReport
+
+                        QualityReport.model_validate_json(staged_json.read_text())
+
+                    if not existed_md:
+                        staged_md.write_text(quality_report.to_markdown())
+
+                    if not existed_json:
+                        tmp_target_json = (
+                            target_published_dir / ".quality_report.json.tmp"
+                        )
+                        shutil.copy2(staged_json, tmp_target_json)
+                        created_target_files.append(tmp_target_json)
+                        os.replace(tmp_target_json, qr_json)
+                        created_target_files.remove(tmp_target_json)
+                        created_target_files.append(qr_json)
+
+                    if not existed_md:
+                        tmp_target_md = (
+                            target_published_dir / ".quality_report.md.tmp"
+                        )
+                        shutil.copy2(staged_md, tmp_target_md)
+                        created_target_files.append(tmp_target_md)
+                        os.replace(tmp_target_md, qr_md)
+                        created_target_files.remove(tmp_target_md)
+                        created_target_files.append(qr_md)
+                except Exception as e:
+                    for f in created_target_files:
+                        if f.exists():
+                            try:
+                                f.unlink()
+                            except Exception:
+                                pass
+                    raise StorageValidationError(
+                        f"Failed to persist QualityReport to published directory: {e}"
+                    ) from e
+                finally:
+                    if staged_qr_dir.exists():
+                        shutil.rmtree(staged_qr_dir, ignore_errors=True)
 
         pub_files = (
             sorted(p for p in target_published_dir.glob("**/*.parquet") if p.is_file())
@@ -176,7 +218,9 @@ class AtomicBatchPublisher:
                 all_pub_files.append(r_path)
 
         pub_paths = [str(p) for p in all_pub_files]
-        pq_hashes = {str(p): hashlib.sha256(p.read_bytes()).hexdigest() for p in all_pub_files}
+        pq_hashes = {
+            str(p): hashlib.sha256(p.read_bytes()).hexdigest() for p in all_pub_files
+        }
 
         manifest = BatchManifest(
             batch_id=batch_id,
@@ -202,7 +246,19 @@ class AtomicBatchPublisher:
                         f"Corrupted or invalid quality_report.json in published directory: {e}"
                     ) from e
 
-        self.catalog.register_published_batch(manifest, quality_report=quality_report)
+        try:
+            if quality_report is not None:
+                self.catalog.register_published_batch(manifest, quality_report=quality_report)
+            else:
+                self.catalog.register_published_batch(manifest)
+        except Exception:
+            for f in created_target_files:
+                if f.exists():
+                    try:
+                        f.unlink()
+                    except Exception:
+                        pass
+            raise
         return manifest
 
     def publish_batch(

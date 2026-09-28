@@ -15,6 +15,10 @@ class BatchConflictError(Exception):
     """Raised when overwriting an existing published batch with conflicting content."""
 
 
+class StorageValidationError(Exception):
+    """Raised when metadata catalog validation or schema migration fails."""
+
+
 class DuckDBCatalog:
     """Indexed metadata catalog powered by DuckDB for published batches."""
 
@@ -96,8 +100,9 @@ class DuckDBCatalog:
 
                     qr = QualityReport.model_validate_json(r_json)
                     calc_hash = qr.compute_report_hash()
-                except Exception:
-                    calc_hash = hashlib.sha256(r_json.encode("utf-8")).hexdigest()
+                except Exception as e:
+                    msg_err = f"Legacy quality_report JSON for batch '{b_id}' is corrupted: {e}"
+                    raise StorageValidationError(msg_err) from e
                 self.conn.execute(
                     "UPDATE quality_reports SET report_hash = ? WHERE dataset = ? AND batch_id = ?",
                     (calc_hash, ds, b_id),
@@ -367,10 +372,9 @@ class DuckDBCatalog:
 
                     old_qr = QualityReport.model_validate_json(existing_report_json)
                     existing_report_hash = old_qr.compute_report_hash()
-                except Exception:
-                    existing_report_hash = hashlib.sha256(
-                        existing_report_json.encode("utf-8")
-                    ).hexdigest()
+                except Exception as e:
+                    msg_err = f"Existing quality_report JSON for batch '{b_id}' is corrupted: {e}"
+                    raise StorageValidationError(msg_err) from e
                 self.conn.execute(
                     "UPDATE quality_reports SET report_hash = ? WHERE dataset = ? AND batch_id = ?",
                     (existing_report_hash, ds, b_id),

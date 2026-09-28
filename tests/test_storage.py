@@ -8,10 +8,10 @@ import pytest
 
 from qmo.models.price import DailyPrice
 from qmo.providers.protocols import RawResponseEnvelope
-from qmo.storage.catalog import BatchConflictError, DuckDBCatalog
+from qmo.storage.catalog import BatchConflictError, DuckDBCatalog, StorageValidationError
 from qmo.storage.manifest import BatchManifest, BatchStatus
 from qmo.storage.parquet_store import ParquetStore
-from qmo.storage.publisher import AtomicBatchPublisher, StorageValidationError
+from qmo.storage.publisher import AtomicBatchPublisher
 from qmo.storage.raw_store import RawSnapshotStore
 
 VALID_RAW_HASH_1 = "a" * 64
@@ -1177,3 +1177,100 @@ def test_publisher_fails_closed_on_deleted_or_tampered_published_report_files(
             models=models,
             source_raw_hashes=[VALID_RAW_HASH_1],
         )
+
+
+def test_orphan_adoption_report_write_failure_leaves_published_dir_unmodified(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Verify failed report write during orphan adoption leaves published dir unmodified."""
+    publisher = AtomicBatchPublisher(root_dir=tmp_path)
+    models = [
+        DailyPrice(
+            trade_date="2026-09-25",
+            stock_id="2330",
+            market="TWSE",
+            open_price=100.0,
+            close_price=105.0,
+            trading_volume=1000,
+            trading_value=105000,
+        )
+    ]
+    # Create orphan published directory with data.parquet
+    pub_dir = tmp_path / "normalized" / "daily_price" / "b_orphan_test"
+    pub_dir.mkdir(parents=True, exist_ok=True)
+    published_file = pub_dir / "data.parquet"
+    ParquetStore.write_models(models, published_file)
+
+    initial_files = set(pub_dir.iterdir())
+    assert (pub_dir / "quality_report.json").exists() is False
+    assert (pub_dir / "quality_report.md").exists() is False
+
+    from qmo.validation.models import QualityReport
+
+    qr = QualityReport(
+        batch_id="b_orphan_test",
+        dataset="daily_price",
+        created_at="2026-09-25T00:00:00Z",
+        overall_passed=True,
+    )
+
+    # Mock to_markdown to raise an exception after to_json succeeds
+    def failing_to_markdown(self: Any) -> str:
+        raise RuntimeError("Markdown rendering disk failure")
+
+    monkeypatch.setattr(QualityReport, "to_markdown", failing_to_markdown)
+
+    with pytest.raises(StorageValidationError, match="Failed to persist QualityReport"):
+        publisher._create_and_register_manifest(
+            batch_id="b_orphan_test",
+            dataset="daily_price",
+            clean_raw_hashes=[VALID_RAW_HASH_1],
+            schema_version="schema-v0.1",
+            record_count=1,
+            partition_date_range="2026-09-25 2026-09-25",
+            target_published_dir=pub_dir,
+            published_file=published_file,
+            partition_by_date=False,
+            quality_report=qr,
+        )
+
+    # Assert published dir is completely unchanged (no partial quality_report.json or .tmp files)
+    final_files = set(pub_dir.iterdir())
+    assert final_files == initial_files
+    assert (pub_dir / "quality_report.json").exists() is False
+    assert (pub_dir / "quality_report.md").exists() is False
+
+
+def test_corrupted_legacy_report_json_fails_migration_without_backfill(
+    tmp_path: Path,
+) -> None:
+    """Verify legacy quality_reports with corrupted JSON fail migration closed."""
+    import duckdb
+
+    db_path = tmp_path / "legacy_corrupt.duckdb"
+    conn = duckdb.connect(str(db_path))
+
+    # Create legacy quality_reports table missing report_hash column
+    conn.execute(
+        """
+        CREATE TABLE quality_reports (
+            dataset VARCHAR NOT NULL,
+            batch_id VARCHAR NOT NULL,
+            overall_passed BOOLEAN NOT NULL,
+            created_at VARCHAR NOT NULL,
+            summary_json VARCHAR NOT NULL,
+            report_json VARCHAR NOT NULL,
+            PRIMARY KEY (dataset, batch_id)
+        )
+        """
+    )
+    conn.execute(
+        "INSERT INTO quality_reports VALUES (?, ?, ?, ?, ?, ?)",
+        ("daily_price", "b_corrupt", True, "2026-09-25", "{}", "{CORRUPTED_JSON_STRING"),
+    )
+    conn.close()
+
+    # Instantiating DuckDBCatalog triggers migration and must raise StorageValidationError
+    with pytest.raises(StorageValidationError, match="corrupted"):
+        DuckDBCatalog(db_path)
+
