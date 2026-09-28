@@ -121,3 +121,41 @@ def test_stock_state_classification_states() -> None:
     watch = classify_stock_state(0.05, True, 50.0, 40.0, 40.0, 10.0)
     assert watch == StockState.WATCH
 
+
+def test_look_ahead_safety() -> None:
+    """Verify point-in-time calculation safety (no look-ahead bias)."""
+    prices = [100.0, 102.0, 104.0, 106.0, 108.0, 110.0]
+    ret_5d_t5 = calculate_returns(prices[:6], 5)[5]
+    # Appending a future T+6 price must not alter T+5 return
+    prices_with_future = prices + [200.0]
+    ret_5d_t5_future = calculate_returns(prices_with_future, 5)[5]
+    assert ret_5d_t5 == ret_5d_t5_future == 0.10
+
+
+def test_null_handling_strictness() -> None:
+    """Verify null values are preserved and not zero-filled in rolling calculations."""
+    prices_with_null: List[Optional[float]] = [100.0, None, 105.0, 110.0, 115.0]
+    sma_3d = calculate_sma(prices_with_null, 3)
+    assert sma_3d[1] is None
+    assert sma_3d[2] is None  # Includes index 1 which is None
+
+
+def test_division_by_zero_and_edge_cases() -> None:
+    """Verify zero division and empty inputs produce safe None/empty results."""
+    zero_prices: List[Optional[float]] = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    assert calculate_returns(zero_prices, 5)[5] is None
+
+    negative_flows = [-100.0, -200.0, -50.0]
+    hhi_res = calculate_flow_concentration(negative_flows)
+    assert hhi_res["flow_hhi"] is None
+    assert hhi_res["top1_share"] is None
+
+
+def test_score_clamping_bounds() -> None:
+    """Verify market and theme scores clamp strictly to [0.0, 100.0]."""
+    high_market = calculate_market_score(120.0, 110.0, 130.0, 100.0, 100.0)
+    low_market = calculate_market_score(-50.0, -20.0, 0.0, 0.0, 0.0)
+    assert high_market == 100.0
+    assert low_market == 0.0
+
+
