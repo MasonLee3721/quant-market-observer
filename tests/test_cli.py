@@ -137,4 +137,28 @@ def test_cli_calculate(tmp_path: Path) -> None:
     assert "Indicator Calculation Summary" in result.output
 
 
+def test_cli_signal(tmp_path: Path) -> None:
+    """Verify qmo signal command execution."""
+    runner = CliRunner()
+    result = runner.invoke(
+        main,
+        ["signal", "--date", "2026-09-28", "--root-dir", str(tmp_path)],
+    )
+    assert result.exit_code == 0
+    assert "Generating strategy signals" in result.output
+    assert "Active Signals Count" in result.output
+
+
+def test_cli_report(tmp_path: Path) -> None:
+    """Verify qmo report command execution."""
+    runner = CliRunner()
+    result = runner.invoke(
+        main,
+        ["report", "--date", "2026-09-28", "--format", "markdown", "--root-dir", str(tmp_path)],
+    )
+    assert result.exit_code == 0
+    assert "Quant Market Observer Daily Report" in result.output
+
+
+
 

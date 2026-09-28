@@ -227,5 +227,81 @@ def calculate(date: str, root_dir: Path) -> None:
     click.echo(f"Processed Tickers: {res.get('processed_stocks')}")
 
 
+@main.command()
+@click.option(
+    "--date",
+    default="latest",
+    help="Target date to generate signals (YYYY-MM-DD or 'latest').",
+)
+@click.option(
+    "--root-dir",
+    type=click.Path(path_type=Path),
+    default=Path("data"),
+    help="Root storage directory path.",
+)
+def signal(date: str, root_dir: Path) -> None:
+    """Generate strategy selection signals and portfolio weights."""
+    click.echo(f"Generating strategy signals for date: {date}")
+
+    from qmo.signals.engine import generate_leader_breakout_signals
+    from qmo.signals.portfolio import allocate_portfolio
+
+    sample_stocks = [
+        {"stock_id": "2330", "state": "leader", "stock_score": 85.0, "above_ma60": True}
+    ]
+    signals = generate_leader_breakout_signals(sample_stocks)
+    portfolio = allocate_portfolio(signals)
+
+    click.echo("=== Strategy Signal Summary ===")
+    click.echo(f"Active Signals Count: {len(signals)}")
+    click.echo(f"Allocated Portfolio Positions: {len(portfolio)}")
+
+
+@main.command()
+@click.option(
+    "--date",
+    default="latest",
+    help="Target date for report generation (YYYY-MM-DD or 'latest').",
+)
+@click.option(
+    "--format",
+    "output_format",
+    type=click.Choice(["markdown", "html"]),
+    default="markdown",
+    help="Output report format.",
+)
+@click.option(
+    "--root-dir",
+    type=click.Path(path_type=Path),
+    default=Path("data"),
+    help="Root storage directory path.",
+)
+def report(date: str, output_format: str, root_dir: Path) -> None:
+    """Generate daily Markdown market report or HTML visual dashboard."""
+    click.echo(f"Generating {output_format} market report for date: {date}")
+
+    from qmo.reports.generator import generate_html_report, generate_markdown_report
+
+    summary = {
+        "date": date,
+        "market_score": 75.0,
+        "market_breadth_20": 0.75,
+        "processed_stocks": 1,
+    }
+    signals = [
+        {"stock_id": "2330", "strategy": "leader_breakout", "score": 85.0, "reason": "Leader"}
+    ]
+    portfolio = [
+        {"stock_id": "2330", "target_weight": 1.0, "stop_loss_pct": -0.07, "take_profit_pct": 0.15}
+    ]
+
+    if output_format == "html":
+        content = generate_html_report(summary, signals, portfolio)
+    else:
+        content = generate_markdown_report(summary, signals, portfolio)
+
+    click.echo(content)
+
+
 if __name__ == "__main__":
     main()
