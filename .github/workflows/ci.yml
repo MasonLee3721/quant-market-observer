@@ -27,6 +27,7 @@ jobs:
 
       - name: Print Tool Versions
         run: |
+          uv --version
           uv run python --version
           uv run pytest --version
           uv run mypy --version

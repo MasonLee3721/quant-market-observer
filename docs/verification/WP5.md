@@ -4,7 +4,8 @@
 **Package Version**: `0.1.0`  
 **Target Work Package**: `WP5` (Data Quality Gate & Atomic Publisher Integrity)  
 **Verification Date**: `2026-09-28`  
-**Target Git Commit Hash**: `4014075` (CI workflow alignment & M0 skip update)  
+**Target Git Commit Hash**: `86134b2` (Final audit evidence documentation alignment)  
+**GitHub Actions Run**: [`36370440844`](https://github.com/MasonLee3721/quant-market-observer/actions/runs/36370440844) (SUCCESS / GREEN LIGHT)  
 **Author**: 蘇荃 (SuQuan)  
 **Reviewer**: 阿珂 (Kiro3)  
 **Arbitrator**: MasonLee (老公)  
@@ -13,27 +14,33 @@
 
 ## Executive Summary
 
-This report documents the reproducible verification evidence for Work Package 5 (WP5). All 6 core review requirements, 2 edge-case blockers, and GitHub Actions CI workflow alignment items have been fully resolved and verified.
+This report documents the verified audit evidence for Work Package 5 (WP5). All 6 core review requirements, 2 edge-case blockers, and GitHub Actions CI workflow alignment items have been fully resolved, verified via unit tests, type-checked, formatted, and validated across both local environments and GitHub Actions CI cloud runners.
 
 ---
 
 ## 1. Environment & Tooling Specifications
 
-| Tool | Version | Verification Command | Result |
+| Tool | Version | Verification Command | Execution Scope & Result |
 | :--- | :--- | :--- | :--- |
-| **Python** | `3.12.14` | `python --version` | `Python 3.12.14` (Locked in `.github/workflows/ci.yml`) |
-| **uv** | `0.6.14` | `uv --version` | `uv 0.6.14` |
-| **pytest** | `9.1.1` | `uv run pytest -v` | **80 / 80 passed** (4.33s) |
-| **mypy** | `1.15.0` | `uv run mypy src/qmo` | **Success: no issues found** |
-| **ruff** | `0.9.10` | `uv run ruff check src tests` | **All checks passed!** |
+| **Python** | `3.12.14` | `python --version` | `Python 3.12.14` (Explicitly locked in `.github/workflows/ci.yml`) |
+| **uv** | `0.6.14` / `0.12.19` | `uv --version` | Executable package manager |
+| **pytest** | `9.1.1` | `uv run pytest -v` | **Local (with raw M0 artifacts)**: `80 / 80 passed`<br>**GitHub CI Runner**: `79 passed, 1 skipped` |
+| **mypy** | `2.3.1` | `uv run mypy src/qmo` | **Success: no issues found in 29 source files** |
+| **ruff** | `0.16.9` | `uv run ruff check src tests` | **All checks passed!** |
 
 ---
 
-## 2. GitHub Actions CI Alignment & Fixes
+## 2. Execution Scope & Data Parity Specification
 
-1. **Explicit Python 3.12 Lock**: `.github/workflows/ci.yml` explicitly specifies `python-version: "3.12"` to ensure deterministic execution on GitHub Runners.
-2. **Tool Version Logging**: CI workflow logs exact versions of `python`, `pytest`, `mypy`, and `ruff` before running tests.
-3. **M0 Large Raw Spike Data Handling**: `test_real_m0_artifact_raw_and_csv_parity` dynamically checks if `data/spike/raw/TaiwanStockPrice` exists. If missing (such as in fresh GitHub Actions CI containers), it calls `pytest.skip(...)`, preventing false negative CI failures while preserving local parity testing when artifacts exist.
+1. **Local Full Artifact Execution**:
+   - Includes uncommitted M0 raw spike payload directory (`data/spike/raw/TaiwanStockPrice`).
+   - Executes `test_real_m0_artifact_raw_and_csv_parity` to verify full field-by-field raw-to-CSV normalization parity.
+   - Result: **80 passed** (0 skipped, 0 failed).
+
+2. **GitHub Actions CI Cloud Runner Execution**:
+   - Clean ephemeral runner container without uncommitted large raw data dumps.
+   - Dynamically evaluates `test_real_m0_artifact_raw_and_csv_parity`: when `data/spike/raw/TaiwanStockPrice` is absent, it calls `pytest.skip(...)`.
+   - Result: **79 passed, 1 skipped** (Run [`36370440844`](https://github.com/MasonLee3721/quant-market-observer/actions/runs/36370440844), Status: `success`).
 
 ---
 
@@ -52,42 +59,8 @@ This report documents the reproducible verification evidence for Work Package 5 
 
 ---
 
-## 4. Verification Evidence & Log Artifacts
+## 4. Sign-off Status
 
-### 4.1 Pytest Execution Summary
-```text
-============================= test session starts ==============================
-platform linux -- Python 3.12.14, pytest-9.1.1, pluggy-1.6.0 -- /home/agent/quant-market-observer/.venv/bin/python
-cachedir: .pytest_cache
-rootdir: /home/agent/quant-market-observer
-configfile: pyproject.toml
-testpaths: tests
-collected 80 items
-
-tests/test_cli.py::test_cli_version PASSED                               [  1%]
-tests/test_cli.py::test_cli_status PASSED                                [  2%]
-...
-tests/test_storage.py::test_orphan_adoption_report_write_failure_leaves_published_dir_unmodified PASSED [ 67%]
-tests/test_storage.py::test_corrupted_legacy_report_json_fails_migration_without_backfill PASSED [ 68%]
-...
-tests/test_validation.py::test_reconciler_fails_closed_on_empty_or_dash_integer_values PASSED [100%]
-
-============================== 80 passed in 4.33s ==============================
-```
-
-### 4.2 Mypy Type Check Summary
-```text
-Success: no issues found in 29 source files
-```
-
-### 4.3 Ruff Linter Summary
-```text
-All checks passed!
-```
-
----
-
-## 5. Sign-off Status
-
-- **Status**: **WP5 VERIFIED & READY FOR THREE-WAY SIGN-OFF**
-- **Target Repository Branch**: `origin/main`
+- **Functionality**: **PASSED & SEALED**
+- **GitHub Actions CI Pipeline**: **PASSED & VERIFIED (Run `36370440844`)**
+- **Audit Documentation**: **FULLY ALIGNED & SEALED**
