@@ -21,9 +21,9 @@ def generate_leader_breakout_signals(stocks: List[Dict[str, Any]]) -> List[Dict[
             signals.append(
                 {
                     "stock_id": s.get("stock_id"),
-                    "strategy": "leader_breakout",
+                    "strategy": "領頭羊突破策略 (Leader Breakout)",
                     "score": s.get("stock_score"),
-                    "reason": "Leader stock with strong momentum above MA60",
+                    "reason": "強勢領頭標的，站上 60 日季線且價格動能強勁",
                 }
             )
     return signals
@@ -51,9 +51,9 @@ def generate_emerging_accumulation_signals(stocks: List[Dict[str, Any]]) -> List
             signals.append(
                 {
                     "stock_id": s.get("stock_id"),
-                    "strategy": "emerging_accumulation",
+                    "strategy": "新興積累策略 (Emerging Accumulation)",
                     "score": s.get("stock_score"),
-                    "reason": "Emerging stock with institutional accumulation",
+                    "reason": "新興積累標的，法人資金持續卡位且中短期報酬為正",
                 }
             )
     return signals
@@ -71,9 +71,9 @@ def generate_risk_warning_signals(stocks: List[Dict[str, Any]]) -> List[Dict[str
             warnings.append(
                 {
                     "stock_id": s.get("stock_id"),
-                    "strategy": "risk_warning",
+                    "strategy": "高槓桿風險警訊 (Risk Warning)",
                     "score": s.get("stock_score"),
-                    "reason": "High margin balance expansion with low institutional support",
+                    "reason": "散戶融資快速升溫，欠缺法人買超保護之高槓桿標的",
                 }
             )
     return warnings

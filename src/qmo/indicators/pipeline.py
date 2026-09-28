@@ -26,18 +26,18 @@ class IndicatorPipelineRunner:
     def _generate_default_stocks_summary(self) -> List[Dict[str, Any]]:
         """Generate realistic 50-stock market universe indicators for demo and fallback."""
         sample_tickers = [
-            ("2330", "TSMC", 0.12, True, "leader", 88.5),
-            ("2317", "Foxconn", 0.08, True, "leader", 82.0),
-            ("2454", "MediaTek", 0.15, True, "leader", 85.4),
-            ("2308", "Delta", 0.06, True, "emerging", 74.2),
-            ("2303", "UMC", 0.03, False, "emerging", 68.0),
-            ("2881", "Fubon", 0.04, True, "watch", 62.1),
-            ("2882", "Cathay", 0.02, True, "watch", 59.8),
-            ("2382", "Quanta", 0.18, True, "leader", 89.1),
-            ("3231", "Wistron", 0.09, True, "emerging", 76.5),
-            ("2356", "Inventec", -0.02, False, "leveraged", 45.0),
-            ("2603", "Evergreen", -0.05, False, "leveraged", 42.0),
-            ("2609", "YangMing", -0.08, False, "excluded", 30.0),
+            ("2330", "台積電", 0.12, True, "leader", 88.5),
+            ("2317", "鴻海", 0.08, True, "leader", 82.0),
+            ("2454", "聯發科", 0.15, True, "leader", 85.4),
+            ("2308", "台達電", 0.06, True, "emerging", 74.2),
+            ("2303", "聯電", 0.03, False, "emerging", 68.0),
+            ("2881", "富邦金", 0.04, True, "watch", 62.1),
+            ("2882", "國泰金", 0.02, True, "watch", 59.8),
+            ("2382", "廣達", 0.18, True, "leader", 89.1),
+            ("3231", "緯創", 0.09, True, "emerging", 76.5),
+            ("2356", "英業達", -0.02, False, "leveraged", 45.0),
+            ("2603", "長榮", -0.05, False, "leveraged", 42.0),
+            ("2609", "陽明", -0.08, False, "excluded", 30.0),
         ]
         # Expand to 50 items
         for i in range(13, 51):
@@ -56,7 +56,7 @@ class IndicatorPipelineRunner:
             else:
                 st = "leveraged" if i % 2 == 0 else "excluded"
                 sc = round(35.0 + (ret * 50), 1)
-            sample_tickers.append((sid, f"Stock_{sid}", ret, above_60, st, sc))
+            sample_tickers.append((sid, f"標的_{sid}", ret, above_60, st, sc))
 
         res = []
         for sid, name, ret, ma60, st, sc in sample_tickers:
