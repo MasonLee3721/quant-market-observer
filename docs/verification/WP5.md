@@ -4,7 +4,7 @@
 **Package Version**: `0.1.0`  
 **Target Work Package**: `WP5` (Data Quality Gate & Atomic Publisher Integrity)  
 **Verification Date**: `2026-09-28`  
-**Target Git Commit Hash**: `86ad031` (CI workflow alignment & M0 skip update)  
+**Target Git Commit Hash**: `4014075` (CI workflow alignment & M0 skip update)  
 **Author**: 蘇荃 (SuQuan)  
 **Reviewer**: 阿珂 (Kiro3)  
 **Arbitrator**: MasonLee (老公)  
