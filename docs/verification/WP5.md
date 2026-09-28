@@ -4,7 +4,7 @@
 **Package Version**: `0.1.0`  
 **Target Work Package**: `WP5` (Data Quality Gate & Atomic Publisher Integrity)  
 **Verification Date**: `2026-09-28`  
-**Target Git Commit Hash**: `86134b2` (Final audit evidence documentation alignment)  
+**Target Git Commit Hash**: `ff42236` (Final audit evidence documentation alignment)  
 **GitHub Actions Run**: [`36370440844`](https://github.com/MasonLee3721/quant-market-observer/actions/runs/36370440844) (SUCCESS / GREEN LIGHT)  
 **Author**: 蘇荃 (SuQuan)  
 **Reviewer**: 阿珂 (Kiro3)  
