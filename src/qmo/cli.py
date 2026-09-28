@@ -46,7 +46,7 @@ def status(root_dir: Path) -> None:
     click.echo(f"Raw Snapshots Directory: {raw_store.base_dir}")
     click.echo(f"Catalog DB: {cat_path} (Exists: {cat_path.exists()})")
 
-    datasets = ["daily_price", "institutional_flow", "margin_balance"]
+    datasets = ["daily_price", "institutional_flow", "margin"]
     click.echo("\n--- Published Datasets Summary ---")
     for ds in datasets:
         batches = catalog.list_published_batches(ds)
@@ -67,7 +67,7 @@ def status(root_dir: Path) -> None:
 @main.command()
 @click.option(
     "--dataset",
-    type=click.Choice(["daily_price", "institutional_flow", "margin_balance", "all"]),
+    type=click.Choice(["daily_price", "institutional_flow", "margin", "all"]),
     default="all",
     help="Target dataset to validate.",
 )
@@ -100,9 +100,7 @@ def validate(
     catalog = DuckDBCatalog(cat_path if cat_path.exists() else None)
 
     target_datasets = (
-        ["daily_price", "institutional_flow", "margin_balance"]
-        if dataset == "all"
-        else [dataset]
+        ["daily_price", "institutional_flow", "margin"] if dataset == "all" else [dataset]
     )
 
     validated_reports = []
@@ -153,7 +151,7 @@ def validate(
 @main.command()
 @click.option(
     "--dataset",
-    type=click.Choice(["daily_price", "institutional_flow", "margin_balance", "all"]),
+    type=click.Choice(["daily_price", "institutional_flow", "margin", "all"]),
     default="all",
     help="Target dataset to update.",
 )
@@ -168,8 +166,22 @@ def validate(
     default=Path("data"),
     help="Root storage directory path.",
 )
-@click.option("--api-token", default="", help="FinMind API Token for real market API ingestion.")
-@click.option("--real-api", is_flag=True, help="Ingest real market data from official APIs.")
+@click.option(
+    "--api-token",
+    default="",
+    envvar="FINMIND_API_TOKEN",
+    help="FinMind API token; defaults to FINMIND_API_TOKEN.",
+)
+@click.option(
+    "--real-api/--synthetic",
+    default=True,
+    help="Use real providers (default); --synthetic is for explicit development only.",
+)
+@click.option(
+    "--holiday-calendar",
+    type=click.Path(path_type=Path, exists=True, dir_okay=False),
+    help="Optional CSV containing Taiwan market closure dates.",
+)
 @click.option("--force", is_flag=True, help="Force publish even if already existing.")
 @click.option("--dry-run", is_flag=True, help="Simulate pipeline without persisting changes.")
 @click.pass_context
@@ -180,6 +192,7 @@ def update(
     root_dir: Path,
     api_token: str,
     real_api: bool,
+    holiday_calendar: Optional[Path],
     force: bool,
     dry_run: bool,
 ) -> None:
@@ -187,18 +200,13 @@ def update(
     click.echo(f"Executing pipeline update: dataset={dataset}, date={date}, dry_run={dry_run}")
 
     target_datasets = (
-        ["daily_price", "institutional_flow", "margin_balance"]
-        if dataset == "all"
-        else [dataset]
+        ["daily_price", "institutional_flow", "margin"] if dataset == "all" else [dataset]
     )
 
     if dry_run:
         click.echo("[DRY-RUN] Pipeline simulation completed successfully. No files persisted.")
         return
 
-    from qmo.models.institutional import InstitutionalFlow
-    from qmo.models.margin import Margin
-    from qmo.models.price import DailyPrice
     from qmo.models.stock import load_universe_stock_master, parse_stock_info_payload
     from qmo.normalizers.institutional import InstitutionalNormalizer
     from qmo.normalizers.margin import MarginNormalizer
@@ -206,22 +214,26 @@ def update(
     from qmo.providers.finmind import FinMindProvider
     from qmo.storage.publisher import AtomicBatchPublisher
     from qmo.storage.raw_store import RawSnapshotStore
+    from qmo.trading_calendar import load_market_holidays, resolve_latest_trading_date
     from qmo.validation.validator import BatchValidator
 
-    t_date = "2026-09-28" if date == "latest" else date
+    holidays = load_market_holidays(holiday_calendar) if holiday_calendar else set()
+    t_date = (
+        resolve_latest_trading_date(holidays=holidays).isoformat() if date == "latest" else date
+    )
     batch_id = f"b_{t_date.replace('-', '')}"
     publisher = AtomicBatchPublisher(root_dir=root_dir, validator=BatchValidator())
     raw_store = RawSnapshotStore(base_dir=root_dir / "raw")
 
-    if real_api or api_token:
+    if real_api:
         click.echo("Fetching full Taiwan listed and OTC stock master universe from FinMind API...")
         provider = FinMindProvider(api_token=api_token)
         try:
             info_envelope = provider.fetch_stock_info()
+            if info_envelope.status_code != 200:
+                raise ValueError(f"TaiwanStockInfo returned HTTP {info_envelope.status_code}")
             raw_store.save(info_envelope, "stock_info")
             stock_master = parse_stock_info_payload(info_envelope.raw_body_str)
-            if not stock_master:
-                stock_master = load_universe_stock_master()
         except Exception as e:
             click.echo(f"[FAIL-CLOSED] Failed to fetch dynamic stock master info: {e}", err=True)
             ctx.exit(1)
@@ -233,8 +245,9 @@ def update(
         models: List[Any] = []
         raw_hashes: List[str] = []
 
-        if real_api or api_token:
+        if real_api:
             provider = FinMindProvider(api_token=api_token)
+            failures: List[str] = []
             if ds == "daily_price":
                 normalizer = PriceNormalizer(stock_master=stock_master)
                 for sid in stock_master:
@@ -243,8 +256,8 @@ def update(
                         h_val, _ = raw_store.save(env, ds)
                         raw_hashes.append(h_val)
                         models.extend(normalizer.normalize(env))
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        failures.append(f"{sid}: {exc}")
             elif ds == "institutional_flow":
                 inst_normalizer = InstitutionalNormalizer(stock_master=stock_master)
                 for sid in stock_master:
@@ -253,9 +266,9 @@ def update(
                         h_val, _ = raw_store.save(env, ds)
                         raw_hashes.append(h_val)
                         models.extend(inst_normalizer.normalize(env))
-                    except Exception:
-                        pass
-            elif ds == "margin_balance":
+                    except Exception as exc:
+                        failures.append(f"{sid}: {exc}")
+            elif ds == "margin":
                 margin_normalizer = MarginNormalizer(stock_master=stock_master)
                 for sid in stock_master:
                     try:
@@ -263,9 +276,18 @@ def update(
                         h_val, _ = raw_store.save(env, ds)
                         raw_hashes.append(h_val)
                         models.extend(margin_normalizer.normalize(env))
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        failures.append(f"{sid}: {exc}")
+            if failures:
+                preview = "; ".join(failures[:5])
+                raise click.ClickException(
+                    f"[FAIL-CLOSED] {ds} failed for {len(failures)} ticker(s): {preview}"
+                )
         else:
+            from qmo.models.institutional import InstitutionalFlow
+            from qmo.models.margin import Margin
+            from qmo.models.price import DailyPrice
+
             if ds == "daily_price":
                 for sid, sinfo in stock_master.items():
                     models.append(
@@ -294,7 +316,7 @@ def update(
                             total_net=500,
                         )
                     )
-            elif ds == "margin_balance":
+            elif ds == "margin":
                 for sid in stock_master:
                     models.append(
                         Margin(
@@ -306,15 +328,19 @@ def update(
                         )
                     )
 
-        if models:
-            publisher.publish_batch(
-                dataset=ds,
-                batch_id=batch_id,
-                models=models,
-                source_raw_hashes=raw_hashes if raw_hashes else ["a" * 64],
-                partition_date_range=f"{t_date}:{t_date}",
+        if not models:
+            raise click.ClickException(
+                f"[FAIL-CLOSED] Provider returned zero normalized rows for {ds}"
             )
-            click.echo(f"  [{ds}] Published {len(models)} record(s) to dataset '{ds}'.")
+        publisher.publish_batch(
+            dataset=ds,
+            batch_id=batch_id,
+            models=models,
+            source_raw_hashes=raw_hashes if raw_hashes else ["a" * 64],
+            partition_date_range=f"{t_date}:{t_date}",
+            target_tickers=list(stock_master),
+        )
+        click.echo(f"  [{ds}] Published {len(models)} record(s) to dataset '{ds}'.")
 
     click.echo(
         f"Pipeline update completed for date '{t_date}'. "
