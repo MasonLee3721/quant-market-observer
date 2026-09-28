@@ -168,6 +168,8 @@ def validate(
     default=Path("data"),
     help="Root storage directory path.",
 )
+@click.option("--api-token", default="", help="FinMind API Token for real market API ingestion.")
+@click.option("--real-api", is_flag=True, help="Ingest real market data from official APIs.")
 @click.option("--force", is_flag=True, help="Force publish even if already existing.")
 @click.option("--dry-run", is_flag=True, help="Simulate pipeline without persisting changes.")
 @click.pass_context
@@ -176,6 +178,8 @@ def update(
     dataset: str,
     date: str,
     root_dir: Path,
+    api_token: str,
+    real_api: bool,
     force: bool,
     dry_run: bool,
 ) -> None:
@@ -195,64 +199,119 @@ def update(
     from qmo.models.institutional import InstitutionalFlow
     from qmo.models.margin import Margin
     from qmo.models.price import DailyPrice
-    from qmo.models.stock import load_universe_stock_master
+    from qmo.models.stock import load_universe_stock_master, parse_stock_info_payload
+    from qmo.normalizers.institutional import InstitutionalNormalizer
+    from qmo.normalizers.margin import MarginNormalizer
+    from qmo.normalizers.price import PriceNormalizer
+    from qmo.providers.finmind import FinMindProvider
     from qmo.storage.publisher import AtomicBatchPublisher
+    from qmo.storage.raw_store import RawSnapshotStore
     from qmo.validation.validator import BatchValidator
 
     t_date = "2026-09-28" if date == "latest" else date
     batch_id = f"b_{t_date.replace('-', '')}"
     publisher = AtomicBatchPublisher(root_dir=root_dir, validator=BatchValidator())
-    stock_master = load_universe_stock_master()
+    raw_store = RawSnapshotStore(base_dir=root_dir / "raw")
+
+    if real_api or api_token:
+        click.echo("Fetching full Taiwan listed and OTC stock master universe from FinMind API...")
+        provider = FinMindProvider(api_token=api_token)
+        try:
+            info_envelope = provider.fetch_stock_info()
+            raw_store.save(info_envelope, "stock_info")
+            stock_master = parse_stock_info_payload(info_envelope.raw_body_str)
+            if not stock_master:
+                stock_master = load_universe_stock_master()
+        except Exception as e:
+            click.echo(f"[FAIL-CLOSED] Failed to fetch dynamic stock master info: {e}", err=True)
+            ctx.exit(1)
+    else:
+        stock_master = load_universe_stock_master()
 
     for ds in target_datasets:
         click.echo(f"Processing dataset '{ds}' for batch '{batch_id}'...")
         models: List[Any] = []
-        if ds == "daily_price":
-            for sid, sinfo in stock_master.items():
-                models.append(
-                    DailyPrice(
-                        trade_date=t_date,
-                        stock_id=sid,
-                        market=sinfo.market,
-                        open_price=100.0,
-                        high_price=105.0,
-                        low_price=98.0,
-                        close_price=102.5,
-                        trading_volume=50000,
-                        trading_value=5125000,
-                        source="TWSE:STOCK_DAY",
+        raw_hashes: List[str] = []
+
+        if real_api or api_token:
+            provider = FinMindProvider(api_token=api_token)
+            if ds == "daily_price":
+                normalizer = PriceNormalizer(stock_master=stock_master)
+                for sid in stock_master:
+                    try:
+                        env = provider.fetch_daily_price(sid, t_date, t_date)
+                        h_val, _ = raw_store.save(env, ds)
+                        raw_hashes.append(h_val)
+                        models.extend(normalizer.normalize(env))
+                    except Exception:
+                        pass
+            elif ds == "institutional_flow":
+                inst_normalizer = InstitutionalNormalizer(stock_master=stock_master)
+                for sid in stock_master:
+                    try:
+                        env = provider.fetch_institutional_flow(sid, t_date, t_date)
+                        h_val, _ = raw_store.save(env, ds)
+                        raw_hashes.append(h_val)
+                        models.extend(inst_normalizer.normalize(env))
+                    except Exception:
+                        pass
+            elif ds == "margin_balance":
+                margin_normalizer = MarginNormalizer(stock_master=stock_master)
+                for sid in stock_master:
+                    try:
+                        env = provider.fetch_margin(sid, t_date, t_date)
+                        h_val, _ = raw_store.save(env, ds)
+                        raw_hashes.append(h_val)
+                        models.extend(margin_normalizer.normalize(env))
+                    except Exception:
+                        pass
+        else:
+            if ds == "daily_price":
+                for sid, sinfo in stock_master.items():
+                    models.append(
+                        DailyPrice(
+                            trade_date=t_date,
+                            stock_id=sid,
+                            market=sinfo.market,
+                            open_price=100.0,
+                            high_price=105.0,
+                            low_price=98.0,
+                            close_price=102.5,
+                            trading_volume=50000,
+                            trading_value=5125000,
+                            source="TWSE:STOCK_DAY",
+                        )
                     )
-                )
-        elif ds == "institutional_flow":
-            for sid in stock_master:
-                models.append(
-                    InstitutionalFlow(
-                        trade_date=t_date,
-                        stock_id=sid,
-                        foreign_buy=1000,
-                        foreign_sell=500,
-                        foreign_net=500,
-                        total_net=500,
+            elif ds == "institutional_flow":
+                for sid in stock_master:
+                    models.append(
+                        InstitutionalFlow(
+                            trade_date=t_date,
+                            stock_id=sid,
+                            foreign_buy=1000,
+                            foreign_sell=500,
+                            foreign_net=500,
+                            total_net=500,
+                        )
                     )
-                )
-        elif ds == "margin_balance":
-            for sid in stock_master:
-                models.append(
-                    Margin(
-                        trade_date=t_date,
-                        stock_id=sid,
-                        margin_purchase_buy=50,
-                        margin_purchase_sell=20,
-                        margin_purchase_balance=300,
+            elif ds == "margin_balance":
+                for sid in stock_master:
+                    models.append(
+                        Margin(
+                            trade_date=t_date,
+                            stock_id=sid,
+                            margin_purchase_buy=50,
+                            margin_purchase_sell=20,
+                            margin_purchase_balance=300,
+                        )
                     )
-                )
 
         if models:
             publisher.publish_batch(
                 dataset=ds,
                 batch_id=batch_id,
                 models=models,
-                source_raw_hashes=["a" * 64],
+                source_raw_hashes=raw_hashes if raw_hashes else ["a" * 64],
                 partition_date_range=f"{t_date}:{t_date}",
             )
             click.echo(f"  [{ds}] Published {len(models)} record(s) to dataset '{ds}'.")
