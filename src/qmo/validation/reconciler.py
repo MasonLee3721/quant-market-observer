@@ -105,8 +105,7 @@ class OfficialReconciler:
                 severity=CheckSeverity.INFO,
                 passed=True,
                 message=(
-                    "No official TWSE/TPEx price envelopes provided "
-                    "for reconciliation sampling"
+                    "No official TWSE/TPEx price envelopes provided for reconciliation sampling"
                 ),
                 details={"sample_count": 0},
             )
@@ -526,8 +525,7 @@ class OfficialReconciler:
 
                     if stock_idx == -1 or net_idx == -1:
                         errors.append(
-                            "TWSE institutional payload missing required field "
-                            "'三大法人買賣超股數'"
+                            "TWSE institutional payload missing required field '三大法人買賣超股數'"
                         )
                     else:
                         for row in data_list:
@@ -583,8 +581,7 @@ class OfficialReconciler:
 
                     if net_idx == -1:
                         errors.append(
-                            "TPEx institutional payload missing required field "
-                            "'三大法人買賣超股數'"
+                            "TPEx institutional payload missing required field '三大法人買賣超股數'"
                         )
                     else:
                         for row in tables:

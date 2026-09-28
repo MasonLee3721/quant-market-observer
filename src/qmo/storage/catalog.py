@@ -97,6 +97,7 @@ class DuckDBCatalog:
                 total_records BIGINT NOT NULL,
                 passed_checks INTEGER NOT NULL,
                 total_checks INTEGER NOT NULL,
+                report_hash VARCHAR NOT NULL,
                 report_json VARCHAR NOT NULL,
                 PRIMARY KEY (dataset, batch_id)
             );
@@ -321,6 +322,7 @@ class DuckDBCatalog:
         overall_passed = getattr(report, "overall_passed", True)
         created_at = getattr(report, "created_at", "")
         summary = getattr(report, "summary", {})
+        report_hash = getattr(report, "report_hash", "")
         total_records = summary.get("total_records", 0)
         passed_checks = summary.get("passed_checks", 0)
         total_checks = summary.get("total_checks", 0)
@@ -331,8 +333,8 @@ class DuckDBCatalog:
                 """
                 INSERT OR REPLACE INTO quality_reports (
                     dataset, batch_id, overall_passed, created_at,
-                    total_records, passed_checks, total_checks, report_json
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+                    total_records, passed_checks, total_checks, report_hash, report_json
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
                 """,
                 (
                     dataset,
@@ -342,6 +344,7 @@ class DuckDBCatalog:
                     total_records,
                     passed_checks,
                     total_checks,
+                    report_hash,
                     report_json,
                 ),
             )

@@ -33,6 +33,27 @@ class QualityReport(BaseModel):
     overall_passed: bool
     check_results: List[ValidationCheckResult] = Field(default_factory=list)
     summary: Dict[str, Any] = Field(default_factory=dict)
+    report_hash: str = ""
+
+    def compute_report_hash(self) -> str:
+        """Compute deterministic SHA-256 digest of QualityReport content."""
+        import hashlib
+        import json
+
+        data_dict = {
+            "batch_id": self.batch_id,
+            "dataset": self.dataset,
+            "created_at": self.created_at,
+            "overall_passed": self.overall_passed,
+            "summary": self.summary,
+            "check_results": [c.model_dump() for c in self.check_results],
+        }
+        serialized = json.dumps(data_dict, sort_keys=True)
+        return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
+
+    def model_post_init(self, __context: Any) -> None:
+        if not self.report_hash:
+            self.report_hash = self.compute_report_hash()
 
     def to_json(self, indent: int = 2) -> str:
         """Serialize QualityReport to JSON format."""

@@ -304,9 +304,16 @@ class BatchValidator:
                             f"Row {idx} ({m.stock_id}): no_trade is True but volume "
                             f"({m.trading_volume}) or value ({m.trading_value}) > 0"
                         )
-                    if m.open_price is not None or m.close_price is not None:
+                    if (
+                        m.open_price is not None
+                        or m.high_price is not None
+                        or m.low_price is not None
+                        or m.close_price is not None
+                        or m.change is not None
+                    ):
                         violations.append(
-                            f"Row {idx} ({m.stock_id}): no_trade is True but prices are present"
+                            f"Row {idx} ({m.stock_id}): "
+                            "no_trade is True but OHLC/change prices are present"
                         )
                 else:
                     if m.trading_volume == 0 and m.trading_value == 0:

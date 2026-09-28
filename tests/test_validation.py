@@ -3,6 +3,7 @@
 import json
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -16,6 +17,7 @@ from qmo.validation import (
     CheckSeverity,
     OfficialReconciler,
     QualityGateError,
+    QualityReport,
 )
 
 VALID_RAW_HASH = "a" * 64
@@ -727,3 +729,64 @@ def test_reconciler_partial_envelope_parsing_failure_fails_closed() -> None:
     assert res.passed is False
     assert res.severity == CheckSeverity.CRITICAL
     assert "parsing failed" in res.message
+
+
+def test_validator_date_range_one_end_out_of_bounds_fails() -> None:
+    """Verify expected_date_range boundary check fails when max_date exceeds expected range."""
+    validator = BatchValidator()
+    models = [
+        DailyPrice(
+            trade_date="2026-09-26",  # Exceeds expected_end "2026-09-25"!
+            stock_id="2330",
+            open_price=100.0,
+            close_price=105.0,
+            trading_volume=1000,
+            trading_value=105000,
+        )
+    ]
+
+    with pytest.raises(QualityGateError, match="outside expected date range"):
+        validator.validate_batch(
+            batch_id="b_out_of_bounds",
+            dataset="daily_price",
+            models=models,
+            expected_date_range="2026-09-01..2026-09-25",
+        )
+
+
+def test_publisher_quality_report_write_failure_causes_rollback(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Verify failure during QualityReport staging write triggers publish rollback."""
+
+    def bad_to_json(*a: Any, **kw: Any) -> str:
+        raise OSError("Disk write failed during report serialization")
+
+    monkeypatch.setattr(QualityReport, "to_json", bad_to_json)
+
+    validator = BatchValidator()
+    publisher = AtomicBatchPublisher(root_dir=tmp_path, validator=validator)
+
+    models = [
+        DailyPrice(
+            trade_date="2026-09-25",
+            stock_id="2330",
+            market="TWSE",
+            open_price=100.0,
+            close_price=104.0,
+            trading_volume=1000,
+            trading_value=104000,
+        )
+    ]
+
+    with pytest.raises(Exception, match="Failed to persist QualityReport"):
+        publisher.publish_batch(
+            batch_id="b_report_write_fail",
+            dataset="daily_price",
+            models=models,
+            source_raw_hashes=[VALID_RAW_HASH],
+        )
+
+    # Published directory must NOT exist after failure
+    target_dir = tmp_path / "normalized" / "daily_price" / "b_report_write_fail"
+    assert not target_dir.exists()

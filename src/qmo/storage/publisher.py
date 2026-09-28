@@ -35,7 +35,12 @@ class AtomicBatchPublisher:
         self.staging_dir = self.root_dir / "staging"
         self.normalized_dir = self.root_dir / "normalized"
         self.catalog = catalog or DuckDBCatalog(self.root_dir / "catalog" / "qmo_catalog.duckdb")
-        self.validator = validator
+        if validator is None:
+            from qmo.validation.validator import BatchValidator
+
+            self.validator = BatchValidator()
+        else:
+            self.validator = validator
 
     def _verify_existing_published_provenance(
         self,
@@ -127,6 +132,7 @@ class AtomicBatchPublisher:
         partition_date_range: Optional[str] = None,
         partition_by_date: bool = False,
         target_tickers: Optional[Sequence[str]] = None,
+        expected_date_range: Optional[str] = None,
         twse_envelope: Optional[Any] = None,
         tpex_envelope: Optional[Any] = None,
         _pre_swap_hook: Optional[Callable[[], None]] = None,
@@ -158,7 +164,7 @@ class AtomicBatchPublisher:
                 models=models,
                 schema_version=schema_version,
                 target_tickers=target_tickers,
-                expected_date_range=partition_date_range,
+                expected_date_range=expected_date_range,
                 twse_envelope=twse_envelope,
                 tpex_envelope=tpex_envelope,
                 raise_on_failure=True,
