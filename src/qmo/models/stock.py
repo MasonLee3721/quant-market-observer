@@ -32,9 +32,10 @@ def parse_stock_info_payload(payload_json: str) -> Dict[str, StockMaster]:
         stock_type = str(row.get("type", "")).strip()
         if not sid:
             continue
-        if "上櫃" in stock_type or "櫃" in stock_type:
+        normalized_type = stock_type.casefold()
+        if normalized_type in {"tpex", "上櫃"}:
             market = "TPEx"
-        elif "上市" in stock_type:
+        elif normalized_type in {"twse", "上市"}:
             market = "TWSE"
         else:
             continue

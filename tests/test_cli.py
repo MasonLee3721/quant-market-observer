@@ -90,9 +90,7 @@ def test_cli_validate_formats(tmp_path: Path) -> None:
     assert '"batch_id": "b_val_test"' in res_json.output
 
     # Markdown format
-    res_md = runner.invoke(
-        main, ["validate", "--root-dir", str(tmp_path), "--format", "markdown"]
-    )
+    res_md = runner.invoke(main, ["validate", "--root-dir", str(tmp_path), "--format", "markdown"])
     assert res_md.exit_code == 0
     assert "# Quality Validation Report" in res_md.output
 
@@ -118,7 +116,16 @@ def test_cli_update_datasets(tmp_path: Path) -> None:
     runner = CliRunner()
     result = runner.invoke(
         main,
-        ["update", "--dataset", "daily_price", "--date", "2026-09-25", "--root-dir", str(tmp_path)],
+        [
+            "update",
+            "--dataset",
+            "daily_price",
+            "--date",
+            "2026-09-25",
+            "--synthetic",
+            "--root-dir",
+            str(tmp_path),
+        ],
     )
     assert result.exit_code == 0
     assert "Executing pipeline update" in result.output
@@ -158,7 +165,3 @@ def test_cli_report(tmp_path: Path) -> None:
     )
     assert result.exit_code == 0
     assert "Quant Market Observer 每日量化市場觀測報告" in result.output
-
-
-
-
