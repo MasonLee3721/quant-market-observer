@@ -22,23 +22,31 @@ def parse_stock_info_payload(payload_json: str) -> Dict[str, StockMaster]:
     import json
 
     registry: Dict[str, StockMaster] = {}
-    try:
-        data_obj = json.loads(payload_json)
-        rows = data_obj.get("data", []) if isinstance(data_obj, dict) else []
-        for r in rows:
-            sid = str(r.get("stock_id", ""))
-            if not sid:
-                continue
-            mkt = "TPEx" if "櫃" in str(r.get("type", "")) else "TWSE"
-            registry[sid] = StockMaster(
-                symbol=sid,
-                name=str(r.get("stock_name", sid)),
-                market=mkt,
-                industry=r.get("industry_category"),
-                is_active=True,
-            )
-    except Exception:
-        pass
+    data_obj = json.loads(payload_json)
+    if not isinstance(data_obj, dict) or not isinstance(data_obj.get("data"), list):
+        raise ValueError("TaiwanStockInfo payload must contain a data list")
+    for row in data_obj["data"]:
+        if not isinstance(row, dict):
+            raise ValueError("TaiwanStockInfo data rows must be objects")
+        sid = str(row.get("stock_id", "")).strip()
+        stock_type = str(row.get("type", "")).strip()
+        if not sid:
+            continue
+        if "上櫃" in stock_type or "櫃" in stock_type:
+            market = "TPEx"
+        elif "上市" in stock_type:
+            market = "TWSE"
+        else:
+            continue
+        registry[sid] = StockMaster(
+            symbol=sid,
+            name=str(row.get("stock_name", sid)),
+            market=market,
+            industry=row.get("industry_category"),
+            is_active=True,
+        )
+    if not registry:
+        raise ValueError("TaiwanStockInfo contained no listed or OTC stocks")
     return registry
 
 
