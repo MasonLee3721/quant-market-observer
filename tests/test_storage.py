@@ -989,3 +989,38 @@ def test_publisher_forbids_disabling_validator(tmp_path: Path) -> None:
     """Verify AtomicBatchPublisher rejects validator=False."""
     with pytest.raises(ValueError, match="Quality Gate cannot be disabled"):
         AtomicBatchPublisher(root_dir=tmp_path, validator=False)
+
+
+def test_catalog_quality_report_immutable_conflict_detection(tmp_path: Path) -> None:
+    """Verify DuckDBCatalog rejects re-registering QualityReport with conflicting report_hash."""
+    from qmo.validation.models import QualityReport
+
+    catalog = DuckDBCatalog(tmp_path / "qmo_catalog.duckdb")
+    report1 = QualityReport(
+        batch_id="b_qr_conflict",
+        dataset="daily_price",
+        created_at="2026-09-25T00:00:00Z",
+        overall_passed=True,
+        total_records=1,
+        summary={"total_records": 1, "passed_checks": 1, "total_checks": 1},
+        report_hash="hash_alpha_1111",
+    )
+
+    catalog.register_quality_report(report1)
+
+    # Identical report_hash is idempotent
+    catalog.register_quality_report(report1)
+
+    # Conflicting report_hash raises BatchConflictError
+    report2 = QualityReport(
+        batch_id="b_qr_conflict",
+        dataset="daily_price",
+        created_at="2026-09-25T00:00:00Z",
+        overall_passed=False,
+        total_records=1,
+        summary={"total_records": 1, "passed_checks": 0, "total_checks": 1},
+        report_hash="hash_beta_2222",
+    )
+
+    with pytest.raises(BatchConflictError, match="conflicting report_hash"):
+        catalog.register_quality_report(report2)

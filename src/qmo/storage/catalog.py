@@ -72,6 +72,18 @@ class DuckDBCatalog:
         else:
             self._create_tables()
 
+        # Migrate existing quality_reports table if report_hash column is missing
+        qr_res = self.conn.execute(
+            "SELECT count(*) FROM information_schema.tables WHERE table_name = 'quality_reports'"
+        ).fetchone()
+        if qr_res and qr_res[0] > 0:
+            qr_info = self.conn.execute("PRAGMA table_info('quality_reports')").fetchall()
+            qr_cols = [r[1] for r in qr_info]
+            if "report_hash" not in qr_cols:
+                self.conn.execute(
+                    "ALTER TABLE quality_reports ADD COLUMN report_hash VARCHAR DEFAULT ''"
+                )
+
     def _create_tables(self) -> None:
         """Create standard catalog tables."""
         self.conn.execute(
@@ -263,44 +275,72 @@ class DuckDBCatalog:
                 )
 
             if quality_report is not None:
-                report_json = (
-                    quality_report.to_json()
-                    if hasattr(quality_report, "to_json")
-                    else json.dumps(quality_report)
-                )
-                b_id = getattr(quality_report, "batch_id", manifest.batch_id)
-                ds = getattr(quality_report, "dataset", manifest.dataset)
-                overall_passed = getattr(quality_report, "overall_passed", True)
-                created_at = getattr(quality_report, "created_at", manifest.created_at)
-                summary = getattr(quality_report, "summary", {})
-                report_hash = getattr(quality_report, "report_hash", "")
-                total_records = summary.get("total_records", manifest.record_count)
-                passed_checks = summary.get("passed_checks", 0)
-                total_checks = summary.get("total_checks", 0)
-
-                self.conn.execute(
-                    """
-                    INSERT OR REPLACE INTO quality_reports (
-                        dataset, batch_id, overall_passed, created_at,
-                        total_records, passed_checks, total_checks, report_hash, report_json
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
-                    """,
-                    (
-                        ds,
-                        b_id,
-                        overall_passed,
-                        created_at,
-                        total_records,
-                        passed_checks,
-                        total_checks,
-                        report_hash,
-                        report_json,
-                    ),
+                self._register_quality_report_impl(
+                    quality_report,
+                    fallback_batch_id=manifest.batch_id,
+                    fallback_dataset=manifest.dataset,
+                    fallback_created_at=manifest.created_at,
                 )
             self.conn.execute("COMMIT")
         except Exception as e:
             self.conn.execute("ROLLBACK")
             raise e
+
+    def _register_quality_report_impl(
+        self,
+        report: Any,
+        fallback_batch_id: str = "",
+        fallback_dataset: str = "",
+        fallback_created_at: str = "",
+    ) -> None:
+        """Helper to register QualityReport in DuckDB catalog with immutability and hash check."""
+        report_json = report.to_json() if hasattr(report, "to_json") else json.dumps(report)
+        b_id = getattr(report, "batch_id", "") or fallback_batch_id
+        ds = getattr(report, "dataset", "") or fallback_dataset
+        overall_passed = getattr(report, "overall_passed", True)
+        created_at = getattr(report, "created_at", "") or fallback_created_at
+        summary = getattr(report, "summary", {})
+        report_hash = getattr(report, "report_hash", "")
+        if not report_hash and hasattr(report, "compute_report_hash"):
+            report_hash = report.compute_report_hash()
+        total_records = summary.get("total_records", 0)
+        passed_checks = summary.get("passed_checks", 0)
+        total_checks = summary.get("total_checks", 0)
+
+        existing_qr = self.conn.execute(
+            "SELECT report_hash FROM quality_reports WHERE dataset = ? AND batch_id = ?",
+            (ds, b_id),
+        ).fetchall()
+
+        if existing_qr:
+            existing_report_hash = existing_qr[0][0]
+            if existing_report_hash and report_hash and existing_report_hash != report_hash:
+                raise BatchConflictError(
+                    f"QualityReport for batch '{b_id}' in dataset '{ds}' "
+                    f"already exists with conflicting report_hash "
+                    f"({existing_report_hash} vs {report_hash})"
+                )
+            return
+
+        self.conn.execute(
+            """
+            INSERT INTO quality_reports (
+                dataset, batch_id, overall_passed, created_at,
+                total_records, passed_checks, total_checks, report_hash, report_json
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+            """,
+            (
+                ds,
+                b_id,
+                overall_passed,
+                created_at,
+                total_records,
+                passed_checks,
+                total_checks,
+                report_hash,
+                report_json,
+            ),
+        )
 
     def get_batch_manifest(self, dataset: str, batch_id: str) -> Optional[BatchManifest]:
         """Fetch batch manifest from DuckDB catalog by composite key (dataset, batch_id)."""
@@ -357,39 +397,10 @@ class DuckDBCatalog:
         return results
 
     def register_quality_report(self, report: Any) -> None:
-        """Register a QualityReport in DuckDB catalog."""
-        report_json = report.to_json() if hasattr(report, "to_json") else json.dumps(report)
-        batch_id = getattr(report, "batch_id", "")
-        dataset = getattr(report, "dataset", "")
-        overall_passed = getattr(report, "overall_passed", True)
-        created_at = getattr(report, "created_at", "")
-        summary = getattr(report, "summary", {})
-        report_hash = getattr(report, "report_hash", "")
-        total_records = summary.get("total_records", 0)
-        passed_checks = summary.get("passed_checks", 0)
-        total_checks = summary.get("total_checks", 0)
-
+        """Register a QualityReport in DuckDB catalog using transaction safety."""
         self.conn.execute("BEGIN TRANSACTION")
         try:
-            self.conn.execute(
-                """
-                INSERT OR REPLACE INTO quality_reports (
-                    dataset, batch_id, overall_passed, created_at,
-                    total_records, passed_checks, total_checks, report_hash, report_json
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
-                """,
-                (
-                    dataset,
-                    batch_id,
-                    overall_passed,
-                    created_at,
-                    total_records,
-                    passed_checks,
-                    total_checks,
-                    report_hash,
-                    report_json,
-                ),
-            )
+            self._register_quality_report_impl(report)
             self.conn.execute("COMMIT")
         except Exception as e:
             self.conn.execute("ROLLBACK")
