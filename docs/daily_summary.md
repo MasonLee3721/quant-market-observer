@@ -1,4 +1,3 @@
-Generating markdown market report for date: 2026-09-28
 # Quant Market Observer 每日量化市場觀測報告 (2026-09-28)
 
 ## 1. 市場整體狀態與總分

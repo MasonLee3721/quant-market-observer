@@ -344,7 +344,7 @@ def signal(date: str, root_dir: Path) -> None:
 )
 def report(date: str, output_format: str, root_dir: Path) -> None:
     """Generate daily Markdown market report or HTML visual dashboard."""
-    click.echo(f"Generating {output_format} market report for date: {date}")
+    click.echo(f"Generating {output_format} market report for date: {date}", err=True)
 
     from qmo.indicators.pipeline import IndicatorPipelineRunner
     from qmo.reports.generator import generate_html_report, generate_markdown_report
