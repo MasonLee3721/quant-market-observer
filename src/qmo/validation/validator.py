@@ -527,15 +527,28 @@ class BatchValidator:
         if expected_date_range:
             if ".." in expected_date_range:
                 exp_start, exp_end = expected_date_range.split("..", 1)
+            elif " to " in expected_date_range:
+                exp_start, exp_end = expected_date_range.split(" to ", 1)
             else:
                 exp_start = exp_end = expected_date_range
             exp_start = exp_start.strip()
             exp_end = exp_end.strip()
 
-            if min_date < exp_start or max_date > exp_end:
+            try:
+                dt_exp_start = datetime.strptime(exp_start, "%Y-%m-%d").date()
+                dt_exp_end = datetime.strptime(exp_end, "%Y-%m-%d").date()
+                dt_min = datetime.strptime(min_date, "%Y-%m-%d").date()
+                dt_max = datetime.strptime(max_date, "%Y-%m-%d").date()
+
+                if dt_min < dt_exp_start or dt_max > dt_exp_end:
+                    freshness_issues.append(
+                        f"Batch date range {min_date}..{max_date} is outside "
+                        f"expected date range {exp_start}..{exp_end}"
+                    )
+            except ValueError:
                 freshness_issues.append(
-                    f"Batch date range {min_date}..{max_date} is outside "
-                    f"expected date range {exp_start}..{exp_end}"
+                    f"Invalid expected_date_range format: '{expected_date_range}'. "
+                    "Expected 'YYYY-MM-DD..YYYY-MM-DD' or 'YYYY-MM-DD to YYYY-MM-DD'"
                 )
 
         passed = len(invalid_dates) == 0 and len(freshness_issues) == 0

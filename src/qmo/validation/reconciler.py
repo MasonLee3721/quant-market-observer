@@ -30,6 +30,20 @@ def _normalize_official_date(raw_date: Any) -> Optional[str]:
     return None
 
 
+def _strict_int(val_str: Any) -> int:
+    s = str(val_str).strip().replace(",", "") if val_str is not None else ""
+    if not s or s == "--":
+        return 0
+    return int(s)
+
+
+def _strict_float(val_str: Any) -> Optional[float]:
+    s = str(val_str).strip().replace(",", "") if val_str is not None else ""
+    if not s or s == "--":
+        return None
+    return float(s)
+
+
 class OfficialReconciler:
     """Reconciles normalized model records against official TWSE/TPEx raw response snapshots."""
 
@@ -406,80 +420,88 @@ class OfficialReconciler:
         errors: List[str] = []
 
         if twse_env and twse_env.raw_body_bytes:
-            try:
-                twse_json = json.loads(twse_env.raw_body_bytes.decode("utf-8"))
-                data_list = twse_json.get("data", [])
-                fields = twse_json.get("fields", [])
-                raw_date = twse_json.get("date") or (
-                    twse_env.params.get("date") if twse_env.params else None
+            if twse_env.status_code != 200:
+                errors.append(
+                    f"TWSE price envelope returned HTTP status {twse_env.status_code}, expected 200"
                 )
-                norm_date = _normalize_official_date(raw_date)
-
-                if not norm_date:
-                    errors.append("TWSE price payload missing valid official date")
-                elif not data_list or not fields:
-                    errors.append("TWSE price payload missing 'data' or 'fields'")
-                elif "證券代號" not in fields or "收盤價" not in fields or "成交股數" not in fields:
-                    errors.append(
-                        "TWSE price payload missing required fields "
-                        "('證券代號', '收盤價', '成交股數')"
+            else:
+                try:
+                    twse_json = json.loads(twse_env.raw_body_bytes.decode("utf-8"))
+                    data_list = twse_json.get("data", [])
+                    fields = twse_json.get("fields", [])
+                    raw_date = twse_json.get("date") or (
+                        twse_env.params.get("date") if twse_env.params else None
                     )
-                else:
-                    stock_idx = fields.index("證券代號")
-                    close_idx = fields.index("收盤價")
-                    vol_idx = fields.index("成交股數")
+                    norm_date = _normalize_official_date(raw_date)
 
-                    for row in data_list:
-                        if len(row) > max(stock_idx, close_idx, vol_idx):
-                            sid = str(row[stock_idx]).strip()
-                            c_str = str(row[close_idx]).strip().replace(",", "")
-                            v_str = str(row[vol_idx]).strip().replace(",", "")
+                    if not norm_date:
+                        errors.append("TWSE price payload missing valid official date")
+                    elif not data_list or not fields:
+                        errors.append("TWSE price payload missing 'data' or 'fields'")
+                    elif (
+                        "證券代號" not in fields
+                        or "收盤價" not in fields
+                        or "成交股數" not in fields
+                    ):
+                        errors.append(
+                            "TWSE price payload missing required fields "
+                            "('證券代號', '收盤價', '成交股數')"
+                        )
+                    else:
+                        stock_idx = fields.index("證券代號")
+                        close_idx = fields.index("收盤價")
+                        vol_idx = fields.index("成交股數")
 
-                            close_val = float(c_str) if c_str and c_str != "--" else None
-                            vol_val = int(v_str) if v_str and v_str.isdigit() else 0
+                        for row in data_list:
+                            if len(row) > max(stock_idx, close_idx, vol_idx):
+                                sid = str(row[stock_idx]).strip()
+                                close_val = _strict_float(row[close_idx])
+                                vol_val = _strict_int(row[vol_idx])
 
-                            entry = {
-                                "close_price": close_val,
-                                "trading_volume": vol_val,
-                                "market": "TWSE",
-                            }
-                            raw_map[(norm_date, sid, "TWSE")] = entry
-            except Exception as e:
-                errors.append(f"TWSE price payload parsing error: {e}")
+                                entry = {
+                                    "close_price": close_val,
+                                    "trading_volume": vol_val,
+                                    "market": "TWSE",
+                                }
+                                raw_map[(norm_date, sid, "TWSE")] = entry
+                except Exception as e:
+                    errors.append(f"TWSE price payload parsing error: {e}")
 
         if tpex_env and tpex_env.raw_body_bytes:
-            try:
-                tpex_json = json.loads(tpex_env.raw_body_bytes.decode("utf-8"))
-                tables = tpex_json.get("aaData", []) or tpex_json.get("tables", [])
-                raw_date = (
-                    tpex_json.get("reportDate")
-                    or tpex_json.get("date")
-                    or (tpex_env.params.get("date") if tpex_env.params else None)
+            if tpex_env.status_code != 200:
+                errors.append(
+                    f"TPEx price envelope returned HTTP status {tpex_env.status_code}, expected 200"
                 )
-                norm_date = _normalize_official_date(raw_date)
+            else:
+                try:
+                    tpex_json = json.loads(tpex_env.raw_body_bytes.decode("utf-8"))
+                    tables = tpex_json.get("aaData", []) or tpex_json.get("tables", [])
+                    raw_date = (
+                        tpex_json.get("reportDate")
+                        or tpex_json.get("date")
+                        or (tpex_env.params.get("date") if tpex_env.params else None)
+                    )
+                    norm_date = _normalize_official_date(raw_date)
 
-                if not norm_date:
-                    errors.append("TPEx price payload missing valid official date")
-                elif not tables:
-                    errors.append("TPEx price payload missing 'aaData' or 'tables'")
-                else:
-                    for row in tables:
-                        if isinstance(row, list) and len(row) >= 9:
-                            sid = str(row[0]).strip()
-                            c_str = str(row[2]).strip().replace(",", "")
-                            v_str = str(row[8]).strip().replace(",", "")
+                    if not norm_date:
+                        errors.append("TPEx price payload missing valid official date")
+                    elif not tables:
+                        errors.append("TPEx price payload missing 'aaData' or 'tables'")
+                    else:
+                        for row in tables:
+                            if isinstance(row, list) and len(row) >= 9:
+                                sid = str(row[0]).strip()
+                                close_val = _strict_float(row[2])
+                                vol_val = _strict_int(row[8])
 
-                            close_val = float(c_str) if c_str and c_str != "--" else None
-                            vol_val = int(v_str) if v_str and v_str.isdigit() else 0
-
-                            entry = {
-                                "close_price": close_val,
-                                "trading_volume": vol_val,
-                                "market": "TPEX",
-                            }
-                            raw_map[(norm_date, sid, "TPEX")] = entry
-            except Exception as e:
-                errors.append(f"TPEx price payload parsing error: {e}")
+                                entry = {
+                                    "close_price": close_val,
+                                    "trading_volume": vol_val,
+                                    "market": "TPEX",
+                                }
+                                raw_map[(norm_date, sid, "TPEX")] = entry
+                except Exception as e:
+                    errors.append(f"TPEx price payload parsing error: {e}")
 
         return raw_map, errors
 
@@ -493,110 +515,106 @@ class OfficialReconciler:
         errors: List[str] = []
 
         if twse_env and twse_env.raw_body_bytes:
-            try:
-                twse_json = json.loads(twse_env.raw_body_bytes.decode("utf-8"))
-                data_list = twse_json.get("data", [])
-                fields = twse_json.get("fields", [])
-                raw_date = twse_json.get("date") or (
-                    twse_env.params.get("date") if twse_env.params else None
+            if twse_env.status_code != 200:
+                errors.append(
+                    f"TWSE institutional envelope status is {twse_env.status_code}, expected 200"
                 )
-                norm_date = _normalize_official_date(raw_date)
-
-                if not norm_date:
-                    errors.append("TWSE institutional payload missing valid official date")
-                elif not data_list or not fields:
-                    errors.append("TWSE institutional payload missing 'data' or 'fields'")
-                else:
-                    stock_idx = (
-                        fields.index("證券代號")
-                        if "證券代號" in fields
-                        else (fields.index("股票代號") if "股票代號" in fields else -1)
+            else:
+                try:
+                    twse_json = json.loads(twse_env.raw_body_bytes.decode("utf-8"))
+                    data_list = twse_json.get("data", [])
+                    fields = twse_json.get("fields", [])
+                    raw_date = twse_json.get("date") or (
+                        twse_env.params.get("date") if twse_env.params else None
                     )
-                    net_idx = -1
-                    for name in (
-                        "三大法人買賣超股數",
-                        "三大法人買賣超金額",
-                        "買賣超股數",
-                        "三大法人買賣超",
-                    ):
-                        if name in fields:
-                            net_idx = fields.index(name)
-                            break
+                    norm_date = _normalize_official_date(raw_date)
 
-                    if stock_idx == -1 or net_idx == -1:
-                        errors.append(
-                            "TWSE institutional payload missing required field '三大法人買賣超股數'"
-                        )
+                    if not norm_date:
+                        errors.append("TWSE institutional payload missing valid official date")
+                    elif not data_list or not fields:
+                        errors.append("TWSE institutional payload missing 'data' or 'fields'")
                     else:
-                        for row in data_list:
-                            if len(row) > max(stock_idx, net_idx):
-                                sid = str(row[stock_idx]).strip()
-                                n_str = str(row[net_idx]).strip().replace(",", "")
-                                net_val = (
-                                    int(n_str)
-                                    if n_str and (n_str.isdigit() or n_str.startswith("-"))
-                                    else 0
-                                )
-
-                                entry = {"total_net": net_val, "market": "TWSE"}
-                                raw_map[(norm_date, sid, "TWSE")] = entry
-            except Exception as e:
-                errors.append(f"TWSE institutional payload parsing error: {e}")
-
-        if tpex_env and tpex_env.raw_body_bytes:
-            try:
-                tpex_json = json.loads(tpex_env.raw_body_bytes.decode("utf-8"))
-                tables = tpex_json.get("aaData", []) or tpex_json.get("tables", [])
-                fields = tpex_json.get("fields", [])
-                raw_date = (
-                    tpex_json.get("reportDate")
-                    or tpex_json.get("date")
-                    or (tpex_env.params.get("date") if tpex_env.params else None)
-                )
-                norm_date = _normalize_official_date(raw_date)
-
-                if not norm_date:
-                    errors.append("TPEx institutional payload missing valid official date")
-                elif not tables:
-                    errors.append("TPEx institutional payload missing tables")
-                else:
-                    stock_idx = 0
-                    net_idx = -1
-                    if fields:
-                        if "代號" in fields:
-                            stock_idx = fields.index("代號")
-                        elif "證券代號" in fields:
-                            stock_idx = fields.index("證券代號")
-
+                        stock_idx = (
+                            fields.index("證券代號")
+                            if "證券代號" in fields
+                            else (fields.index("股票代號") if "股票代號" in fields else -1)
+                        )
+                        net_idx = -1
                         for name in (
                             "三大法人買賣超股數",
-                            "三大法人買賣超合計",
+                            "三大法人買賣超金額",
                             "買賣超股數",
+                            "三大法人買賣超",
                         ):
                             if name in fields:
                                 net_idx = fields.index(name)
                                 break
-                    else:
-                        net_idx = 9 if len(tables[0]) > 9 else -1
 
-                    if net_idx == -1:
-                        errors.append(
-                            "TPEx institutional payload missing required field '三大法人買賣超股數'"
-                        )
+                        if stock_idx == -1 or net_idx == -1:
+                            errors.append("TWSE institutional payload missing '三大法人買賣超股數'")
+                        else:
+                            for row in data_list:
+                                if len(row) > max(stock_idx, net_idx):
+                                    sid = str(row[stock_idx]).strip()
+                                    net_val = _strict_int(row[net_idx])
+
+                                    entry = {"total_net": net_val, "market": "TWSE"}
+                                    raw_map[(norm_date, sid, "TWSE")] = entry
+                except Exception as e:
+                    errors.append(f"TWSE institutional payload parsing error: {e}")
+
+        if tpex_env and tpex_env.raw_body_bytes:
+            if tpex_env.status_code != 200:
+                errors.append(
+                    f"TPEx institutional envelope status is {tpex_env.status_code}, expected 200"
+                )
+            else:
+                try:
+                    tpex_json = json.loads(tpex_env.raw_body_bytes.decode("utf-8"))
+                    tables = tpex_json.get("aaData", []) or tpex_json.get("tables", [])
+                    fields = tpex_json.get("fields", [])
+                    raw_date = (
+                        tpex_json.get("reportDate")
+                        or tpex_json.get("date")
+                        or (tpex_env.params.get("date") if tpex_env.params else None)
+                    )
+                    norm_date = _normalize_official_date(raw_date)
+
+                    if not norm_date:
+                        errors.append("TPEx institutional payload missing valid official date")
+                    elif not tables:
+                        errors.append("TPEx institutional payload missing tables")
                     else:
-                        for row in tables:
-                            if isinstance(row, list) and len(row) > max(stock_idx, net_idx):
-                                sid = str(row[stock_idx]).strip()
-                                n_str = str(row[net_idx]).strip().replace(",", "")
-                                net_val = (
-                                    int(n_str)
-                                    if n_str and (n_str.isdigit() or n_str.startswith("-"))
-                                    else 0
-                                )
-                                entry = {"total_net": net_val, "market": "TPEX"}
-                                raw_map[(norm_date, sid, "TPEX")] = entry
-            except Exception as e:
-                errors.append(f"TPEx institutional payload parsing error: {e}")
+                        stock_idx = 0
+                        net_idx = -1
+                        if fields:
+                            if "代號" in fields:
+                                stock_idx = fields.index("代號")
+                            elif "證券代號" in fields:
+                                stock_idx = fields.index("證券代號")
+
+                            for name in (
+                                "三大法人買賣超股數",
+                                "三大法人買賣超合計",
+                                "買賣超股數",
+                            ):
+                                if name in fields:
+                                    net_idx = fields.index(name)
+                                    break
+                        else:
+                            net_idx = 9 if len(tables[0]) > 9 else -1
+
+                        if net_idx == -1:
+                            errors.append("TPEx institutional payload missing '三大法人買賣超股數'")
+                        else:
+                            for row in tables:
+                                if isinstance(row, list) and len(row) > max(stock_idx, net_idx):
+                                    sid = str(row[stock_idx]).strip()
+                                    net_val = _strict_int(row[net_idx])
+                                    entry = {"total_net": net_val, "market": "TPEX"}
+                                    raw_map[(norm_date, sid, "TPEX")] = entry
+                except Exception as e:
+                    errors.append(f"TPEx institutional payload parsing error: {e}")
 
         return raw_map, errors
 
@@ -610,138 +628,137 @@ class OfficialReconciler:
         errors: List[str] = []
 
         if twse_env and twse_env.raw_body_bytes:
-            try:
-                twse_json = json.loads(twse_env.raw_body_bytes.decode("utf-8"))
-                data_list = twse_json.get("data", [])
-                fields = twse_json.get("fields", [])
-                raw_date = twse_json.get("date") or (
-                    twse_env.params.get("date") if twse_env.params else None
-                )
-                norm_date = _normalize_official_date(raw_date)
-
-                if not norm_date:
-                    errors.append("TWSE margin payload missing valid official date")
-                elif not data_list or not fields:
-                    errors.append("TWSE margin payload missing 'data' or 'fields'")
-                else:
-                    stock_idx = (
-                        fields.index("股票代號")
-                        if "股票代號" in fields
-                        else (fields.index("證券代號") if "證券代號" in fields else -1)
+            if twse_env.status_code != 200:
+                errors.append(f"TWSE margin envelope returned HTTP status {twse_env.status_code}")
+            else:
+                try:
+                    twse_json = json.loads(twse_env.raw_body_bytes.decode("utf-8"))
+                    data_list = twse_json.get("data", [])
+                    fields = twse_json.get("fields", [])
+                    raw_date = twse_json.get("date") or (
+                        twse_env.params.get("date") if twse_env.params else None
                     )
-                    mb_idx = -1
-                    for name in (
-                        "融資今日餘額",
-                        "融資金額今日餘額",
-                        "融資餘額",
-                        "融資(張)今日餘額",
-                        "今日餘額",
-                    ):
-                        if name in fields:
-                            mb_idx = fields.index(name)
-                            break
+                    norm_date = _normalize_official_date(raw_date)
 
-                    sb_idx = -1
-                    for name in (
-                        "融券今日餘額",
-                        "融券金額今日餘額",
-                        "融券餘額",
-                        "融券(張)今日餘額",
-                    ):
-                        if name in fields:
-                            sb_idx = fields.index(name)
-                            break
-
-                    if stock_idx == -1 or mb_idx == -1 or sb_idx == -1:
-                        errors.append(
-                            "TWSE margin payload missing required balance fields "
-                            "('融資今日餘額', '融券今日餘額')"
-                        )
+                    if not norm_date:
+                        errors.append("TWSE margin payload missing valid official date")
+                    elif not data_list or not fields:
+                        errors.append("TWSE margin payload missing 'data' or 'fields'")
                     else:
-                        for row in data_list:
-                            if len(row) > max(stock_idx, mb_idx, sb_idx):
-                                sid = str(row[stock_idx]).strip()
-                                mb_str = str(row[mb_idx]).strip().replace(",", "")
-                                sb_str = str(row[sb_idx]).strip().replace(",", "")
-
-                                margin_bal = (
-                                    int(mb_str) if mb_str.isdigit() or mb_str.startswith("-") else 0
-                                )
-                                short_bal = (
-                                    int(sb_str) if sb_str.isdigit() or sb_str.startswith("-") else 0
-                                )
-
-                                raw_map[(norm_date, sid, "TWSE")] = {
-                                    "margin_purchase_balance": margin_bal,
-                                    "short_sale_balance": short_bal,
-                                    "market": "TWSE",
-                                }
-            except Exception as e:
-                errors.append(f"TWSE margin payload parsing error: {e}")
-
-        if tpex_env and tpex_env.raw_body_bytes:
-            try:
-                tpex_json = json.loads(tpex_env.raw_body_bytes.decode("utf-8"))
-                tables = tpex_json.get("aaData", []) or tpex_json.get("tables", [])
-                fields = tpex_json.get("fields", [])
-                raw_date = (
-                    tpex_json.get("reportDate")
-                    or tpex_json.get("date")
-                    or (tpex_env.params.get("date") if tpex_env.params else None)
-                )
-                norm_date = _normalize_official_date(raw_date)
-
-                if not norm_date:
-                    errors.append("TPEx margin payload missing valid official date")
-                elif not tables:
-                    errors.append("TPEx margin payload missing tables")
-                else:
-                    stock_idx = 0
-                    mb_idx = -1
-                    sb_idx = -1
-                    if fields:
-                        if "代號" in fields:
-                            stock_idx = fields.index("代號")
-                        elif "證券代號" in fields:
-                            stock_idx = fields.index("證券代號")
-
-                        for name in ("融資今日餘額", "融資金額今日餘額", "融資餘額", "今日餘額"):
+                        stock_idx = (
+                            fields.index("股票代號")
+                            if "股票代號" in fields
+                            else (fields.index("證券代號") if "證券代號" in fields else -1)
+                        )
+                        mb_idx = -1
+                        for name in (
+                            "融資今日餘額",
+                            "融資金額今日餘額",
+                            "融資餘額",
+                            "融資(張)今日餘額",
+                            "今日餘額",
+                        ):
                             if name in fields:
                                 mb_idx = fields.index(name)
                                 break
-                        for name in ("融券今日餘額", "融券金額今日餘額", "融券餘額"):
+
+                        sb_idx = -1
+                        for name in (
+                            "融券今日餘額",
+                            "融券金額今日餘額",
+                            "融券餘額",
+                            "融券(張)今日餘額",
+                        ):
                             if name in fields:
                                 sb_idx = fields.index(name)
                                 break
+
+                        if stock_idx == -1 or mb_idx == -1 or sb_idx == -1:
+                            errors.append(
+                                "TWSE margin payload missing required balance fields "
+                                "('融資今日餘額', '融券今日餘額')"
+                            )
+                        else:
+                            for row in data_list:
+                                if len(row) > max(stock_idx, mb_idx, sb_idx):
+                                    sid = str(row[stock_idx]).strip()
+                                    margin_bal = _strict_int(row[mb_idx])
+                                    short_bal = _strict_int(row[sb_idx])
+
+                                    raw_map[(norm_date, sid, "TWSE")] = {
+                                        "margin_purchase_balance": margin_bal,
+                                        "short_sale_balance": short_bal,
+                                        "market": "TWSE",
+                                    }
+                except Exception as e:
+                    errors.append(f"TWSE margin payload parsing error: {e}")
+
+        if tpex_env and tpex_env.raw_body_bytes:
+            if tpex_env.status_code != 200:
+                errors.append(f"TPEx margin envelope returned HTTP status {tpex_env.status_code}")
+            else:
+                try:
+                    tpex_json = json.loads(tpex_env.raw_body_bytes.decode("utf-8"))
+                    tables = tpex_json.get("aaData", []) or tpex_json.get("tables", [])
+                    fields = tpex_json.get("fields", [])
+                    raw_date = (
+                        tpex_json.get("reportDate")
+                        or tpex_json.get("date")
+                        or (tpex_env.params.get("date") if tpex_env.params else None)
+                    )
+                    norm_date = _normalize_official_date(raw_date)
+
+                    if not norm_date:
+                        errors.append("TPEx margin payload missing valid official date")
+                    elif not tables:
+                        errors.append("TPEx margin payload missing tables")
                     else:
-                        mb_idx = 6 if len(tables[0]) > 6 else -1
-                        sb_idx = 12 if len(tables[0]) > 12 else -1
+                        stock_idx = 0
+                        mb_idx = -1
+                        sb_idx = -1
+                        if fields:
+                            if "代號" in fields:
+                                stock_idx = fields.index("代號")
+                            elif "證券代號" in fields:
+                                stock_idx = fields.index("證券代號")
 
-                    if mb_idx == -1 or sb_idx == -1:
-                        errors.append(
-                            "TPEx margin payload missing required fields "
-                            "('融資今日餘額', '融券今日餘額')"
-                        )
-                    else:
-                        for row in tables:
-                            if isinstance(row, list) and len(row) > max(stock_idx, mb_idx, sb_idx):
-                                sid = str(row[stock_idx]).strip()
-                                mb_str = str(row[mb_idx]).strip().replace(",", "")
-                                sb_str = str(row[sb_idx]).strip().replace(",", "")
+                            for name in (
+                                "融資今日餘額",
+                                "融資金額今日餘額",
+                                "融資餘額",
+                                "今日餘額",
+                            ):
+                                if name in fields:
+                                    mb_idx = fields.index(name)
+                                    break
+                            for name in ("融券今日餘額", "融券金額今日餘額", "融券餘額"):
+                                if name in fields:
+                                    sb_idx = fields.index(name)
+                                    break
+                        else:
+                            mb_idx = 6 if len(tables[0]) > 6 else -1
+                            sb_idx = 12 if len(tables[0]) > 12 else -1
 
-                                margin_bal = (
-                                    int(mb_str) if mb_str.isdigit() or mb_str.startswith("-") else 0
-                                )
-                                short_bal = (
-                                    int(sb_str) if sb_str.isdigit() or sb_str.startswith("-") else 0
-                                )
+                        if mb_idx == -1 or sb_idx == -1:
+                            errors.append(
+                                "TPEx margin payload missing required fields "
+                                "('融資今日餘額', '融券今日餘額')"
+                            )
+                        else:
+                            for row in tables:
+                                if isinstance(row, list) and len(row) > max(
+                                    stock_idx, mb_idx, sb_idx
+                                ):
+                                    sid = str(row[stock_idx]).strip()
+                                    margin_bal = _strict_int(row[mb_idx])
+                                    short_bal = _strict_int(row[sb_idx])
 
-                                raw_map[(norm_date, sid, "TPEX")] = {
-                                    "margin_purchase_balance": margin_bal,
-                                    "short_sale_balance": short_bal,
-                                    "market": "TPEX",
-                                }
-            except Exception as e:
-                errors.append(f"TPEx margin payload parsing error: {e}")
+                                    raw_map[(norm_date, sid, "TPEX")] = {
+                                        "margin_purchase_balance": margin_bal,
+                                        "short_sale_balance": short_bal,
+                                        "market": "TPEX",
+                                    }
+                except Exception as e:
+                    errors.append(f"TPEx margin payload parsing error: {e}")
 
         return raw_map, errors

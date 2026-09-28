@@ -790,3 +790,79 @@ def test_publisher_quality_report_write_failure_causes_rollback(
     # Published directory must NOT exist after failure
     target_dir = tmp_path / "normalized" / "daily_price" / "b_report_write_fail"
     assert not target_dir.exists()
+
+
+def test_reconciler_fails_closed_on_non_200_status_or_corrupted_numbers() -> None:
+    """Verify OfficialReconciler fails closed on non-200 HTTP status and invalid numbers."""
+    models = [
+        DailyPrice(
+            trade_date="2026-09-25",
+            stock_id="2330",
+            market="TWSE",
+            open_price=100.0,
+            close_price=105.0,
+            trading_volume=1000,
+            trading_value=105000,
+        )
+    ]
+
+    # 1. Envelope HTTP status code 500
+    raw_500 = json.dumps(
+        {
+            "data": [["2330", "105.0", "1000"]],
+            "fields": ["證券代號", "收盤價", "成交股數"],
+            "date": "20260925",
+        }
+    ).encode("utf-8")
+    bad_status_env = RawResponseEnvelope(
+        provider_name="twse",
+        endpoint="https://test.twse.com",
+        params={"date": "20260925"},
+        status_code=500,
+        raw_body_bytes=raw_500,
+    )
+    res_status = OfficialReconciler.reconcile_daily_prices(models, twse_envelope=bad_status_env)
+    assert not res_status.passed
+    assert "returned HTTP status 500" in res_status.message
+
+    # 2. Corrupted non-numeric value in raw body ("corrupted_price")
+    raw_corrupt = json.dumps(
+        {
+            "data": [["2330", "corrupted_price", "1000"]],
+            "fields": ["證券代號", "收盤價", "成交股數"],
+            "date": "20260925",
+        }
+    ).encode("utf-8")
+    corrupt_num_env = RawResponseEnvelope(
+        provider_name="twse",
+        endpoint="https://test.twse.com",
+        params={"date": "20260925"},
+        status_code=200,
+        raw_body_bytes=raw_corrupt,
+    )
+    res_corrupt = OfficialReconciler.reconcile_daily_prices(models, twse_envelope=corrupt_num_env)
+    assert not res_corrupt.passed
+    assert "parsing failed" in res_corrupt.message
+
+
+def test_validator_supports_space_separated_date_range() -> None:
+    """Verify expected_date_range accepts 'YYYY-MM-DD to YYYY-MM-DD' format."""
+    validator = BatchValidator()
+    models = [
+        DailyPrice(
+            trade_date="2026-09-25",
+            stock_id="2330",
+            market="TWSE",
+            open_price=100.0,
+            close_price=105.0,
+            trading_volume=1000,
+            trading_value=105000,
+        )
+    ]
+    report = validator.validate_batch(
+        batch_id="b_space_date",
+        dataset="daily_price",
+        models=models,
+        expected_date_range="2026-09-01 to 2026-09-30",
+    )
+    assert report.overall_passed
