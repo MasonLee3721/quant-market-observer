@@ -231,12 +231,19 @@ def update(
         click.echo("[DRY-RUN] Pipeline simulation completed successfully. No files persisted.")
         return
 
+    from datetime import datetime, timezone
+
     from qmo.models.stock import load_universe_stock_master, parse_stock_info_payload
     from qmo.normalizers.institutional import InstitutionalNormalizer
     from qmo.normalizers.margin import MarginNormalizer
     from qmo.normalizers.price import PriceNormalizer
     from qmo.providers.finmind import FinMindProvider
     from qmo.providers.transport import HttpTransport
+    from qmo.storage.execution_report import (
+        ExecutionFailureRecord,
+        ExecutionSummaryReport,
+        save_execution_summary,
+    )
     from qmo.storage.publisher import AtomicBatchPublisher
     from qmo.storage.raw_store import RawSnapshotStore
     from qmo.trading_calendar import load_market_holidays, resolve_latest_trading_date
@@ -278,11 +285,16 @@ def update(
 
     for ds in target_datasets:
         click.echo(f"Processing dataset '{ds}' for batch '{batch_id}'...")
+        started_at = datetime.now(timezone.utc).isoformat()
         models: List[Any] = []
         raw_hashes: List[str] = []
+        cache_hits = 0
+        api_requests = 0
+        success_count = 0
+        empty_data_count = 0
+        failure_records: List[ExecutionFailureRecord] = []
 
         if real_api:
-            failures: List[str] = []
             if ds == "daily_price":
                 normalizer = PriceNormalizer(stock_master=stock_master)
                 for sid in stock_master:
@@ -294,14 +306,27 @@ def update(
                         }
                         env = raw_store.load_matching(ds, required_params) if resume else None
                         if env is None:
+                            api_requests += 1
                             env = provider.fetch_daily_price(sid, t_date, t_date)
                             h_val, _ = raw_store.save(env, ds)
                         else:
+                            cache_hits += 1
                             h_val = env.content_hash
                         raw_hashes.append(h_val)
-                        models.extend(normalizer.normalize(env))
+                        norm_models: List[Any] = normalizer.normalize(env)
+                        if norm_models:
+                            success_count += 1
+                            models.extend(norm_models)
+                        else:
+                            empty_data_count += 1
                     except Exception as exc:
-                        failures.append(f"{sid}: {exc}")
+                        failure_records.append(
+                            ExecutionFailureRecord(
+                                stock_id=sid,
+                                error_type=type(exc).__name__,
+                                error_message=str(exc),
+                            )
+                        )
             elif ds == "institutional_flow":
                 inst_normalizer = InstitutionalNormalizer(stock_master=stock_master)
                 for sid in stock_master:
@@ -313,14 +338,27 @@ def update(
                         }
                         env = raw_store.load_matching(ds, required_params) if resume else None
                         if env is None:
+                            api_requests += 1
                             env = provider.fetch_institutional_flow(sid, t_date, t_date)
                             h_val, _ = raw_store.save(env, ds)
                         else:
+                            cache_hits += 1
                             h_val = env.content_hash
                         raw_hashes.append(h_val)
-                        models.extend(inst_normalizer.normalize(env))
+                        inst_models: List[Any] = inst_normalizer.normalize(env)
+                        if inst_models:
+                            success_count += 1
+                            models.extend(inst_models)
+                        else:
+                            empty_data_count += 1
                     except Exception as exc:
-                        failures.append(f"{sid}: {exc}")
+                        failure_records.append(
+                            ExecutionFailureRecord(
+                                stock_id=sid,
+                                error_type=type(exc).__name__,
+                                error_message=str(exc),
+                            )
+                        )
             elif ds == "margin":
                 margin_normalizer = MarginNormalizer(stock_master=stock_master)
                 for sid in stock_master:
@@ -332,27 +370,36 @@ def update(
                         }
                         env = raw_store.load_matching(ds, required_params) if resume else None
                         if env is None:
+                            api_requests += 1
                             env = provider.fetch_margin(sid, t_date, t_date)
                             h_val, _ = raw_store.save(env, ds)
                         else:
+                            cache_hits += 1
                             h_val = env.content_hash
                         raw_hashes.append(h_val)
-                        models.extend(margin_normalizer.normalize(env))
+                        mrg_models: List[Any] = margin_normalizer.normalize(env)
+                        if mrg_models:
+                            success_count += 1
+                            models.extend(mrg_models)
+                        else:
+                            empty_data_count += 1
                     except Exception as exc:
-                        failures.append(f"{sid}: {exc}")
-            if failures:
-                preview = "; ".join(failures[:5])
-                raise click.ClickException(
-                    f"[FAIL-CLOSED] {ds} failed for {len(failures)} ticker(s): {preview}"
-                )
+                        failure_records.append(
+                            ExecutionFailureRecord(
+                                stock_id=sid,
+                                error_type=type(exc).__name__,
+                                error_message=str(exc),
+                            )
+                        )
         else:
             from qmo.models.institutional import InstitutionalFlow
             from qmo.models.margin import Margin
             from qmo.models.price import DailyPrice
 
+            synth_models: List[Any] = []
             if ds == "daily_price":
                 for sid, sinfo in stock_master.items():
-                    models.append(
+                    synth_models.append(
                         DailyPrice(
                             trade_date=t_date,
                             stock_id=sid,
@@ -368,7 +415,7 @@ def update(
                     )
             elif ds == "institutional_flow":
                 for sid in stock_master:
-                    models.append(
+                    synth_models.append(
                         InstitutionalFlow(
                             trade_date=t_date,
                             stock_id=sid,
@@ -380,7 +427,7 @@ def update(
                     )
             elif ds == "margin":
                 for sid in stock_master:
-                    models.append(
+                    synth_models.append(
                         Margin(
                             trade_date=t_date,
                             stock_id=sid,
@@ -389,6 +436,31 @@ def update(
                             margin_purchase_balance=300,
                         )
                     )
+            models = synth_models
+            success_count = len(models)
+
+        ended_at = datetime.now(timezone.utc).isoformat()
+        summary_report = ExecutionSummaryReport(
+            started_at=started_at,
+            ended_at=ended_at,
+            dataset=ds,
+            target_date=t_date,
+            universe_count=len(stock_master),
+            success_count=success_count,
+            empty_data_count=empty_data_count,
+            failure_count=len(failure_records),
+            failures=failure_records,
+            cache_hits=cache_hits,
+            api_requests=api_requests,
+        )
+        report_file = save_execution_summary(root_dir=root_dir, report=summary_report)
+        click.echo(f"  [{ds}] Execution summary report persisted to '{report_file}'.")
+
+        if failure_records:
+            preview = "; ".join(f"{f.stock_id}:{f.error_type}" for f in failure_records[:5])
+            raise click.ClickException(
+                f"[FAIL-CLOSED] {ds} failed for {len(failure_records)} ticker(s): {preview}"
+            )
 
         if not models:
             raise click.ClickException(
