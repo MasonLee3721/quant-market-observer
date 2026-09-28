@@ -124,6 +124,73 @@ class AtomicBatchPublisher:
         except Exception:
             return False
 
+    def _create_and_register_manifest(
+        self,
+        batch_id: str,
+        dataset: str,
+        clean_raw_hashes: List[str],
+        schema_version: str,
+        record_count: int,
+        partition_date_range: Optional[str],
+        target_published_dir: Path,
+        published_file: Path,
+        partition_by_date: bool,
+        quality_report: Optional[Any] = None,
+    ) -> BatchManifest:
+        """Create BatchManifest including parquet/report hashes and register catalog atomically."""
+        if quality_report is not None:
+            qr_json = target_published_dir / "quality_report.json"
+            qr_md = target_published_dir / "quality_report.md"
+            if not qr_json.exists():
+                try:
+                    qr_json.write_text(quality_report.to_json())
+                except Exception:
+                    pass
+            if not qr_md.exists():
+                try:
+                    qr_md.write_text(quality_report.to_markdown())
+                except Exception:
+                    pass
+
+        pub_files = (
+            sorted(p for p in target_published_dir.glob("**/*.parquet") if p.is_file())
+            if partition_by_date
+            else ([published_file] if published_file.exists() else [])
+        )
+        all_pub_files = list(pub_files)
+        for r_name in ("quality_report.json", "quality_report.md"):
+            r_path = target_published_dir / r_name
+            if r_path.exists():
+                all_pub_files.append(r_path)
+
+        pub_paths = [str(p) for p in all_pub_files]
+        pq_hashes = {str(p): hashlib.sha256(p.read_bytes()).hexdigest() for p in all_pub_files}
+
+        manifest = BatchManifest(
+            batch_id=batch_id,
+            dataset=dataset,
+            source_raw_hashes=clean_raw_hashes,
+            schema_version=schema_version,
+            record_count=record_count,
+            partition_date_range=partition_date_range,
+            status=BatchStatus.PUBLISHED,
+            published_filepaths=pub_paths,
+            parquet_file_hashes=pq_hashes,
+        )
+
+        if quality_report is None:
+            qr_path = target_published_dir / "quality_report.json"
+            if qr_path.exists():
+                try:
+                    from qmo.validation.models import QualityReport
+
+                    quality_report = QualityReport.model_validate_json(qr_path.read_text())
+                except Exception:
+                    pass
+
+        self.catalog.register_published_batch(manifest, quality_report=quality_report)
+        return manifest
+
     def publish_batch(
         self,
         batch_id: str,
@@ -212,30 +279,18 @@ class AtomicBatchPublisher:
                     if existing_catalog_manifest is not None:
                         return existing_catalog_manifest
                     else:
-                        pub_files = (
-                            sorted(
-                                p for p in target_published_dir.glob("**/*.parquet") if p.is_file()
-                            )
-                            if partition_by_date
-                            else ([published_file] if published_file.exists() else [])
-                        )
-                        pub_paths = [str(p) for p in pub_files]
-                        pq_hashes = {
-                            str(p): hashlib.sha256(p.read_bytes()).hexdigest() for p in pub_files
-                        }
-                        manifest = BatchManifest(
+                        return self._create_and_register_manifest(
                             batch_id=batch_id,
                             dataset=dataset,
-                            source_raw_hashes=clean_raw_hashes,
+                            clean_raw_hashes=clean_raw_hashes,
                             schema_version=schema_version,
                             record_count=len(models),
                             partition_date_range=partition_date_range,
-                            status=BatchStatus.PUBLISHED,
-                            published_filepaths=pub_paths,
-                            parquet_file_hashes=pq_hashes,
+                            target_published_dir=target_published_dir,
+                            published_file=published_file,
+                            partition_by_date=partition_by_date,
+                            quality_report=quality_report,
                         )
-                        self.catalog.register_published_batch(manifest)
-                        return manifest
 
             err_conflict = (
                 f"Batch '{batch_id}' in dataset '{dataset}' "
@@ -323,28 +378,18 @@ class AtomicBatchPublisher:
                     if cat_man is not None:
                         return cat_man
 
-                    pub_files_check = (
-                        sorted(p for p in target_published_dir.glob("**/*.parquet") if p.is_file())
-                        if partition_by_date
-                        else ([published_file] if published_file.exists() else [])
-                    )
-                    pub_paths = [str(p) for p in pub_files_check]
-                    pq_hashes = {
-                        str(p): hashlib.sha256(p.read_bytes()).hexdigest() for p in pub_files_check
-                    }
-                    manifest = BatchManifest(
+                    return self._create_and_register_manifest(
                         batch_id=batch_id,
                         dataset=dataset,
-                        source_raw_hashes=clean_raw_hashes,
+                        clean_raw_hashes=clean_raw_hashes,
                         schema_version=schema_version,
                         record_count=len(models),
                         partition_date_range=partition_date_range,
-                        status=BatchStatus.PUBLISHED,
-                        published_filepaths=pub_paths,
-                        parquet_file_hashes=pq_hashes,
+                        target_published_dir=target_published_dir,
+                        published_file=published_file,
+                        partition_by_date=partition_by_date,
+                        quality_report=quality_report,
                     )
-                    self.catalog.register_published_batch(manifest)
-                    return manifest
 
                 if batch_staging_dir.exists():
                     shutil.rmtree(batch_staging_dir, ignore_errors=True)
@@ -376,31 +421,18 @@ class AtomicBatchPublisher:
                         if cat_man is not None:
                             return cat_man
 
-                        pub_files_check = (
-                            sorted(
-                                p for p in target_published_dir.glob("**/*.parquet") if p.is_file()
-                            )
-                            if partition_by_date
-                            else ([published_file] if published_file.exists() else [])
-                        )
-                        pub_paths = [str(p) for p in pub_files_check]
-                        pq_hashes = {
-                            str(p): hashlib.sha256(p.read_bytes()).hexdigest()
-                            for p in pub_files_check
-                        }
-                        manifest = BatchManifest(
+                        return self._create_and_register_manifest(
                             batch_id=batch_id,
                             dataset=dataset,
-                            source_raw_hashes=clean_raw_hashes,
+                            clean_raw_hashes=clean_raw_hashes,
                             schema_version=schema_version,
                             record_count=len(models),
                             partition_date_range=partition_date_range,
-                            status=BatchStatus.PUBLISHED,
-                            published_filepaths=pub_paths,
-                            parquet_file_hashes=pq_hashes,
+                            target_published_dir=target_published_dir,
+                            published_file=published_file,
+                            partition_by_date=partition_by_date,
+                            quality_report=quality_report,
                         )
-                        self.catalog.register_published_batch(manifest)
-                        return manifest
 
                     if batch_staging_dir.exists():
                         shutil.rmtree(batch_staging_dir, ignore_errors=True)
@@ -437,30 +469,18 @@ class AtomicBatchPublisher:
                 )
                 raise StorageValidationError(err_digest)
 
-            # 4. Mark Manifest PUBLISHED (include parquet files and quality report files)
-            all_pub_files = list(pub_files)
-            for r_name in ("quality_report.json", "quality_report.md"):
-                r_path = target_published_dir / r_name
-                if r_path.exists():
-                    all_pub_files.append(r_path)
-
-            pub_paths = [str(p) for p in all_pub_files]
-            pq_hashes = {str(p): hashlib.sha256(p.read_bytes()).hexdigest() for p in all_pub_files}
-
-            manifest = BatchManifest(
+            manifest = self._create_and_register_manifest(
                 batch_id=batch_id,
                 dataset=dataset,
-                source_raw_hashes=clean_raw_hashes,
+                clean_raw_hashes=clean_raw_hashes,
                 schema_version=schema_version,
                 record_count=len(models),
                 partition_date_range=partition_date_range,
-                status=BatchStatus.PUBLISHED,
-                published_filepaths=pub_paths,
-                parquet_file_hashes=pq_hashes,
+                target_published_dir=target_published_dir,
+                published_file=published_file,
+                partition_by_date=partition_by_date,
+                quality_report=quality_report,
             )
-
-            # 5. Register in DuckDB Catalog AFTER successful atomic swap (single transaction)
-            self.catalog.register_published_batch(manifest, quality_report=quality_report)
 
             # Cleanup ownership & intent markers on successful publish
             target_owner_file = target_published_dir / owner_marker_name

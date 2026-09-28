@@ -889,6 +889,15 @@ def test_orphaned_directory_crash_recovery_and_provenance_conflict(tmp_path: Pat
     cat_manifest = publisher.catalog.get_batch_manifest("daily_price", "batch_crash_recovery")
     assert cat_manifest is not None
     assert cat_manifest.source_raw_hashes == [VALID_RAW_HASH_1]
+    assert any("quality_report.json" in fp for fp in manifest.published_filepaths)
+    assert any("quality_report.md" in fp for fp in manifest.published_filepaths)
+
+    qr_res = publisher.catalog.conn.execute(
+        "SELECT overall_passed FROM quality_reports WHERE dataset = ? AND batch_id = ?",
+        ("daily_price", "batch_crash_recovery"),
+    ).fetchone()
+    assert qr_res is not None
+    assert qr_res[0] is True
 
 
 def test_missing_corrupted_or_multiple_intent_fails_closed(tmp_path: Path) -> None:
