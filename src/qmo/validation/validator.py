@@ -256,18 +256,36 @@ class BatchValidator:
         for idx, m in enumerate(models):
             if isinstance(m, DailyPrice):
                 # Price boundaries
+                # Price non-negative & OHLC relationships
                 if m.open_price is not None and m.open_price <= 0:
                     violations.append(f"Row {idx} ({m.stock_id}): open_price <= 0 ({m.open_price})")
                 if m.close_price is not None and m.close_price <= 0:
                     violations.append(
                         f"Row {idx} ({m.stock_id}): close_price <= 0 ({m.close_price})"
                     )
+                if m.high_price is not None and m.high_price <= 0:
+                    violations.append(f"Row {idx} ({m.stock_id}): high_price <= 0 ({m.high_price})")
+                if m.low_price is not None and m.low_price <= 0:
+                    violations.append(f"Row {idx} ({m.stock_id}): low_price <= 0 ({m.low_price})")
+
                 if m.high_price is not None and m.low_price is not None:
                     if m.high_price < m.low_price:
                         violations.append(
                             f"Row {idx} ({m.stock_id}): high_price ({m.high_price}) "
                             f"< low_price ({m.low_price})"
                         )
+                    if m.open_price is not None:
+                        if m.open_price < m.low_price or m.open_price > m.high_price:
+                            violations.append(
+                                f"Row {idx} ({m.stock_id}): open_price ({m.open_price}) "
+                                f"outside [{m.low_price}, {m.high_price}]"
+                            )
+                    if m.close_price is not None:
+                        if m.close_price < m.low_price or m.close_price > m.high_price:
+                            violations.append(
+                                f"Row {idx} ({m.stock_id}): close_price ({m.close_price}) "
+                                f"outside [{m.low_price}, {m.high_price}]"
+                            )
 
                 # Volume & Value boundaries
                 if m.trading_volume < 0:
@@ -280,17 +298,31 @@ class BatchValidator:
                     )
 
                 # No trade contract semantics
-                if m.trading_volume == 0 and m.trading_value == 0:
-                    if not m.no_trade:
+                if m.no_trade:
+                    if m.trading_volume > 0 or m.trading_value > 0:
                         violations.append(
-                            f"Row {idx} ({m.stock_id}): volume & value are 0 but no_trade is False"
+                            f"Row {idx} ({m.stock_id}): no_trade is True but volume "
+                            f"({m.trading_volume}) or value ({m.trading_value}) > 0"
                         )
                     if m.open_price is not None or m.close_price is not None:
                         violations.append(
-                            f"Row {idx} ({m.stock_id}): no_trade is True but prices are not None"
+                            f"Row {idx} ({m.stock_id}): no_trade is True but prices are present"
+                        )
+                else:
+                    if m.trading_volume == 0 and m.trading_value == 0:
+                        violations.append(
+                            f"Row {idx} ({m.stock_id}): volume & value are 0 but no_trade is False"
                         )
 
             elif isinstance(m, InstitutionalFlow):
+                # Non-negative buy/sell
+                if m.foreign_buy < 0 or m.foreign_sell < 0:
+                    violations.append(f"Row {idx} ({m.stock_id}): foreign buy/sell < 0")
+                if m.investment_trust_buy < 0 or m.investment_trust_sell < 0:
+                    violations.append(f"Row {idx} ({m.stock_id}): investment trust buy/sell < 0")
+                if m.dealer_buy < 0 or m.dealer_sell < 0:
+                    violations.append(f"Row {idx} ({m.stock_id}): dealer buy/sell < 0")
+
                 # Verify net calculations
                 expected_foreign_net = m.foreign_buy - m.foreign_sell
                 if m.foreign_net != expected_foreign_net:
@@ -321,15 +353,51 @@ class BatchValidator:
                     )
 
             elif isinstance(m, Margin):
+                # Non-negative checks
+                if m.margin_purchase_buy < 0 or m.margin_purchase_sell < 0:
+                    violations.append(f"Row {idx} ({m.stock_id}): margin_purchase buy/sell < 0")
                 if m.margin_purchase_balance < 0:
                     violations.append(
                         f"Row {idx} ({m.stock_id}): margin_purchase_balance < 0 "
                         f"({m.margin_purchase_balance})"
                     )
+                if m.short_sale_buy < 0 or m.short_sale_sell < 0:
+                    violations.append(f"Row {idx} ({m.stock_id}): short_sale buy/sell < 0")
                 if m.short_sale_balance < 0:
                     violations.append(
                         f"Row {idx} ({m.stock_id}): short_sale_balance < 0 ({m.short_sale_balance})"
                     )
+
+                # Balance arithmetic formula check
+                if m.margin_purchase_previous_balance is not None:
+                    exp_margin_bal = (
+                        m.margin_purchase_previous_balance
+                        + m.margin_purchase_buy
+                        - m.margin_purchase_sell
+                        - m.margin_purchase_cash_redemption
+                    )
+                    if m.margin_purchase_balance != exp_margin_bal:
+                        violations.append(
+                            f"Row {idx} ({m.stock_id}): margin_purchase_balance "
+                            f"{m.margin_purchase_balance} != prev+buy-sell-redemption "
+                            f"({exp_margin_bal})"
+                        )
+
+                if m.short_sale_previous_balance is not None:
+                    exp_short_bal = (
+                        m.short_sale_previous_balance
+                        + m.short_sale_sell
+                        - m.short_sale_buy
+                        - m.short_sale_cash_redemption
+                    )
+                    if m.short_sale_balance != exp_short_bal:
+                        violations.append(
+                            f"Row {idx} ({m.stock_id}): short_sale_balance "
+                            f"{m.short_sale_balance} != prev+sell-buy-redemption "
+                            f"({exp_short_bal})"
+                        )
+
+                # Quota checks
                 if (
                     m.margin_purchase_quota > 0
                     and m.margin_purchase_balance > m.margin_purchase_quota
@@ -337,6 +405,11 @@ class BatchValidator:
                     violations.append(
                         f"Row {idx} ({m.stock_id}): margin_purchase_balance "
                         f"({m.margin_purchase_balance}) > quota ({m.margin_purchase_quota})"
+                    )
+                if m.short_sale_quota > 0 and m.short_sale_balance > m.short_sale_quota:
+                    violations.append(
+                        f"Row {idx} ({m.stock_id}): short_sale_balance "
+                        f"({m.short_sale_balance}) > quota ({m.short_sale_quota})"
                     )
 
         passed = len(violations) == 0

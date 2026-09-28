@@ -149,9 +149,10 @@ class AtomicBatchPublisher:
                 )
                 raise StorageValidationError(err_ver)
 
+        quality_report = None
         # Execute Quality Gate validation if a validator is configured
         if self.validator is not None:
-            self.validator.validate_batch(
+            quality_report = self.validator.validate_batch(
                 batch_id=batch_id,
                 dataset=dataset,
                 models=models,
@@ -276,6 +277,18 @@ class AtomicBatchPublisher:
                 "staged_hash": staged_hash,
             }
             intent_marker_file.write_text(json.dumps(intent_payload))
+
+            # Write QualityReport artifacts into staging before swap if available
+            if quality_report is not None:
+                try:
+                    (batch_staging_dir / "quality_report.json").write_text(quality_report.to_json())
+                    (batch_staging_dir / "quality_report.md").write_text(
+                        quality_report.to_markdown()
+                    )
+                except Exception as e:
+                    raise StorageValidationError(
+                        f"Failed to persist QualityReport to staging: {e}"
+                    ) from e
 
             # Controlled hook execution right before atomic swap
             if _pre_swap_hook is not None:
@@ -434,6 +447,8 @@ class AtomicBatchPublisher:
 
             # 5. Register in DuckDB Catalog AFTER successful atomic swap
             self.catalog.register_published_batch(manifest)
+            if quality_report is not None:
+                self.catalog.register_quality_report(quality_report)
 
             # Cleanup ownership & intent markers on successful publish
             target_owner_file = target_published_dir / owner_marker_name

@@ -519,3 +519,103 @@ def test_publisher_enforces_coverage_during_publish(tmp_path: Path) -> None:
             source_raw_hashes=[VALID_RAW_HASH],
             target_tickers=target_pool,
         )
+
+
+def test_publisher_persists_quality_report_and_links_catalog(tmp_path: Path) -> None:
+    """Verify AtomicBatchPublisher persists quality_report.json and .md and links to Catalog."""
+    validator = BatchValidator()
+    publisher = AtomicBatchPublisher(root_dir=tmp_path, validator=validator)
+
+    models = [
+        DailyPrice(
+            trade_date="2026-09-25",
+            stock_id="2330",
+            market="TWSE",
+            open_price=100.0,
+            high_price=105.0,
+            low_price=99.0,
+            close_price=104.0,
+            trading_volume=1000,
+            trading_value=104000,
+        )
+    ]
+
+    publisher.publish_batch(
+        batch_id="b_pub_report",
+        dataset="daily_price",
+        models=models,
+        source_raw_hashes=[VALID_RAW_HASH],
+    )
+
+    published_dir = tmp_path / "normalized" / "daily_price" / "b_pub_report"
+    assert (published_dir / "quality_report.json").exists()
+    assert (published_dir / "quality_report.md").exists()
+
+    cat_report = publisher.catalog.get_quality_report("daily_price", "b_pub_report")
+    assert cat_report is not None
+    assert cat_report["overall_passed"] is True
+    assert cat_report["batch_id"] == "b_pub_report"
+
+
+def test_publisher_enforces_reconciliation_failure_blocking(tmp_path: Path) -> None:
+    """Verify OfficialReconciler CRITICAL failure during publish_batch blocks directory swap."""
+    validator = BatchValidator()
+    publisher = AtomicBatchPublisher(root_dir=tmp_path, validator=validator)
+
+    twse_raw_payload = {
+        "stat": "OK",
+        "fields": ["證券代號", "收盤價", "成交股數"],
+        "data": [["2330", "500.00", "1,000"]],  # Official price 500.00
+    }
+    twse_env = RawResponseEnvelope(
+        provider_name="twse",
+        endpoint="https://example.com",
+        params={},
+        status_code=200,
+        raw_body_bytes=json.dumps(twse_raw_payload).encode("utf-8"),
+    )
+
+    mismatched_models = [
+        DailyPrice(
+            trade_date="2026-09-25",
+            stock_id="2330",
+            market="TWSE",
+            open_price=100.0,
+            close_price=100.0,  # Mismatch!
+            trading_volume=1000,
+            trading_value=100000,
+        )
+    ]
+
+    with pytest.raises(QualityGateError, match="Official reconciliation match rate"):
+        publisher.publish_batch(
+            batch_id="b_pub_recon_fail",
+            dataset="daily_price",
+            models=mismatched_models,
+            source_raw_hashes=[VALID_RAW_HASH],
+            twse_envelope=twse_env,
+        )
+
+    target_dir = tmp_path / "normalized" / "daily_price" / "b_pub_recon_fail"
+    assert not target_dir.exists()
+
+
+def test_margin_arithmetic_balance_check() -> None:
+    """Verify margin balance arithmetic validation detects incorrect previous balance arithmetic."""
+    validator = BatchValidator()
+    invalid_margin_calc = [
+        Margin(
+            trade_date="2026-09-25",
+            stock_id="2330",
+            margin_purchase_previous_balance=1000,
+            margin_purchase_buy=500,
+            margin_purchase_sell=200,
+            margin_purchase_cash_redemption=100,
+            margin_purchase_balance=9999,  # Mismatch! Expected 1000 + 500 - 200 - 100 = 1200
+        )
+    ]
+
+    with pytest.raises(QualityGateError, match="margin_purchase_balance"):
+        validator.validate_batch(
+            batch_id="b_bad_margin_calc", dataset="margin", models=invalid_margin_calc
+        )

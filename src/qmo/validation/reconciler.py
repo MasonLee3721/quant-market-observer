@@ -196,8 +196,7 @@ class OfficialReconciler:
                     severity=CheckSeverity.CRITICAL,
                     passed=False,
                     message=(
-                        "Official institutional raw envelopes were provided "
-                        "but yielded 0 entries"
+                        "Official institutional raw envelopes were provided but yielded 0 entries"
                     ),
                     details={"parse_errors": parse_errors},
                 )
@@ -206,8 +205,7 @@ class OfficialReconciler:
                 severity=CheckSeverity.INFO,
                 passed=True,
                 message=(
-                    "No official institutional raw envelopes provided "
-                    "for reconciliation sampling"
+                    "No official institutional raw envelopes provided for reconciliation sampling"
                 ),
                 details={"sample_count": 0},
             )
@@ -361,10 +359,7 @@ class OfficialReconciler:
             f"Official margin reconciliation passed: {match_rate_pct}% match "
             f"({matched_count}/{total_samples})"
             if passed
-            else (
-                f"Official margin reconciliation match rate {match_rate_pct}% "
-                "below threshold"
-            )
+            else (f"Official margin reconciliation match rate {match_rate_pct}% below threshold")
         )
 
         return ValidationCheckResult(

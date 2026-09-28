@@ -88,6 +88,18 @@ class DuckDBCatalog:
                 manifest_hash VARCHAR NOT NULL,
                 PRIMARY KEY (dataset, batch_id)
             );
+
+            CREATE TABLE IF NOT EXISTS quality_reports (
+                dataset VARCHAR NOT NULL,
+                batch_id VARCHAR NOT NULL,
+                overall_passed BOOLEAN NOT NULL,
+                created_at VARCHAR NOT NULL,
+                total_records BIGINT NOT NULL,
+                passed_checks INTEGER NOT NULL,
+                total_checks INTEGER NOT NULL,
+                report_json VARCHAR NOT NULL,
+                PRIMARY KEY (dataset, batch_id)
+            );
             """
         )
 
@@ -300,6 +312,53 @@ class DuckDBCatalog:
                 }
             )
         return results
+
+    def register_quality_report(self, report: Any) -> None:
+        """Register a QualityReport in DuckDB catalog."""
+        report_json = report.to_json() if hasattr(report, "to_json") else json.dumps(report)
+        batch_id = getattr(report, "batch_id", "")
+        dataset = getattr(report, "dataset", "")
+        overall_passed = getattr(report, "overall_passed", True)
+        created_at = getattr(report, "created_at", "")
+        summary = getattr(report, "summary", {})
+        total_records = summary.get("total_records", 0)
+        passed_checks = summary.get("passed_checks", 0)
+        total_checks = summary.get("total_checks", 0)
+
+        self.conn.execute("BEGIN TRANSACTION")
+        try:
+            self.conn.execute(
+                """
+                INSERT OR REPLACE INTO quality_reports (
+                    dataset, batch_id, overall_passed, created_at,
+                    total_records, passed_checks, total_checks, report_json
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+                """,
+                (
+                    dataset,
+                    batch_id,
+                    overall_passed,
+                    created_at,
+                    total_records,
+                    passed_checks,
+                    total_checks,
+                    report_json,
+                ),
+            )
+            self.conn.execute("COMMIT")
+        except Exception as e:
+            self.conn.execute("ROLLBACK")
+            raise e
+
+    def get_quality_report(self, dataset: str, batch_id: str) -> Optional[Dict[str, Any]]:
+        """Retrieve QualityReport JSON dictionary for a batch."""
+        row = self.conn.execute(
+            "SELECT report_json FROM quality_reports WHERE dataset = ? AND batch_id = ?",
+            (dataset, batch_id),
+        ).fetchone()
+        if row:
+            return json.loads(row[0])  # type: ignore[no-any-return]
+        return None
 
     def close(self) -> None:
         """Close DuckDB database connection."""
