@@ -233,7 +233,6 @@ class ParquetStore:
                         )
 
 
-
 def _is_type_match(annotation: Any, target_type: type) -> bool:
     """Helper to check if annotation matches target_type directly or inside Optional/Union."""
     if annotation is target_type:
@@ -242,4 +241,3 @@ def _is_type_match(annotation: Any, target_type: type) -> bool:
     if origin is typing.Union:
         return target_type in typing.get_args(annotation)
     return False
-

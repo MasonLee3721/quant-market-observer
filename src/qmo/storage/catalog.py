@@ -177,9 +177,7 @@ class DuckDBCatalog:
         Raises FileNotFoundError if published files or hashes are missing/corrupted.
         """
         if manifest.status != BatchStatus.PUBLISHED:
-            raise ValueError(
-                f"Cannot register batch with non-PUBLISHED status: {manifest.status}"
-            )
+            raise ValueError(f"Cannot register batch with non-PUBLISHED status: {manifest.status}")
 
         for filepath in manifest.published_filepaths:
             p = Path(filepath)
@@ -187,10 +185,9 @@ class DuckDBCatalog:
                 raise FileNotFoundError(
                     f"Catalog indexing error: Published file does not exist at {p}"
                 )
-            expected_hash = (
-                manifest.parquet_file_hashes.get(str(p))
-                or manifest.parquet_file_hashes.get(p.name)
-            )
+            expected_hash = manifest.parquet_file_hashes.get(
+                str(p)
+            ) or manifest.parquet_file_hashes.get(p.name)
             if expected_hash:
                 actual_hash = hashlib.sha256(p.read_bytes()).hexdigest()
                 if actual_hash != expected_hash:

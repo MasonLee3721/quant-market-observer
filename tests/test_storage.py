@@ -596,15 +596,21 @@ def test_schema_contract_detects_nullability_mismatch(tmp_path: Path) -> None:
     output_file = tmp_path / "bad_nullable.parquet"
 
     # Create a table where required stock_id string field is wrongly set to nullable=True
-    table = duckdb.connect(":memory:").execute(
-        "SELECT '2026-09-25' AS trade_date, '2330' AS stock_id, 'TWSE' AS market, "
-        "100.0 AS open_price, 105.0 AS high_price, 99.0 AS low_price, 104.0 AS close_price, "
-        "4.0 AS change, 1000 AS trading_volume, 104000 AS trading_value, 100 AS transaction_count, "
-        "false AS no_trade, 'finmind' AS source, '2026-09-25T00:00:00Z' AS retrieved_at, "
-        "'schema-v0.1' AS schema_version, ['none'] AS quality_flags"
-    ).to_arrow_table()
+    table = (
+        duckdb.connect(":memory:")
+        .execute(
+            "SELECT '2026-09-25' AS trade_date, '2330' AS stock_id, 'TWSE' AS market, "
+            "100.0 AS open_price, 105.0 AS high_price, 99.0 AS low_price, 104.0 AS close_price, "
+            "4.0 AS change, 1000 AS trading_volume, 104000 AS trading_value, "
+            "100 AS transaction_count, "
+            "false AS no_trade, 'finmind' AS source, '2026-09-25T00:00:00Z' AS retrieved_at, "
+            "'schema-v0.1' AS schema_version, ['none'] AS quality_flags"
+        )
+        .to_arrow_table()
+    )
 
     import pyarrow.parquet as pq
+
     pq.write_table(table, output_file)
 
     # DuckDB arrow table creates nullable=True by default for all columns.
@@ -944,6 +950,3 @@ def test_missing_corrupted_or_multiple_intent_fails_closed(tmp_path: Path) -> No
             models=models,
             source_raw_hashes=[VALID_RAW_HASH_1],
         )
-
-
-

@@ -80,15 +80,16 @@ class QualityGateError(Exception):
     def __init__(self, report: QualityReport) -> None:
         self.report = report
         critical_fails = [
-            c
-            for c in report.check_results
-            if not c.passed and c.severity == CheckSeverity.CRITICAL
+            c for c in report.check_results if not c.passed and c.severity == CheckSeverity.CRITICAL
         ]
         fail_msgs_list: List[str] = []
         for c in critical_fails:
-            if c.details and "violations" in c.details:
-                viol_str = ", ".join(c.details["violations"])
-                fail_msgs_list.append(f"{c.message} [{viol_str}]")
+            detail_items: List[str] = []
+            for key in ("violations", "invalid_dates", "freshness_issues", "mismatches"):
+                if c.details and key in c.details and c.details[key]:
+                    detail_items.append(", ".join(str(x) for x in c.details[key]))
+            if detail_items:
+                fail_msgs_list.append(f"{c.message} [{' | '.join(detail_items)}]")
             else:
                 fail_msgs_list.append(c.message)
         fail_msgs = "; ".join(fail_msgs_list)

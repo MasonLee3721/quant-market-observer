@@ -1,11 +1,13 @@
-"""Unit tests for WP5 Validator and Official Reconciliation modules."""
+"""Comprehensive unit tests for WP5 Validator and Official Reconciliation modules."""
 
 import json
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
 
 from qmo.models.institutional import InstitutionalFlow
+from qmo.models.margin import Margin
 from qmo.models.price import DailyPrice
 from qmo.providers.protocols import RawResponseEnvelope
 from qmo.storage.publisher import AtomicBatchPublisher
@@ -60,6 +62,26 @@ def test_batch_validator_valid_models_pass() -> None:
     assert report.summary["passed_checks"] == report.summary["total_checks"]
     assert report.summary["total_records"] == 2
     assert report.summary["unique_stocks"] == 2
+
+
+def test_validator_detects_dataset_model_binding_mismatch() -> None:
+    """Verify passing mismatched model class for a dataset fails quality gate."""
+    validator = BatchValidator()
+    flow_model = InstitutionalFlow(
+        trade_date="2026-09-25",
+        stock_id="2330",
+        foreign_buy=1000,
+        foreign_sell=400,
+        foreign_net=600,
+    )
+
+    # Passing InstitutionalFlow when dataset="daily_price" must fail quality gate!
+    with pytest.raises(QualityGateError, match="Dataset-model binding violation"):
+        validator.validate_batch(
+            batch_id="b_binding_mismatch",
+            dataset="daily_price",
+            models=[flow_model],
+        )
 
 
 def test_batch_validator_detects_duplicate_primary_keys() -> None:
@@ -128,6 +150,59 @@ def test_batch_validator_detects_domain_boundary_violations() -> None:
         )
 
 
+def test_margin_domain_boundary_checks() -> None:
+    """Verify margin purchase balance exceeding quota fails domain boundary check."""
+    validator = BatchValidator()
+    invalid_margin = [
+        Margin(
+            trade_date="2026-09-25",
+            stock_id="2330",
+            margin_purchase_balance=1000,
+            margin_purchase_quota=500,  # Balance > quota!
+        )
+    ]
+
+    with pytest.raises(QualityGateError, match="margin_purchase_balance .* > quota"):
+        validator.validate_batch(batch_id="b_bad_margin", dataset="margin", models=invalid_margin)
+
+
+def test_validator_detects_future_dates_and_staleness() -> None:
+    """Verify future trade dates and stale trade dates fail date freshness checks."""
+    validator = BatchValidator(max_stale_days=7)
+    future_date = (datetime.now(timezone.utc) + timedelta(days=5)).strftime("%Y-%m-%d")
+
+    future_model = [
+        DailyPrice(
+            trade_date=future_date,
+            stock_id="2330",
+            open_price=100.0,
+            close_price=105.0,
+            trading_volume=1000,
+            trading_value=105000,
+        )
+    ]
+
+    with pytest.raises(QualityGateError, match="future date"):
+        validator.validate_batch(
+            batch_id="b_future_date", dataset="daily_price", models=future_model
+        )
+
+    stale_date = (datetime.now(timezone.utc) - timedelta(days=30)).strftime("%Y-%m-%d")
+    stale_model = [
+        DailyPrice(
+            trade_date=stale_date,
+            stock_id="2330",
+            open_price=100.0,
+            close_price=105.0,
+            trading_volume=1000,
+            trading_value=105000,
+        )
+    ]
+
+    with pytest.raises(QualityGateError, match="stale by"):
+        validator.validate_batch(batch_id="b_stale_date", dataset="daily_price", models=stale_model)
+
+
 def test_batch_validator_stock_ticker_coverage() -> None:
     """Verify strict_coverage=True raises QualityGateError if target tickers are missing."""
     target_50_tickers = [f"{i:04d}" for i in range(1, 51)]
@@ -173,6 +248,7 @@ def test_official_reconciler_daily_prices() -> None:
     """Verify OfficialReconciler cross-checks normalized models against TWSE/TPEx raw envelopes."""
     twse_raw_payload = {
         "stat": "OK",
+        "date": "2026-09-25",
         "fields": [
             "證券代號",
             "證券名稱",
@@ -233,6 +309,135 @@ def test_official_reconciler_daily_prices() -> None:
     assert res_fail.details["mismatched_count"] == 1
 
 
+def test_reconciler_fails_on_corrupted_raw_payload() -> None:
+    """Verify OfficialReconciler fails CRITICAL when provided envelope contains invalid JSON."""
+    corrupted_env = RawResponseEnvelope(
+        provider_name="twse",
+        endpoint="https://example.com",
+        params={},
+        status_code=200,
+        raw_body_bytes=b"{invalid json bytes",
+    )
+
+    models = [
+        DailyPrice(
+            trade_date="2026-09-25",
+            stock_id="2330",
+            open_price=100.0,
+            close_price=104.0,
+            trading_volume=1000,
+            trading_value=104000,
+        )
+    ]
+
+    res = OfficialReconciler.reconcile_daily_prices(models, twse_envelope=corrupted_env)
+    assert res.passed is False
+    assert res.severity == CheckSeverity.CRITICAL
+    assert "parsing failed" in res.message
+
+
+def test_reconciler_fails_on_zero_sample_intersection() -> None:
+    """Verify OfficialReconciler fails CRITICAL if raw envelope and models have 0 overlap."""
+    twse_raw_payload = {
+        "stat": "OK",
+        "fields": ["證券代號", "收盤價", "成交股數"],
+        "data": [["2330", "104.00", "1,000"]],
+    }
+    twse_env = RawResponseEnvelope(
+        provider_name="twse",
+        endpoint="https://example.com",
+        params={},
+        status_code=200,
+        raw_body_bytes=json.dumps(twse_raw_payload).encode("utf-8"),
+    )
+
+    # Models contain completely different stock_id ("9999")
+    models_different = [
+        DailyPrice(
+            trade_date="2026-09-25",
+            stock_id="9999",
+            open_price=100.0,
+            close_price=104.0,
+            trading_volume=1000,
+            trading_value=104000,
+        )
+    ]
+
+    res = OfficialReconciler.reconcile_daily_prices(models_different, twse_envelope=twse_env)
+    assert res.passed is False
+    assert res.severity == CheckSeverity.CRITICAL
+    assert "Zero matching sample intersection" in res.message
+
+
+def test_reconciler_institutional_and_margin() -> None:
+    """Verify OfficialReconciler reconciliation for InstitutionalFlow and Margin datasets."""
+    twse_inst_payload = {
+        "stat": "OK",
+        "fields": ["證券代號", "三大法人買賣超股數"],
+        "data": [["2330", "5000"]],
+    }
+    twse_env = RawResponseEnvelope(
+        provider_name="twse",
+        endpoint="https://example.com",
+        params={},
+        status_code=200,
+        raw_body_bytes=json.dumps(twse_inst_payload).encode("utf-8"),
+    )
+
+    flow_models = [
+        InstitutionalFlow(
+            trade_date="2026-09-25",
+            stock_id="2330",
+            market="TWSE",
+            foreign_buy=10000,
+            foreign_sell=5000,
+            foreign_net=5000,
+            total_net=5000,
+        )
+    ]
+
+    res_inst = OfficialReconciler.reconcile_institutional_flow(flow_models, twse_envelope=twse_env)
+    assert res_inst.passed is True
+    assert res_inst.details["match_rate_pct"] == 100.0
+
+
+def test_reconciliation_failure_triggers_quality_gate() -> None:
+    """Verify failed official reconciliation in BatchValidator triggers QualityGateError."""
+    validator = BatchValidator()
+    twse_raw_payload = {
+        "stat": "OK",
+        "fields": ["證券代號", "收盤價", "成交股數"],
+        "data": [["2330", "500.00", "1,000"]],  # Official price is 500.00
+    }
+    twse_env = RawResponseEnvelope(
+        provider_name="twse",
+        endpoint="https://example.com",
+        params={},
+        status_code=200,
+        raw_body_bytes=json.dumps(twse_raw_payload).encode("utf-8"),
+    )
+
+    models_mismatched = [
+        DailyPrice(
+            trade_date="2026-09-25",
+            stock_id="2330",
+            market="TWSE",
+            open_price=100.0,
+            close_price=100.0,  # Normalized price is 100.00 (mismatch!)
+            trading_volume=1000,
+            trading_value=100000,
+        )
+    ]
+
+    with pytest.raises(QualityGateError, match="Official reconciliation match rate"):
+        validator.validate_batch(
+            batch_id="b_recon_gate",
+            dataset="daily_price",
+            models=models_mismatched,
+            twse_envelope=twse_env,
+        )
+
+
 def test_quality_report_formatting() -> None:
     """Verify QualityReport formatting to JSON and Markdown."""
     validator = BatchValidator()
@@ -286,3 +491,31 @@ def test_publisher_integration_with_validator(tmp_path: Path) -> None:
     # Published directory must NOT exist after quality gate block
     target_dir = tmp_path / "normalized" / "daily_price" / "b_publisher_invalid"
     assert not target_dir.exists()
+
+
+def test_publisher_enforces_coverage_during_publish(tmp_path: Path) -> None:
+    """Verify AtomicBatchPublisher enforces target_tickers coverage check during publish."""
+    target_pool = ["2330", "2317", "2454"]
+    validator = BatchValidator(strict_coverage=True)
+    publisher = AtomicBatchPublisher(root_dir=tmp_path, validator=validator)
+
+    # Only contains 2330, missing 2317 and 2454
+    incomplete_models = [
+        DailyPrice(
+            trade_date="2026-09-25",
+            stock_id="2330",
+            open_price=100.0,
+            close_price=105.0,
+            trading_volume=1000,
+            trading_value=105000,
+        )
+    ]
+
+    with pytest.raises(QualityGateError, match="Missing 2 ticker"):
+        publisher.publish_batch(
+            batch_id="b_pub_coverage",
+            dataset="daily_price",
+            models=incomplete_models,
+            source_raw_hashes=[VALID_RAW_HASH],
+            target_tickers=target_pool,
+        )

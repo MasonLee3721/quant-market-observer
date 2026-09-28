@@ -99,4 +99,3 @@ class BatchManifest(BaseModel):
 
         if not self.manifest_hash:
             self.manifest_hash = self.compute_manifest_hash()
-

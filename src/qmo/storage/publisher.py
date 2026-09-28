@@ -34,9 +34,7 @@ class AtomicBatchPublisher:
         self.root_dir = Path(root_dir)
         self.staging_dir = self.root_dir / "staging"
         self.normalized_dir = self.root_dir / "normalized"
-        self.catalog = catalog or DuckDBCatalog(
-            self.root_dir / "catalog" / "qmo_catalog.duckdb"
-        )
+        self.catalog = catalog or DuckDBCatalog(self.root_dir / "catalog" / "qmo_catalog.duckdb")
         self.validator = validator
 
     def _verify_existing_published_provenance(
@@ -68,9 +66,9 @@ class AtomicBatchPublisher:
 
         actual_pub_hash = (
             hashlib.sha256(
-                "".join(
-                    hashlib.sha256(pf.read_bytes()).hexdigest() for pf in pub_files
-                ).encode("utf-8")
+                "".join(hashlib.sha256(pf.read_bytes()).hexdigest() for pf in pub_files).encode(
+                    "utf-8"
+                )
             ).hexdigest()
             if partition_by_date
             else hashlib.sha256(published_file.read_bytes()).hexdigest()
@@ -128,6 +126,9 @@ class AtomicBatchPublisher:
         schema_version: str = "schema-v0.1",
         partition_date_range: Optional[str] = None,
         partition_by_date: bool = False,
+        target_tickers: Optional[Sequence[str]] = None,
+        twse_envelope: Optional[Any] = None,
+        tpex_envelope: Optional[Any] = None,
         _pre_swap_hook: Optional[Callable[[], None]] = None,
     ) -> BatchManifest:
         """Execute atomic publish workflow for a normalized model batch."""
@@ -155,6 +156,10 @@ class AtomicBatchPublisher:
                 dataset=dataset,
                 models=models,
                 schema_version=schema_version,
+                target_tickers=target_tickers,
+                expected_date_range=partition_date_range,
+                twse_envelope=twse_envelope,
+                tpex_envelope=tpex_envelope,
                 raise_on_failure=True,
             )
 
@@ -207,8 +212,7 @@ class AtomicBatchPublisher:
                         )
                         pub_paths = [str(p) for p in pub_files]
                         pq_hashes = {
-                            str(p): hashlib.sha256(p.read_bytes()).hexdigest()
-                            for p in pub_files
+                            str(p): hashlib.sha256(p.read_bytes()).hexdigest() for p in pub_files
                         }
                         manifest = BatchManifest(
                             batch_id=batch_id,
@@ -234,9 +238,7 @@ class AtomicBatchPublisher:
         try:
             # 1. Write to Process Staging Directory
             part_cols = ["trade_date"] if partition_by_date else None
-            staged_hash = ParquetStore.write_models(
-                models, staged_file, partition_cols=part_cols
-            )
+            staged_hash = ParquetStore.write_models(models, staged_file, partition_cols=part_cols)
 
             # 2. Staging Validation
             if not staged_file.exists():
@@ -301,16 +303,13 @@ class AtomicBatchPublisher:
                         return cat_man
 
                     pub_files_check = (
-                        sorted(
-                            p for p in target_published_dir.glob("**/*.parquet") if p.is_file()
-                        )
+                        sorted(p for p in target_published_dir.glob("**/*.parquet") if p.is_file())
                         if partition_by_date
                         else ([published_file] if published_file.exists() else [])
                     )
                     pub_paths = [str(p) for p in pub_files_check]
                     pq_hashes = {
-                        str(p): hashlib.sha256(p.read_bytes()).hexdigest()
-                        for p in pub_files_check
+                        str(p): hashlib.sha256(p.read_bytes()).hexdigest() for p in pub_files_check
                     }
                     manifest = BatchManifest(
                         batch_id=batch_id,
@@ -404,9 +403,9 @@ class AtomicBatchPublisher:
 
             published_hash = (
                 hashlib.sha256(
-                    "".join(
-                        hashlib.sha256(pf.read_bytes()).hexdigest() for pf in pub_files
-                    ).encode("utf-8")
+                    "".join(hashlib.sha256(pf.read_bytes()).hexdigest() for pf in pub_files).encode(
+                        "utf-8"
+                    )
                 ).hexdigest()
                 if partition_by_date
                 else hashlib.sha256(published_file.read_bytes()).hexdigest()
