@@ -125,3 +125,16 @@ def test_cli_update_datasets(tmp_path: Path) -> None:
     assert "Processing dataset 'daily_price'" in result.output
 
 
+def test_cli_calculate(tmp_path: Path) -> None:
+    """Verify qmo calculate command execution."""
+    runner = CliRunner()
+    result = runner.invoke(
+        main,
+        ["calculate", "--date", "2026-09-28", "--root-dir", str(tmp_path)],
+    )
+    assert result.exit_code == 0
+    assert "Executing indicator calculation pipeline" in result.output
+    assert "Indicator Calculation Summary" in result.output
+
+
+

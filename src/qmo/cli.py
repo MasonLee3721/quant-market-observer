@@ -199,5 +199,33 @@ def update(
     click.echo(f"Pipeline update completed for date '{date}'. Target root: {root_dir.resolve()}")
 
 
+@main.command()
+@click.option(
+    "--date",
+    default="latest",
+    help="Target date to compute indicators (YYYY-MM-DD or 'latest').",
+)
+@click.option(
+    "--root-dir",
+    type=click.Path(path_type=Path),
+    default=Path("data"),
+    help="Root storage directory path.",
+)
+def calculate(date: str, root_dir: Path) -> None:
+    """Execute end-to-end factor computation, market breadth, and stock ranking."""
+    click.echo(f"Executing indicator calculation pipeline for date: {date}")
+
+    from qmo.indicators.pipeline import IndicatorPipelineRunner
+
+    runner = IndicatorPipelineRunner(root_dir=root_dir)
+    res = runner.run_pipeline(prices_data=[], inst_data=[], margin_data=[], date_str=date)
+
+    click.echo("=== Indicator Calculation Summary ===")
+    click.echo(f"Batch ID: {res.get('batch_id')}")
+    click.echo(f"Market Breadth (20D): {res.get('market_breadth_20')}")
+    click.echo(f"Market Composite Score: {res.get('market_score')}")
+    click.echo(f"Processed Tickers: {res.get('processed_stocks')}")
+
+
 if __name__ == "__main__":
     main()
