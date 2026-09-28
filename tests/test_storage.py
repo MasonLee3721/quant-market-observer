@@ -614,7 +614,8 @@ def test_schema_contract_detects_nullability_mismatch(tmp_path: Path) -> None:
 
 
 def test_concurrent_same_batch_id_race_rollback_isolation(tmp_path: Path) -> None:
-    """Verify concurrent publish race: Publisher A failure does not delete B's directory."""
+    """Verify deterministic concurrent publish race: Controlled pre-swap barrier isolation."""
+    import hashlib
     import threading
 
     db_file = tmp_path / "catalog" / "qmo_catalog.duckdb"
@@ -636,16 +637,19 @@ def test_concurrent_same_batch_id_race_rollback_isolation(tmp_path: Path) -> Non
         )
     ]
 
-    barrier = threading.Barrier(2)
+    # Controlled barrier before atomic directory swap ensures both threads finish staging first
+    pre_swap_barrier = threading.Barrier(2)
     results: Dict[str, Any] = {}
 
     original_register = catalog_a.register_published_batch
 
     def thread_a_worker() -> None:
         def failing_register(manifest: Any) -> None:
-            # Wait for thread B to complete publish & catalog registration
-            barrier.wait(timeout=5)
+            # Simulated failure post-swap during catalog registration
             raise RuntimeError("Publisher A catalog registration simulated failure post-swap")
+
+        def hook_a() -> None:
+            pre_swap_barrier.wait(timeout=5)
 
         catalog_a.register_published_batch = failing_register
         try:
@@ -654,6 +658,7 @@ def test_concurrent_same_batch_id_race_rollback_isolation(tmp_path: Path) -> Non
                 dataset="daily_price",
                 models=models,
                 source_raw_hashes=[VALID_RAW_HASH_1],
+                _pre_swap_hook=hook_a,
             )
         except StorageValidationError as e:
             results["thread_a_error"] = str(e)
@@ -661,15 +666,18 @@ def test_concurrent_same_batch_id_race_rollback_isolation(tmp_path: Path) -> Non
             catalog_a.register_published_batch = original_register
 
     def thread_b_worker() -> None:
+        def hook_b() -> None:
+            pre_swap_barrier.wait(timeout=5)
+
         try:
             manifest_b = publisher_b.publish_batch(
                 batch_id="batch_same_race",
                 dataset="daily_price",
                 models=models,
                 source_raw_hashes=[VALID_RAW_HASH_1],
+                _pre_swap_hook=hook_b,
             )
             results["thread_b_manifest"] = manifest_b
-            barrier.wait(timeout=5)
         except Exception as e:
             results["thread_b_error"] = str(e)
 
@@ -681,9 +689,45 @@ def test_concurrent_same_batch_id_race_rollback_isolation(tmp_path: Path) -> Non
     t_a.join(timeout=10)
     t_b.join(timeout=10)
 
+    # 1. Assert threads completed cleanly
+    assert not t_a.is_alive(), "Thread A must be finished"
+    assert not t_b.is_alive(), "Thread B must be finished"
+
+    # 2. Assert thread A failed on catalog error and thread B succeeded
+    assert "thread_a_error" in results, f"Publisher A must fail on catalog error: {results}"
+    assert "thread_b_manifest" in results, f"Publisher B must succeed: {results}"
+    assert "thread_b_error" not in results, f"Publisher B encountered unexpected error: {results}"
+
+    # 3. Assert published directory & file remain intact
     target_pub_dir = tmp_path / "normalized" / "daily_price" / "batch_same_race"
-    assert "thread_a_error" in results, f"Publisher A should fail on catalog error: {results}"
     assert target_pub_dir.exists(), "Published directory must remain intact"
-    assert (target_pub_dir / "data.parquet").exists()
+    published_file = target_pub_dir / "data.parquet"
+    assert published_file.exists()
+
+    # 4. Assert catalog manifest exists in catalog_b with status PUBLISHED and correct file hash
+    cat_manifest = catalog_b.get_batch_manifest("daily_price", "batch_same_race")
+    assert cat_manifest is not None
+    assert cat_manifest.status == BatchStatus.PUBLISHED
+    actual_file_hash = hashlib.sha256(published_file.read_bytes()).hexdigest()
+    assert cat_manifest.parquet_file_hashes.get(str(published_file)) == actual_file_hash
+
+
+def test_verify_schema_contract_detects_missing_non_partition_field(tmp_path: Path) -> None:
+    """Verify schema validation fails if parquet file lacks required non-partition field."""
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+
+    # Table lacking required 'stock_id' field (only contains market and open_price)
+    table = pa.Table.from_pydict({"market": ["TWSE"], "open_price": [100.0]})
+    part_dir = tmp_path / "partitioned_dataset" / "trade_date=2026-09-25"
+    part_dir.mkdir(parents=True, exist_ok=True)
+    parquet_file = part_dir / "data.parquet"
+    pq.write_table(table, parquet_file)
+
+    # Calling verify_schema_contract on root directory must raise ValueError for missing stock_id
+    with pytest.raises(ValueError, match="missing fields .*stock_id"):
+        ParquetStore.verify_schema_contract(
+            tmp_path / "partitioned_dataset", DailyPrice, partition_cols=["trade_date"]
+        )
 
 

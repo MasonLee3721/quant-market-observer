@@ -136,10 +136,16 @@ class ParquetStore:
         return list(schema.names)
 
     @staticmethod
-    def verify_schema_contract(parquet_path: Path, model_cls: type[BaseModel]) -> None:
+    def verify_schema_contract(
+        parquet_path: Path,
+        model_cls: type[BaseModel],
+        partition_cols: Optional[List[str]] = None,
+    ) -> None:
         """Verify exact field set, data types, and nullability contracts against Pydantic model."""
         if not parquet_path.exists():
             raise FileNotFoundError(f"Parquet path missing at {parquet_path}")
+
+        valid_partition_cols = set(partition_cols) if partition_cols else {"trade_date"}
 
         files_to_check: List[Path] = []
         if parquet_path.is_dir():
@@ -171,8 +177,12 @@ class ParquetStore:
                 is_nullable = is_annotation_nullable(annotation)
 
                 if field_name not in schema.names:
-                    # Partition column extracted to directory path by PyArrow write_to_dataset
-                    continue
+                    if field_name in valid_partition_cols:
+                        # Hive partition column extracted to directory path
+                        continue
+                    raise ValueError(
+                        f"Field '{field_name}' missing from Parquet file schema in {p_file.name}"
+                    )
 
                 pa_field = schema.field(field_name)
                 pa_type = pa_field.type

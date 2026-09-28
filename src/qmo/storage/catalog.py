@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -127,6 +128,22 @@ class DuckDBCatalog:
             p_files = json.dumps(parsed_files)
             pq_hashes = json.dumps(pq_hashes_dict)
 
+            raw_hashes_list = json.loads(raw_h) if raw_h else []
+            valid_c_at = c_at if c_at else datetime.now(timezone.utc).isoformat()
+            manifest = BatchManifest(
+                batch_id=b_id,
+                dataset=ds,
+                source_raw_hashes=raw_hashes_list,
+                schema_version=s_ver,
+                record_count=r_cnt,
+                partition_date_range=p_range,
+                created_at=valid_c_at,
+                status=BatchStatus(st),
+                published_filepaths=parsed_files,
+                parquet_file_hashes=pq_hashes_dict,
+            )
+            m_hash = manifest.compute_manifest_hash()
+
             self.conn.execute(
                 """
                 INSERT INTO batch_manifests (
@@ -135,7 +152,19 @@ class DuckDBCatalog:
                     published_filepaths, parquet_file_hashes, manifest_hash
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
                 """,
-                (ds, b_id, raw_h, s_ver, r_cnt, p_range, c_at, st, p_files, pq_hashes, m_hash),
+                (
+                    ds,
+                    b_id,
+                    raw_h,
+                    s_ver,
+                    r_cnt,
+                    p_range,
+                    valid_c_at,
+                    st,
+                    p_files,
+                    pq_hashes,
+                    m_hash,
+                ),
             )
             migrated_count += 1
         return migrated_count

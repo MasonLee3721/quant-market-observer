@@ -5,7 +5,7 @@ import logging
 import shutil
 import uuid
 from pathlib import Path
-from typing import List, Optional, Sequence
+from typing import Callable, List, Optional, Sequence
 
 from pydantic import BaseModel
 
@@ -43,6 +43,7 @@ class AtomicBatchPublisher:
         schema_version: str = "schema-v0.1",
         partition_date_range: Optional[str] = None,
         partition_by_date: bool = False,
+        _pre_swap_hook: Optional[Callable[[], None]] = None,
     ) -> BatchManifest:
         """Execute atomic publish workflow for a normalized model batch."""
         validate_safe_identifier(dataset, "dataset")
@@ -134,8 +135,6 @@ class AtomicBatchPublisher:
                         if existing_catalog_manifest:
                             return existing_catalog_manifest
                         else:
-                            for om in target_published_dir.glob(".owner_*"):
-                                om.unlink(missing_ok=True)
                             pub_paths = [str(p) for p in pub_files]
                             pq_hashes = {
                                 str(p): hashlib.sha256(p.read_bytes()).hexdigest()
@@ -181,7 +180,9 @@ class AtomicBatchPublisher:
 
             first_model = models[0]
             try:
-                ParquetStore.verify_schema_contract(staged_file, type(first_model))
+                ParquetStore.verify_schema_contract(
+                    staged_file, type(first_model), partition_cols=part_cols
+                )
             except ValueError as e:
                 raise StorageValidationError(
                     f"Staging schema contract verification failed: {e}"
@@ -190,6 +191,10 @@ class AtomicBatchPublisher:
             # Write process ownership marker into staging before rename
             owner_marker_file = batch_staging_dir / owner_marker_name
             owner_marker_file.write_text(run_uuid)
+
+            # Controlled hook execution right before atomic swap
+            if _pre_swap_hook is not None:
+                _pre_swap_hook()
 
             # 3. Prepare Target & Perform Atomic Directory Swap
             target_dataset_dir.mkdir(parents=True, exist_ok=True)
@@ -212,8 +217,6 @@ class AtomicBatchPublisher:
                     )
                     if actual_pub_hash == staged_hash:
                         shutil.rmtree(batch_staging_dir, ignore_errors=True)
-                        for om in target_published_dir.glob(".owner_*"):
-                            om.unlink(missing_ok=True)
                         pub_paths = [str(p) for p in pub_files_check]
                         pq_hashes = {
                             str(p): hashlib.sha256(p.read_bytes()).hexdigest()
