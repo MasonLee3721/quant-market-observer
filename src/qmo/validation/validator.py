@@ -518,10 +518,17 @@ class BatchValidator:
                 )
 
         if expected_date_range:
-            if min_date not in expected_date_range and max_date not in expected_date_range:
+            if ".." in expected_date_range:
+                exp_start, exp_end = expected_date_range.split("..", 1)
+            else:
+                exp_start = exp_end = expected_date_range
+            exp_start = exp_start.strip()
+            exp_end = exp_end.strip()
+
+            if min_date < exp_start or max_date > exp_end:
                 freshness_issues.append(
-                    f"Date range {min_date}..{max_date} does not align with "
-                    f"expected '{expected_date_range}'"
+                    f"Batch date range {min_date}..{max_date} is outside "
+                    f"expected date range {exp_start}..{exp_end}"
                 )
 
         passed = len(invalid_dates) == 0 and len(freshness_issues) == 0

@@ -340,6 +340,7 @@ def test_reconciler_fails_on_zero_sample_intersection() -> None:
     """Verify OfficialReconciler fails CRITICAL if raw envelope and models have 0 overlap."""
     twse_raw_payload = {
         "stat": "OK",
+        "date": "2026-09-25",
         "fields": ["證券代號", "收盤價", "成交股數"],
         "data": [["2330", "104.00", "1,000"]],
     }
@@ -373,6 +374,7 @@ def test_reconciler_institutional_and_margin() -> None:
     """Verify OfficialReconciler reconciliation for InstitutionalFlow and Margin datasets."""
     twse_inst_payload = {
         "stat": "OK",
+        "date": "2026-09-25",
         "fields": ["證券代號", "三大法人買賣超股數"],
         "data": [["2330", "5000"]],
     }
@@ -400,12 +402,40 @@ def test_reconciler_institutional_and_margin() -> None:
     assert res_inst.passed is True
     assert res_inst.details["match_rate_pct"] == 100.0
 
+    twse_margin_payload = {
+        "stat": "OK",
+        "date": "2026-09-25",
+        "fields": ["股票代號", "融資今日餘額", "融券今日餘額"],
+        "data": [["2330", "1200", "500"]],
+    }
+    twse_margin_env = RawResponseEnvelope(
+        provider_name="twse",
+        endpoint="https://example.com",
+        params={},
+        status_code=200,
+        raw_body_bytes=json.dumps(twse_margin_payload).encode("utf-8"),
+    )
+    margin_models = [
+        Margin(
+            trade_date="2026-09-25",
+            stock_id="2330",
+            market="TWSE",
+            margin_purchase_balance=1200,
+            short_sale_balance=500,
+        )
+    ]
+
+    res_margin = OfficialReconciler.reconcile_margin(margin_models, twse_envelope=twse_margin_env)
+    assert res_margin.passed is True
+    assert res_margin.details["match_rate_pct"] == 100.0
+
 
 def test_reconciliation_failure_triggers_quality_gate() -> None:
     """Verify failed official reconciliation in BatchValidator triggers QualityGateError."""
     validator = BatchValidator()
     twse_raw_payload = {
         "stat": "OK",
+        "date": "2026-09-25",
         "fields": ["證券代號", "收盤價", "成交股數"],
         "data": [["2330", "500.00", "1,000"]],  # Official price is 500.00
     }
@@ -429,7 +459,7 @@ def test_reconciliation_failure_triggers_quality_gate() -> None:
         )
     ]
 
-    with pytest.raises(QualityGateError, match="Official reconciliation match rate"):
+    with pytest.raises(QualityGateError, match="reconciliation match rate"):
         validator.validate_batch(
             batch_id="b_recon_gate",
             dataset="daily_price",
@@ -564,6 +594,7 @@ def test_publisher_enforces_reconciliation_failure_blocking(tmp_path: Path) -> N
 
     twse_raw_payload = {
         "stat": "OK",
+        "date": "2026-09-25",
         "fields": ["證券代號", "收盤價", "成交股數"],
         "data": [["2330", "500.00", "1,000"]],  # Official price 500.00
     }
@@ -587,7 +618,7 @@ def test_publisher_enforces_reconciliation_failure_blocking(tmp_path: Path) -> N
         )
     ]
 
-    with pytest.raises(QualityGateError, match="Official reconciliation match rate"):
+    with pytest.raises(QualityGateError, match="reconciliation match rate"):
         publisher.publish_batch(
             batch_id="b_pub_recon_fail",
             dataset="daily_price",
@@ -619,3 +650,80 @@ def test_margin_arithmetic_balance_check() -> None:
         validator.validate_batch(
             batch_id="b_bad_margin_calc", dataset="margin", models=invalid_margin_calc
         )
+
+
+def test_reconciler_mismatch_date_market_source() -> None:
+    """Verify strict composite key (trade_date, stock_id, market) rejects date mismatch."""
+    twse_raw_payload = {
+        "stat": "OK",
+        "date": "2026-09-24",  # Official date is 2026-09-24
+        "fields": ["證券代號", "收盤價", "成交股數"],
+        "data": [["2330", "104.00", "1,000"]],
+    }
+    twse_env = RawResponseEnvelope(
+        provider_name="twse",
+        endpoint="https://example.com",
+        params={},
+        status_code=200,
+        raw_body_bytes=json.dumps(twse_raw_payload).encode("utf-8"),
+    )
+
+    models_different_date = [
+        DailyPrice(
+            trade_date="2026-09-25",  # Model date is 2026-09-25 (mismatch!)
+            stock_id="2330",
+            market="TWSE",
+            open_price=100.0,
+            close_price=104.0,
+            trading_volume=1000,
+            trading_value=104000,
+        )
+    ]
+
+    res = OfficialReconciler.reconcile_daily_prices(models_different_date, twse_envelope=twse_env)
+    assert res.passed is False
+    assert res.severity == CheckSeverity.CRITICAL
+    assert "Zero matching sample intersection" in res.message
+
+
+def test_reconciler_partial_envelope_parsing_failure_fails_closed() -> None:
+    """Verify OfficialReconciler fails closed if ANY provided envelope fails parsing."""
+    twse_raw_payload = {
+        "stat": "OK",
+        "date": "2026-09-25",
+        "fields": ["證券代號", "收盤價", "成交股數"],
+        "data": [["2330", "104.00", "1,000"]],
+    }
+    twse_env = RawResponseEnvelope(
+        provider_name="twse",
+        endpoint="https://example.com",
+        params={},
+        status_code=200,
+        raw_body_bytes=json.dumps(twse_raw_payload).encode("utf-8"),
+    )
+    corrupted_tpex_env = RawResponseEnvelope(
+        provider_name="tpex",
+        endpoint="https://example.com",
+        params={},
+        status_code=200,
+        raw_body_bytes=b"corrupted json",
+    )
+
+    models = [
+        DailyPrice(
+            trade_date="2026-09-25",
+            stock_id="2330",
+            market="TWSE",
+            open_price=100.0,
+            close_price=104.0,
+            trading_volume=1000,
+            trading_value=104000,
+        )
+    ]
+
+    res = OfficialReconciler.reconcile_daily_prices(
+        models, twse_envelope=twse_env, tpex_envelope=corrupted_tpex_env
+    )
+    assert res.passed is False
+    assert res.severity == CheckSeverity.CRITICAL
+    assert "parsing failed" in res.message
