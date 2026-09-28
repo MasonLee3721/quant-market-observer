@@ -35,6 +35,8 @@ class AtomicBatchPublisher:
         self.staging_dir = self.root_dir / "staging"
         self.normalized_dir = self.root_dir / "normalized"
         self.catalog = catalog or DuckDBCatalog(self.root_dir / "catalog" / "qmo_catalog.duckdb")
+        if validator is False:
+            raise ValueError("Quality Gate cannot be disabled (validator cannot be False)")
         if validator is None:
             from qmo.validation.validator import BatchValidator
 
@@ -435,9 +437,15 @@ class AtomicBatchPublisher:
                 )
                 raise StorageValidationError(err_digest)
 
-            # 4. Mark Manifest PUBLISHED
-            pub_paths = [str(p) for p in pub_files]
-            pq_hashes = {str(p): hashlib.sha256(p.read_bytes()).hexdigest() for p in pub_files}
+            # 4. Mark Manifest PUBLISHED (include parquet files and quality report files)
+            all_pub_files = list(pub_files)
+            for r_name in ("quality_report.json", "quality_report.md"):
+                r_path = target_published_dir / r_name
+                if r_path.exists():
+                    all_pub_files.append(r_path)
+
+            pub_paths = [str(p) for p in all_pub_files]
+            pq_hashes = {str(p): hashlib.sha256(p.read_bytes()).hexdigest() for p in all_pub_files}
 
             manifest = BatchManifest(
                 batch_id=batch_id,
@@ -451,10 +459,8 @@ class AtomicBatchPublisher:
                 parquet_file_hashes=pq_hashes,
             )
 
-            # 5. Register in DuckDB Catalog AFTER successful atomic swap
-            self.catalog.register_published_batch(manifest)
-            if quality_report is not None:
-                self.catalog.register_quality_report(quality_report)
+            # 5. Register in DuckDB Catalog AFTER successful atomic swap (single transaction)
+            self.catalog.register_published_batch(manifest, quality_report=quality_report)
 
             # Cleanup ownership & intent markers on successful publish
             target_owner_file = target_published_dir / owner_marker_name

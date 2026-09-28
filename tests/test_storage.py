@@ -169,12 +169,12 @@ def test_atomic_batch_publisher_staging_swap_and_catalog(tmp_path: Path) -> None
 
     assert manifest.status == BatchStatus.PUBLISHED
     assert manifest.record_count == 1
-    assert len(manifest.published_filepaths) == 1
-    assert len(manifest.parquet_file_hashes) == 1
+    assert len(manifest.published_filepaths) == 3
+    assert len(manifest.parquet_file_hashes) == 3
 
-    published_file = Path(manifest.published_filepaths[0])
-    assert published_file.exists()
-    assert "normalized/daily_price/batch_20260925_001/data.parquet" in str(published_file)
+    assert any("data.parquet" in fp for fp in manifest.published_filepaths)
+    assert any("quality_report.json" in fp for fp in manifest.published_filepaths)
+    assert any("quality_report.md" in fp for fp in manifest.published_filepaths)
 
     # Verify DuckDB catalog registered published batch by composite key (dataset, batch_id)
     cat_manifest = publisher.catalog.get_batch_manifest("daily_price", batch_id)
@@ -950,3 +950,42 @@ def test_missing_corrupted_or_multiple_intent_fails_closed(tmp_path: Path) -> No
             models=models,
             source_raw_hashes=[VALID_RAW_HASH_1],
         )
+
+
+def test_duckdb_catalog_creates_quality_reports_table_for_existing_wp4_db(
+    tmp_path: Path,
+) -> None:
+    """Verify DuckDBCatalog creates quality_reports table for WP4 DB where manifest table exists."""
+    db_file = tmp_path / "wp4_catalog.duckdb"
+    conn = duckdb.connect(str(db_file))
+    conn.execute(
+        """
+        CREATE TABLE batch_manifests (
+            dataset VARCHAR NOT NULL,
+            batch_id VARCHAR NOT NULL,
+            source_raw_hashes VARCHAR NOT NULL,
+            schema_version VARCHAR NOT NULL,
+            record_count BIGINT NOT NULL,
+            partition_date_range VARCHAR,
+            created_at VARCHAR NOT NULL,
+            status VARCHAR NOT NULL,
+            published_filepaths VARCHAR NOT NULL,
+            parquet_file_hashes VARCHAR NOT NULL,
+            manifest_hash VARCHAR NOT NULL,
+            PRIMARY KEY (dataset, batch_id)
+        );
+        """
+    )
+    conn.close()
+
+    catalog = DuckDBCatalog(db_file)
+    res = catalog.conn.execute(
+        "SELECT count(*) FROM information_schema.tables WHERE table_name = 'quality_reports'"
+    ).fetchone()
+    assert res is not None and res[0] == 1
+
+
+def test_publisher_forbids_disabling_validator(tmp_path: Path) -> None:
+    """Verify AtomicBatchPublisher rejects validator=False."""
+    with pytest.raises(ValueError, match="Quality Gate cannot be disabled"):
+        AtomicBatchPublisher(root_dir=tmp_path, validator=False)

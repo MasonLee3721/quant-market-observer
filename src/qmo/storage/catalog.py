@@ -67,6 +67,8 @@ class DuckDBCatalog:
                 except Exception as e:
                     self.conn.execute("ROLLBACK")
                     raise RuntimeError(f"Catalog schema migration failed: {e}") from e
+
+            self._create_tables()
         else:
             self._create_tables()
 
@@ -182,8 +184,12 @@ class DuckDBCatalog:
             migrated_count += 1
         return migrated_count
 
-    def register_published_batch(self, manifest: BatchManifest) -> None:
-        """Register a published batch manifest in DuckDB catalog using transaction safety.
+    def register_published_batch(
+        self, manifest: BatchManifest, quality_report: Optional[Any] = None
+    ) -> None:
+        """Atomically register published BatchManifest and optional QualityReport.
+
+        Executed within a single database transaction.
 
         Raises ValueError if batch status is not PUBLISHED.
         Raises BatchConflictError if batch already exists with conflicting content.
@@ -217,15 +223,14 @@ class DuckDBCatalog:
 
         if existing:
             existing_hash = existing[0][0]
-            if existing_hash == manifest.manifest_hash:
-                # Idempotent re-submission: identical content, do nothing
-                return
-            else:
+            if existing_hash != manifest.manifest_hash:
                 err_msg = (
                     f"Batch '{manifest.batch_id}' in dataset '{manifest.dataset}' "
                     f"already exists with conflicting manifest_hash ({existing_hash})"
                 )
                 raise BatchConflictError(err_msg)
+            if quality_report is None:
+                return
 
         raw_hashes_json = json.dumps(manifest.source_raw_hashes)
         filepaths_json = json.dumps(manifest.published_filepaths)
@@ -233,28 +238,65 @@ class DuckDBCatalog:
 
         try:
             self.conn.execute("BEGIN TRANSACTION")
-            self.conn.execute(
-                """
-                INSERT INTO batch_manifests (
-                    dataset, batch_id, source_raw_hashes, schema_version,
-                    record_count, partition_date_range, created_at, status,
-                    published_filepaths, parquet_file_hashes, manifest_hash
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
-                """,
-                (
-                    manifest.dataset,
-                    manifest.batch_id,
-                    raw_hashes_json,
-                    manifest.schema_version,
-                    manifest.record_count,
-                    manifest.partition_date_range,
-                    manifest.created_at,
-                    manifest.status.value,
-                    filepaths_json,
-                    parquet_hashes_json,
-                    manifest.manifest_hash,
-                ),
-            )
+            if not existing:
+                self.conn.execute(
+                    """
+                    INSERT INTO batch_manifests (
+                        dataset, batch_id, source_raw_hashes, schema_version,
+                        record_count, partition_date_range, created_at, status,
+                        published_filepaths, parquet_file_hashes, manifest_hash
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+                    """,
+                    (
+                        manifest.dataset,
+                        manifest.batch_id,
+                        raw_hashes_json,
+                        manifest.schema_version,
+                        manifest.record_count,
+                        manifest.partition_date_range,
+                        manifest.created_at,
+                        manifest.status.value,
+                        filepaths_json,
+                        parquet_hashes_json,
+                        manifest.manifest_hash,
+                    ),
+                )
+
+            if quality_report is not None:
+                report_json = (
+                    quality_report.to_json()
+                    if hasattr(quality_report, "to_json")
+                    else json.dumps(quality_report)
+                )
+                b_id = getattr(quality_report, "batch_id", manifest.batch_id)
+                ds = getattr(quality_report, "dataset", manifest.dataset)
+                overall_passed = getattr(quality_report, "overall_passed", True)
+                created_at = getattr(quality_report, "created_at", manifest.created_at)
+                summary = getattr(quality_report, "summary", {})
+                report_hash = getattr(quality_report, "report_hash", "")
+                total_records = summary.get("total_records", manifest.record_count)
+                passed_checks = summary.get("passed_checks", 0)
+                total_checks = summary.get("total_checks", 0)
+
+                self.conn.execute(
+                    """
+                    INSERT OR REPLACE INTO quality_reports (
+                        dataset, batch_id, overall_passed, created_at,
+                        total_records, passed_checks, total_checks, report_hash, report_json
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+                    """,
+                    (
+                        ds,
+                        b_id,
+                        overall_passed,
+                        created_at,
+                        total_records,
+                        passed_checks,
+                        total_checks,
+                        report_hash,
+                        report_json,
+                    ),
+                )
             self.conn.execute("COMMIT")
         except Exception as e:
             self.conn.execute("ROLLBACK")
