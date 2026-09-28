@@ -1136,3 +1136,44 @@ def test_catalog_rejects_cross_batch_report_and_forged_hash(tmp_path: Path) -> N
     )
     with pytest.raises(ValueError, match="does not match BatchManifest"):
         publisher.catalog.register_published_batch(manifest, quality_report=mismatched_qr)
+
+
+def test_publisher_fails_closed_on_deleted_or_tampered_published_report_files(
+    tmp_path: Path,
+) -> None:
+    """Verify publisher fails closed if published quality_report artifact is deleted or tampered."""
+    publisher = AtomicBatchPublisher(root_dir=tmp_path)
+    models = [
+        DailyPrice(
+            trade_date="2026-09-25",
+            stock_id="2330",
+            market="TWSE",
+            open_price=100.0,
+            close_price=105.0,
+            trading_volume=1000,
+            trading_value=105000,
+        )
+    ]
+    manifest = publisher.publish_batch(
+        batch_id="b_tamper_test",
+        dataset="daily_price",
+        models=models,
+        source_raw_hashes=[VALID_RAW_HASH_1],
+    )
+    assert manifest.status == BatchStatus.PUBLISHED
+
+    pub_dir = tmp_path / "normalized" / "daily_price" / "b_tamper_test"
+    qr_json = pub_dir / "quality_report.json"
+    assert qr_json.exists()
+
+    # Tamper with quality_report.json content
+    qr_json.write_text("tampered_json_content")
+
+    # Subsequent publish attempt fails closed with BatchConflictError due to hash mismatch
+    with pytest.raises(BatchConflictError):
+        publisher.publish_batch(
+            batch_id="b_tamper_test",
+            dataset="daily_price",
+            models=models,
+            source_raw_hashes=[VALID_RAW_HASH_1],
+        )

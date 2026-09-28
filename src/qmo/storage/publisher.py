@@ -97,6 +97,19 @@ class AtomicBatchPublisher:
                 return False
             if cat_manifest.partition_date_range != partition_date_range:
                 return False
+
+            # Verify integrity of all published files listed in cat_manifest
+            for fp in cat_manifest.published_filepaths:
+                p = Path(fp)
+                if not p.exists():
+                    return False
+                expected_h = cat_manifest.parquet_file_hashes.get(
+                    str(p)
+                ) or cat_manifest.parquet_file_hashes.get(p.name)
+                if expected_h:
+                    actual_h = hashlib.sha256(p.read_bytes()).hexdigest()
+                    if actual_h != expected_h:
+                        return False
             return True
 
         # FAIL CLOSED: Require exactly one valid Intent marker file if Catalog manifest is absent
@@ -141,16 +154,15 @@ class AtomicBatchPublisher:
         if quality_report is not None:
             qr_json = target_published_dir / "quality_report.json"
             qr_md = target_published_dir / "quality_report.md"
-            if not qr_json.exists():
-                try:
+            try:
+                if not qr_json.exists():
                     qr_json.write_text(quality_report.to_json())
-                except Exception:
-                    pass
-            if not qr_md.exists():
-                try:
+                if not qr_md.exists():
                     qr_md.write_text(quality_report.to_markdown())
-                except Exception:
-                    pass
+            except Exception as e:
+                raise StorageValidationError(
+                    f"Failed to persist QualityReport to published directory: {e}"
+                ) from e
 
         pub_files = (
             sorted(p for p in target_published_dir.glob("**/*.parquet") if p.is_file())
@@ -185,8 +197,10 @@ class AtomicBatchPublisher:
                     from qmo.validation.models import QualityReport
 
                     quality_report = QualityReport.model_validate_json(qr_path.read_text())
-                except Exception:
-                    pass
+                except Exception as e:
+                    raise StorageValidationError(
+                        f"Corrupted or invalid quality_report.json in published directory: {e}"
+                    ) from e
 
         self.catalog.register_published_batch(manifest, quality_report=quality_report)
         return manifest
