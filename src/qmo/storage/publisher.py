@@ -117,8 +117,8 @@ class AtomicBatchPublisher:
                         else []
                     )
                     is_raw_hashes_match = (
-                        existing_catalog_manifest is not None
-                        and cat_hashes == sorted(clean_raw_hashes)
+                        existing_catalog_manifest is None
+                        or cat_hashes == sorted(clean_raw_hashes)
                     )
                     is_range_match = (
                         existing_catalog_manifest is None
@@ -134,6 +134,8 @@ class AtomicBatchPublisher:
                         if existing_catalog_manifest:
                             return existing_catalog_manifest
                         else:
+                            for om in target_published_dir.glob(".owner_*"):
+                                om.unlink(missing_ok=True)
                             pub_paths = [str(p) for p in pub_files]
                             pq_hashes = {
                                 str(p): hashlib.sha256(p.read_bytes()).hexdigest()
@@ -191,6 +193,48 @@ class AtomicBatchPublisher:
 
             # 3. Prepare Target & Perform Atomic Directory Swap
             target_dataset_dir.mkdir(parents=True, exist_ok=True)
+            if target_published_dir.exists():
+                pub_files_check = (
+                    sorted(p for p in target_published_dir.glob("**/*.parquet") if p.is_file())
+                    if partition_by_date
+                    else ([published_file] if published_file.exists() else [])
+                )
+                if pub_files_check:
+                    actual_pub_hash = (
+                        hashlib.sha256(
+                            "".join(
+                                hashlib.sha256(pf.read_bytes()).hexdigest()
+                                for pf in pub_files_check
+                            ).encode("utf-8")
+                        ).hexdigest()
+                        if partition_by_date
+                        else hashlib.sha256(published_file.read_bytes()).hexdigest()
+                    )
+                    if actual_pub_hash == staged_hash:
+                        shutil.rmtree(batch_staging_dir, ignore_errors=True)
+                        for om in target_published_dir.glob(".owner_*"):
+                            om.unlink(missing_ok=True)
+                        pub_paths = [str(p) for p in pub_files_check]
+                        pq_hashes = {
+                            str(p): hashlib.sha256(p.read_bytes()).hexdigest()
+                            for p in pub_files_check
+                        }
+                        manifest = BatchManifest(
+                            batch_id=batch_id,
+                            dataset=dataset,
+                            source_raw_hashes=clean_raw_hashes,
+                            schema_version=schema_version,
+                            record_count=len(models),
+                            partition_date_range=partition_date_range,
+                            status=BatchStatus.PUBLISHED,
+                            published_filepaths=pub_paths,
+                            parquet_file_hashes=pq_hashes,
+                        )
+                        self.catalog.register_published_batch(manifest)
+                        return manifest
+                err_conc = f"Batch '{batch_id}' in dataset '{dataset}' published concurrently"
+                raise BatchConflictError(err_conc)
+
             batch_staging_dir.replace(target_published_dir)
 
             # Post-Swap Validation
@@ -250,7 +294,12 @@ class AtomicBatchPublisher:
             # Process-isolated Rollback: ONLY delete target_published_dir if it contains
             # THIS process instance's owner marker file!
             target_owner_file = target_published_dir / owner_marker_name
-            if target_published_dir.exists() and target_owner_file.exists():
+            cat_manifest = self.catalog.get_batch_manifest(dataset, batch_id)
+            if (
+                target_published_dir.exists()
+                and target_owner_file.exists()
+                and cat_manifest is None
+            ):
                 shutil.rmtree(target_published_dir, ignore_errors=True)
 
             if batch_staging_dir.exists():

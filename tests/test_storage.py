@@ -1,7 +1,6 @@
-"""Storage Engine, Parquet, DuckDB Catalog, and Atomic Swap Tests."""
-
-import uuid
+import json
 from pathlib import Path
+from typing import Any, Dict
 from unittest.mock import MagicMock
 
 import duckdb
@@ -550,6 +549,9 @@ def test_concurrent_rollback_safety_does_not_delete_peer_published_dir(tmp_path:
 def test_catalog_migration_detects_primary_key_mismatch(tmp_path: Path) -> None:
     """Verify DuckDBCatalog triggers migration when table has all columns but single primary key."""
     db_file = tmp_path / "single_pk_catalog.duckdb"
+    dummy_file = tmp_path / "norm" / "data.parquet"
+    dummy_file.parent.mkdir(parents=True, exist_ok=True)
+    dummy_file.write_bytes(b"dummy_parquet_data")
 
     # Create a database with parquet_file_hashes column but ONLY single primary key (batch_id)
     conn = duckdb.connect(str(db_file))
@@ -570,11 +572,12 @@ def test_catalog_migration_detects_primary_key_mismatch(tmp_path: Path) -> None:
         );
         """
     )
+    p_files_json = json.dumps([str(dummy_file)])
     conn.execute(
-        """
+        f"""
         INSERT INTO batch_manifests VALUES (
             'b_pk1', 'daily_price', '[]', 'schema-v0.1', 5, '2026-09-25',
-            '2026-09-25T00:00:00Z', 'PUBLISHED', '["norm/data.parquet"]', '{}', 'hash_pk1'
+            '2026-09-25T00:00:00Z', 'PUBLISHED', '{p_files_json}', '{{}}', 'hash_pk1'
         );
         """
     )
@@ -611,8 +614,15 @@ def test_schema_contract_detects_nullability_mismatch(tmp_path: Path) -> None:
 
 
 def test_concurrent_same_batch_id_race_rollback_isolation(tmp_path: Path) -> None:
-    """Verify rollback for exact same batch_id does not delete peer's published directory."""
-    publisher_a = AtomicBatchPublisher(root_dir=tmp_path)
+    """Verify concurrent publish race: Publisher A failure does not delete B's directory."""
+    import threading
+
+    db_file = tmp_path / "catalog" / "qmo_catalog.duckdb"
+    catalog_a = DuckDBCatalog(db_file)
+    catalog_b = DuckDBCatalog(db_file)
+    publisher_a = AtomicBatchPublisher(root_dir=tmp_path, catalog=catalog_a)
+    publisher_b = AtomicBatchPublisher(root_dir=tmp_path, catalog=catalog_b)
+
     models = [
         DailyPrice(
             trade_date="2026-09-25",
@@ -626,31 +636,54 @@ def test_concurrent_same_batch_id_race_rollback_isolation(tmp_path: Path) -> Non
         )
     ]
 
-    manifest_a = publisher_a.publish_batch(
-        batch_id="batch_same",
-        dataset="daily_price",
-        models=models,
-        source_raw_hashes=[VALID_RAW_HASH_1],
-    )
-    published_file_a = Path(manifest_a.published_filepaths[0])
-    target_pub_dir = published_file_a.parent
-    assert published_file_a.exists()
+    barrier = threading.Barrier(2)
+    results: Dict[str, Any] = {}
 
-    catalog_mock = MagicMock(spec=DuckDBCatalog)
-    catalog_mock.get_batch_manifest.return_value = None
-    catalog_mock.register_published_batch.side_effect = RuntimeError("B DB fail")
-    publisher_b = AtomicBatchPublisher(root_dir=tmp_path, catalog=catalog_mock)
+    original_register = catalog_a.register_published_batch
 
-    run_b_uuid = uuid.uuid4().hex
-    staged_b = publisher_b.staging_dir / "daily_price" / f"batch_same_{run_b_uuid}"
-    staged_b.mkdir(parents=True, exist_ok=True)
+    def thread_a_worker() -> None:
+        def failing_register(manifest: Any) -> None:
+            # Wait for thread B to complete publish & catalog registration
+            barrier.wait(timeout=5)
+            raise RuntimeError("Publisher A catalog registration simulated failure post-swap")
 
-    # Process B owner marker is not present in Process A's published directory
-    owner_marker_b = target_pub_dir / f".owner_{run_b_uuid}"
-    assert not owner_marker_b.exists()
+        catalog_a.register_published_batch = failing_register
+        try:
+            publisher_a.publish_batch(
+                batch_id="batch_same_race",
+                dataset="daily_price",
+                models=models,
+                source_raw_hashes=[VALID_RAW_HASH_1],
+            )
+        except StorageValidationError as e:
+            results["thread_a_error"] = str(e)
+        finally:
+            catalog_a.register_published_batch = original_register
 
-    # Process A's published directory remains safe
-    assert target_pub_dir.exists()
-    assert published_file_a.exists()
+    def thread_b_worker() -> None:
+        try:
+            manifest_b = publisher_b.publish_batch(
+                batch_id="batch_same_race",
+                dataset="daily_price",
+                models=models,
+                source_raw_hashes=[VALID_RAW_HASH_1],
+            )
+            results["thread_b_manifest"] = manifest_b
+            barrier.wait(timeout=5)
+        except Exception as e:
+            results["thread_b_error"] = str(e)
+
+    t_a = threading.Thread(target=thread_a_worker)
+    t_b = threading.Thread(target=thread_b_worker)
+
+    t_a.start()
+    t_b.start()
+    t_a.join(timeout=10)
+    t_b.join(timeout=10)
+
+    target_pub_dir = tmp_path / "normalized" / "daily_price" / "batch_same_race"
+    assert "thread_a_error" in results, f"Publisher A should fail on catalog error: {results}"
+    assert target_pub_dir.exists(), "Published directory must remain intact"
+    assert (target_pub_dir / "data.parquet").exists()
 
 

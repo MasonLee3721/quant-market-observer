@@ -91,7 +91,10 @@ class DuckDBCatalog:
         )
 
     def _migrate_legacy_rows(self) -> int:
-        """Migrate rows from legacy_batch_manifests using real file hashes when available."""
+        """Migrate rows from legacy_batch_manifests using real file hashes.
+
+        Raises FileNotFoundError if any published file listed in a legacy manifest is missing.
+        """
         legacy_rows = self.conn.execute("SELECT * FROM legacy_batch_manifests").fetchall()
         migrated_count = 0
         for row in legacy_rows:
@@ -102,22 +105,24 @@ class DuckDBCatalog:
             r_cnt = row[4] if len(row) > 4 else 0
             p_range = row[5] if len(row) > 5 else None
             c_at = row[6] if len(row) > 6 else ""
-            st = row[7] if len(row) > 7 else "PUBLISHED"
+            st = row[7] if len(row) > 7 else "STAGED"
             p_files_raw = row[8] if len(row) > 8 else "[]"
             m_hash = row[9] if len(row) > 9 else ""
 
             parsed_files = json.loads(p_files_raw) if p_files_raw else []
-            if not parsed_files:
-                parsed_files = [f"normalized/{ds}/{b_id}/data.parquet"]
             pq_hashes_dict = {}
-            for fp in parsed_files:
-                p = Path(fp)
-                if p.exists() and p.is_file():
+
+            if parsed_files:
+                for fp in parsed_files:
+                    p = Path(fp)
+                    if not p.exists() or not p.is_file():
+                        raise FileNotFoundError(
+                            f"Migration failed: legacy published file missing at {fp}"
+                        )
                     pq_hashes_dict[fp] = hashlib.sha256(p.read_bytes()).hexdigest()
-                else:
-                    pq_hashes_dict[fp] = hashlib.sha256(
-                        b"LEGACY_UNVERIFIED_FILE_MISSING"
-                    ).hexdigest()
+            else:
+                if st == "PUBLISHED":
+                    st = "STAGED"
 
             p_files = json.dumps(parsed_files)
             pq_hashes = json.dumps(pq_hashes_dict)

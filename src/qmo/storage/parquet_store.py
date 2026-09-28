@@ -10,6 +10,16 @@ import pyarrow.parquet as pq  # type: ignore[import-untyped]
 from pydantic import BaseModel
 
 
+def is_annotation_nullable(annotation: Any) -> bool:
+    """Return True iff annotation explicitly permits None / Optional."""
+    if annotation is type(None):
+        return True
+    origin = typing.get_origin(annotation)
+    if origin is typing.Union:
+        return type(None) in typing.get_args(annotation)
+    return False
+
+
 class ParquetStore:
     """Serializes Pydantic models to Parquet tables with SHA-256 integrity and schema validation."""
 
@@ -30,22 +40,10 @@ class ParquetStore:
         fields = []
         for field_name, field_info in model_cls.model_fields.items():
             annotation = field_info.annotation
-
-            is_optional = False
-            if annotation is not None:
-                origin = typing.get_origin(annotation)
-                if origin is typing.Union:
-                    args = typing.get_args(annotation)
-                    if type(None) in args:
-                        is_optional = True
-                elif annotation is type(None):
-                    is_optional = True
-
-            if field_info.default is None or not field_info.is_required():
-                is_optional = True
+            is_nullable = is_annotation_nullable(annotation)
 
             target_type = annotation
-            if is_optional and typing.get_origin(annotation) is typing.Union:
+            if is_nullable and typing.get_origin(annotation) is typing.Union:
                 non_null_args = [a for a in typing.get_args(annotation) if a is not type(None)]
                 if non_null_args:
                     target_type = non_null_args[0]
@@ -63,7 +61,7 @@ class ParquetStore:
             else:
                 pa_type = pa.string()
 
-            fields.append(pa.field(field_name, pa_type, nullable=is_optional))
+            fields.append(pa.field(field_name, pa_type, nullable=is_nullable))
 
         return pa.schema(fields)
 
@@ -140,79 +138,90 @@ class ParquetStore:
     @staticmethod
     def verify_schema_contract(parquet_path: Path, model_cls: type[BaseModel]) -> None:
         """Verify exact field set, data types, and nullability contracts against Pydantic model."""
-        schema = ParquetStore.inspect_schema(parquet_path)
-        actual_names = set(schema.names)
-        expected_names = set(model_cls.model_fields.keys())
+        if not parquet_path.exists():
+            raise FileNotFoundError(f"Parquet path missing at {parquet_path}")
 
-        if actual_names != expected_names:
-            missing = expected_names - actual_names
-            extra = actual_names - expected_names
-            msg = []
-            if missing:
-                msg.append(f"missing fields {sorted(missing)}")
-            if extra:
-                msg.append(f"extra fields {sorted(extra)}")
-            raise ValueError(f"Schema field set mismatch for {parquet_path}: {', '.join(msg)}")
+        files_to_check: List[Path] = []
+        if parquet_path.is_dir():
+            files_to_check = sorted(p for p in parquet_path.glob("**/*.parquet") if p.is_file())
+            if not files_to_check:
+                raise ValueError(f"No Parquet files found in directory {parquet_path}")
 
-        # Verify data types and nullability for each field
-        for field_name, field_info in model_cls.model_fields.items():
-            pa_field = schema.field(field_name)
-            annotation = field_info.annotation
-            pa_type = pa_field.type
+            dataset_schema = pq.ParquetDataset(parquet_path).schema
+            actual_names = set(dataset_schema.names)
+            expected_names = set(model_cls.model_fields.keys())
 
-            if pa.types.is_dictionary(pa_type):
-                pa_type = pa_type.value_type
+            if actual_names != expected_names:
+                missing = expected_names - actual_names
+                extra = actual_names - expected_names
+                msg = []
+                if missing:
+                    msg.append(f"missing fields {sorted(missing)}")
+                if extra:
+                    msg.append(f"extra fields {sorted(extra)}")
+                raise ValueError(f"Schema field set mismatch for {parquet_path}: {', '.join(msg)}")
+        else:
+            files_to_check = [parquet_path]
 
-            is_optional = False
-            if annotation is not None:
-                origin = typing.get_origin(annotation)
-                if origin is typing.Union:
-                    args = typing.get_args(annotation)
-                    if type(None) in args:
-                        is_optional = True
-                elif annotation is type(None):
-                    is_optional = True
+        # Verify schema nullability and type contracts for every physical Parquet file
+        for p_file in files_to_check:
+            schema = pq.read_schema(p_file)
+            for field_name, field_info in model_cls.model_fields.items():
+                annotation = field_info.annotation
+                is_nullable = is_annotation_nullable(annotation)
 
-            if field_info.default is None or not field_info.is_required():
-                is_optional = True
+                if field_name not in schema.names:
+                    # Partition column extracted to directory path by PyArrow write_to_dataset
+                    continue
 
-            # Verify PyArrow schema field nullability contract for non-partitioned single files
-            if not parquet_path.is_dir() and pa_field.nullable != is_optional:
-                err_null = (
-                    f"Field '{field_name}' nullability contract mismatch: "
-                    f"expected nullable={is_optional}, got nullable={pa_field.nullable}"
-                )
-                raise ValueError(err_null)
+                pa_field = schema.field(field_name)
+                pa_type = pa_field.type
 
-            if pa.types.is_null(pa_type):
-                if not is_optional:
+                if pa.types.is_dictionary(pa_type):
+                    pa_type = pa_type.value_type
+
+                # Verify PyArrow schema field nullability contract
+                if pa_field.nullable != is_nullable:
                     err_null = (
-                        f"Field '{field_name}' is non-optional required field, "
-                        "but PyArrow type is null"
+                        f"Field '{field_name}' nullability contract mismatch in {p_file.name}: "
+                        f"expected nullable={is_nullable}, got nullable={pa_field.nullable}"
                     )
                     raise ValueError(err_null)
-                continue
 
-            if _is_type_match(annotation, float):
-                if not (pa.types.is_floating(pa_type) or pa.types.is_decimal(pa_type)):
-                    raise ValueError(
-                        f"Field '{field_name}' type mismatch: expected float/decimal, got {pa_type}"
-                    )
-            elif _is_type_match(annotation, int):
-                if not pa.types.is_integer(pa_type):
-                    raise ValueError(
-                        f"Field '{field_name}' type mismatch: expected integer, got {pa_type}"
-                    )
-            elif _is_type_match(annotation, str):
-                if not (pa.types.is_string(pa_type) or pa.types.is_large_string(pa_type)):
-                    raise ValueError(
-                        f"Field '{field_name}' type mismatch: expected string, got {pa_type}"
-                    )
-            elif _is_type_match(annotation, bool):
-                if not pa.types.is_boolean(pa_type):
-                    raise ValueError(
-                        f"Field '{field_name}' type mismatch: expected boolean, got {pa_type}"
-                    )
+                if pa.types.is_null(pa_type):
+                    if not is_nullable:
+                        err_null = (
+                            f"Field '{field_name}' is non-optional required field, "
+                            f"but PyArrow type is null in {p_file.name}"
+                        )
+                        raise ValueError(err_null)
+                    continue
+
+                if _is_type_match(annotation, float):
+                    if not (pa.types.is_floating(pa_type) or pa.types.is_decimal(pa_type)):
+                        raise ValueError(
+                            f"Field '{field_name}' type mismatch in {p_file.name}: "
+                            f"expected float/decimal, got {pa_type}"
+                        )
+                elif _is_type_match(annotation, int):
+                    if not pa.types.is_integer(pa_type):
+                        raise ValueError(
+                            f"Field '{field_name}' type mismatch in {p_file.name}: "
+                            f"expected integer, got {pa_type}"
+                        )
+                elif _is_type_match(annotation, str):
+                    if not (pa.types.is_string(pa_type) or pa.types.is_large_string(pa_type)):
+                        raise ValueError(
+                            f"Field '{field_name}' type mismatch in {p_file.name}: "
+                            f"expected string, got {pa_type}"
+                        )
+                elif _is_type_match(annotation, bool):
+                    if not pa.types.is_boolean(pa_type):
+                        raise ValueError(
+                            f"Field '{field_name}' type mismatch in {p_file.name}: "
+                            f"expected boolean, got {pa_type}"
+                        )
+
 
 
 def _is_type_match(annotation: Any, target_type: type) -> bool:
