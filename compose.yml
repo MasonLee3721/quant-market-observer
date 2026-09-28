@@ -1,0 +1,23 @@
+services:
+  qmo:
+    build:
+      context: .
+    image: quant-market-observer:${QMO_IMAGE_TAG:-latest}
+    restart: "no"
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      QMO_DATA_ROOT: /var/lib/qmo/data
+      TZ: Asia/Taipei
+    volumes:
+      - qmo-data:/var/lib/qmo/data
+    command: ["status", "--root-dir", "/var/lib/qmo/data"]
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  qmo-data:
