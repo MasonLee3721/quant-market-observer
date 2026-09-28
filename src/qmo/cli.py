@@ -206,9 +206,14 @@ def update(
     from qmo.providers.finmind import FinMindProvider
     from qmo.storage.publisher import AtomicBatchPublisher
     from qmo.storage.raw_store import RawSnapshotStore
+    from qmo.trading_calendar import resolve_latest_trading_date
     from qmo.validation.validator import BatchValidator
 
-    t_date = "2026-09-28" if date == "latest" else date
+    if date == "latest":
+        t_date = resolve_latest_trading_date().isoformat()
+    else:
+        t_date = date
+
     batch_id = f"b_{t_date.replace('-', '')}"
     publisher = AtomicBatchPublisher(root_dir=root_dir, validator=BatchValidator())
     raw_store = RawSnapshotStore(base_dir=root_dir / "raw")
@@ -265,6 +270,14 @@ def update(
                         models.extend(margin_normalizer.normalize(env))
                     except Exception:
                         pass
+
+            if not models:
+                click.echo(
+                    f"[FAIL-CLOSED] Provider returned empty models for dataset '{ds}' "
+                    f"on date '{t_date}'. Stopping publish.",
+                    err=True,
+                )
+                ctx.exit(1)
         else:
             if ds == "daily_price":
                 for sid, sinfo in stock_master.items():
