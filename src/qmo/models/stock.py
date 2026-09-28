@@ -17,6 +17,31 @@ class StockMaster(BaseModel):
     is_active: bool = True
 
 
+def parse_stock_info_payload(payload_json: str) -> Dict[str, StockMaster]:
+    """Parse raw TaiwanStockInfo JSON payload into StockMaster registry dictionary."""
+    import json
+
+    registry: Dict[str, StockMaster] = {}
+    try:
+        data_obj = json.loads(payload_json)
+        rows = data_obj.get("data", []) if isinstance(data_obj, dict) else []
+        for r in rows:
+            sid = str(r.get("stock_id", ""))
+            if not sid:
+                continue
+            mkt = "TPEx" if "櫃" in str(r.get("type", "")) else "TWSE"
+            registry[sid] = StockMaster(
+                symbol=sid,
+                name=str(r.get("stock_name", sid)),
+                market=mkt,
+                industry=r.get("industry_category"),
+                is_active=True,
+            )
+    except Exception:
+        pass
+    return registry
+
+
 def load_universe_stock_master(csv_path: Optional[Path] = None) -> Dict[str, StockMaster]:
     """Load stock master universe mapping from CSV file."""
     if csv_path is None:

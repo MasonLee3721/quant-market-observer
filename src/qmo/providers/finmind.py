@@ -18,6 +18,24 @@ class FinMindProvider:
     def provider_name(self) -> str:
         return "finmind"
 
+    def fetch_stock_info(self) -> RawResponseEnvelope:
+        """Fetch full Taiwan listed and OTC stock metadata master universe."""
+        params = {"dataset": "TaiwanStockInfo"}
+        if self.api_token:
+            params["token"] = self.api_token
+
+        res = self.transport.execute(self.base_url, params=params)
+        masked_params = mask_sensitive_params(params)
+
+        return RawResponseEnvelope(
+            provider_name=self.provider_name,
+            endpoint=self.base_url,
+            params=masked_params,
+            status_code=res.status_code,
+            headers=res.headers,
+            raw_body_bytes=res.raw_bytes,
+        )
+
     def fetch_daily_price(self, symbol: str, start_date: str, end_date: str) -> RawResponseEnvelope:
         params = {
             "dataset": "TaiwanStockPrice",

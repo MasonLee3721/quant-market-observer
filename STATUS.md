@@ -1,22 +1,22 @@
 # Project Status
 
-最後更新：2026-09-27<br>
-目前階段：**M1 — 資料管線 MVP（準備開始）**
+最後更新：2026-09-28<br>
+目前階段：**50 檔代表性個股池之量化市場觀察 MVP／研究驗證版（向全市場生產環境升級中）**
 
 ## 一句話狀態
 
-M0 已完成：50 檔、23 個代表主題、最近兩年的價量／法人／融資資料端到端驗證通過；下一步是把實驗腳本重構成可每日穩定執行的正式資料管線。
+M1 (資料管線 MVP)、M2 (量化指標引擎 MVP)、M3 (策略訊號與 HTML 儀表板) 核心功能與 103 項單元測試 100% 驗證通過；目前為 50 檔代表性個股之 MVP 研究驗證版，正在升級全台股上市櫃 1,000+ 檔真實盤後 API 自動化採集與部署管線。
 
 ## 里程碑
 
 | 里程碑 | 狀態 | 主要成果 |
 |---|---|---|
 | M0 研究規格與資料可行性 | ✅ 完成 | 資料契約、指標字典、50 檔 spike、官方抽樣對帳 |
-| M1 資料管線 MVP | 🔜 下一步 | Provider、Normalizer、Validator、Storage、CLI |
-| M2 訊號與排名 MVP | ⏳ 未開始 | 市場狀態、族群輪動、個股排名 |
-| M3 回測與研究驗證 | ⏳ 未開始 | 成本、樣本外、Walk-forward、風險報告 |
-| M4 HTML 報告 | ⏳ 未開始 | 響應式單一 HTML |
-| M5 自動化與營運 | ⏳ 未開始 | 排程、監控、歷史快照、runbook |
+| M1 資料管線 MVP | ✅ 完成 | Provider、Normalizer、Validator、Storage (Parquet/DuckDB)、Atomic Publisher |
+| M2 量化指標與狀態分類引擎 | ✅ 完成 | 5 大狀態分類 (Leader/Emerging/Leveraged/Watch/Excluded)、Percentile 評分 |
+| M3 策略訊號與 HTML 儀表板 | ✅ 完成 | 領頭羊/新興選股策略、風控持倉、`daily_summary.md` 與 `dashboard.html` 儀表板 |
+| M4 全台股上市櫃全量真實 API 採集 | 🔜 進行中 | `TaiwanStockInfo` 動態 Universe、真實 API Rate Limit 重試與不斷點回補 |
+| M5 正式營運部署與自動排程 | 🔜 規劃中 | Docker/Cron 排程、秘密管理、系統健康監控告警 |
 
 ## 已驗證事實
 
