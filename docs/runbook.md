@@ -59,6 +59,13 @@ qmo update --date 2026-09-25 --root-dir data/
 qmo update --dataset daily_price --date 2026-09-25 --force --root-dir data/
 ```
 
+### 1.5 Execute Factor Calculation Engine
+To compute quantitative factors, market breadth, theme rotation, and stock rankings:
+```bash
+# Execute factor calculation pipeline
+qmo calculate --date 2026-09-28 --root-dir data/
+```
+
 ---
 
 ## 2. Standard Operating Procedures (SOP)
