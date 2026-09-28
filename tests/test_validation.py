@@ -866,3 +866,35 @@ def test_validator_supports_space_separated_date_range() -> None:
         expected_date_range="2026-09-01 to 2026-09-30",
     )
     assert report.overall_passed
+
+
+def test_reconciler_fails_closed_on_empty_or_dash_integer_values() -> None:
+    """Verify OfficialReconciler fails closed on '--' or empty string integer values."""
+    models = [
+        DailyPrice(
+            trade_date="2026-09-25",
+            stock_id="2330",
+            market="TWSE",
+            open_price=100.0,
+            close_price=105.0,
+            trading_volume=1000,
+            trading_value=105000,
+        )
+    ]
+    raw_dash = json.dumps(
+        {
+            "data": [["2330", "105.0", "--"]],
+            "fields": ["證券代號", "收盤價", "成交股數"],
+            "date": "20260925",
+        }
+    ).encode("utf-8")
+    dash_env = RawResponseEnvelope(
+        provider_name="twse",
+        endpoint="https://test.twse.com",
+        params={"date": "20260925"},
+        status_code=200,
+        raw_body_bytes=raw_dash,
+    )
+    res = OfficialReconciler.reconcile_daily_prices(models, twse_envelope=dash_env)
+    assert not res.passed
+    assert "parsing failed" in res.message

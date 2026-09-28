@@ -31,9 +31,11 @@ def _normalize_official_date(raw_date: Any) -> Optional[str]:
 
 
 def _strict_int(val_str: Any) -> int:
-    s = str(val_str).strip().replace(",", "") if val_str is not None else ""
+    if val_str is None:
+        raise ValueError("Official payload value is None, expected valid integer string")
+    s = str(val_str).strip().replace(",", "")
     if not s or s == "--":
-        return 0
+        raise ValueError(f"Official payload integer field is empty or invalid: '{val_str}'")
     return int(s)
 
 
