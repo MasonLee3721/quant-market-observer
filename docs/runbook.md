@@ -66,6 +66,26 @@ To compute quantitative factors, market breadth, theme rotation, and stock ranki
 qmo calculate --date 2026-09-28 --root-dir data/
 ```
 
+### 1.6 Execute Strategy Signal Generator
+To generate strategy selection signals and portfolio weight allocation:
+```bash
+qmo signal --date 2026-09-28 --root-dir data/
+```
+
+### 1.7 Generate Reports & Online Live HTML Preview
+To generate daily Markdown summary and HTML visual dashboard:
+```bash
+# Output Markdown summary
+qmo report --format markdown --date 2026-09-28 --root-dir data/ > docs/daily_summary.md
+
+# Output HTML dashboard
+qmo report --format html --date 2026-09-28 --root-dir data/ > docs/dashboard.html
+```
+
+#### Online Live HTML Preview (Solution 1)
+To view rendered HTML dashboard directly online without GitHub code text display restrictions:
+- **Live Preview Link**: [https://htmlpreview.github.io/?https://github.com/MasonLee3721/quant-market-observer/blob/main/docs/dashboard.html](https://htmlpreview.github.io/?https://github.com/MasonLee3721/quant-market-observer/blob/main/docs/dashboard.html)
+
 ---
 
 ## 2. Standard Operating Procedures (SOP)
