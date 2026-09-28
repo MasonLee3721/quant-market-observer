@@ -182,6 +182,26 @@ def validate(
     type=click.Path(path_type=Path, exists=True, dir_okay=False),
     help="Optional CSV containing Taiwan market closure dates.",
 )
+@click.option("--limit", type=click.IntRange(min=1), help="Limit universe size for smoke runs.")
+@click.option(
+    "--request-interval",
+    type=click.FloatRange(min=0.0),
+    default=0.25,
+    show_default=True,
+    help="Minimum seconds between provider requests.",
+)
+@click.option(
+    "--max-retries",
+    type=click.IntRange(min=0, max=10),
+    default=3,
+    show_default=True,
+    help="Retries for network, HTTP 429, and HTTP 5xx errors.",
+)
+@click.option(
+    "--resume/--no-resume",
+    default=True,
+    help="Reuse hash-verified raw snapshots for matching requests.",
+)
 @click.option("--force", is_flag=True, help="Force publish even if already existing.")
 @click.option("--dry-run", is_flag=True, help="Simulate pipeline without persisting changes.")
 @click.pass_context
@@ -193,6 +213,10 @@ def update(
     api_token: str,
     real_api: bool,
     holiday_calendar: Optional[Path],
+    limit: Optional[int],
+    request_interval: float,
+    max_retries: int,
+    resume: bool,
     force: bool,
     dry_run: bool,
 ) -> None:
@@ -212,6 +236,7 @@ def update(
     from qmo.normalizers.margin import MarginNormalizer
     from qmo.normalizers.price import PriceNormalizer
     from qmo.providers.finmind import FinMindProvider
+    from qmo.providers.transport import HttpTransport
     from qmo.storage.publisher import AtomicBatchPublisher
     from qmo.storage.raw_store import RawSnapshotStore
     from qmo.trading_calendar import load_market_holidays, resolve_latest_trading_date
@@ -224,12 +249,19 @@ def update(
     batch_id = f"b_{t_date.replace('-', '')}"
     publisher = AtomicBatchPublisher(root_dir=root_dir, validator=BatchValidator())
     raw_store = RawSnapshotStore(base_dir=root_dir / "raw")
+    transport = HttpTransport(max_retries=max_retries, min_request_interval=request_interval)
+    provider = FinMindProvider(transport=transport, api_token=api_token)
 
     if real_api:
         click.echo("Fetching full Taiwan listed and OTC stock master universe from FinMind API...")
-        provider = FinMindProvider(api_token=api_token)
         try:
-            info_envelope = provider.fetch_stock_info()
+            info_envelope = (
+                raw_store.load_matching("stock_info", {"dataset": "TaiwanStockInfo"})
+                if resume
+                else None
+            )
+            if info_envelope is None:
+                info_envelope = provider.fetch_stock_info()
             if info_envelope.status_code != 200:
                 raise ValueError(f"TaiwanStockInfo returned HTTP {info_envelope.status_code}")
             raw_store.save(info_envelope, "stock_info")
@@ -240,20 +272,32 @@ def update(
     else:
         stock_master = load_universe_stock_master()
 
+    if limit is not None:
+        stock_master = dict(list(stock_master.items())[:limit])
+        click.echo(f"Smoke-run universe limited to {len(stock_master)} ticker(s).")
+
     for ds in target_datasets:
         click.echo(f"Processing dataset '{ds}' for batch '{batch_id}'...")
         models: List[Any] = []
         raw_hashes: List[str] = []
 
         if real_api:
-            provider = FinMindProvider(api_token=api_token)
             failures: List[str] = []
             if ds == "daily_price":
                 normalizer = PriceNormalizer(stock_master=stock_master)
                 for sid in stock_master:
                     try:
-                        env = provider.fetch_daily_price(sid, t_date, t_date)
-                        h_val, _ = raw_store.save(env, ds)
+                        required_params = {
+                            "data_id": sid,
+                            "start_date": t_date,
+                            "end_date": t_date,
+                        }
+                        env = raw_store.load_matching(ds, required_params) if resume else None
+                        if env is None:
+                            env = provider.fetch_daily_price(sid, t_date, t_date)
+                            h_val, _ = raw_store.save(env, ds)
+                        else:
+                            h_val = env.content_hash
                         raw_hashes.append(h_val)
                         models.extend(normalizer.normalize(env))
                     except Exception as exc:
@@ -262,8 +306,17 @@ def update(
                 inst_normalizer = InstitutionalNormalizer(stock_master=stock_master)
                 for sid in stock_master:
                     try:
-                        env = provider.fetch_institutional_flow(sid, t_date, t_date)
-                        h_val, _ = raw_store.save(env, ds)
+                        required_params = {
+                            "data_id": sid,
+                            "start_date": t_date,
+                            "end_date": t_date,
+                        }
+                        env = raw_store.load_matching(ds, required_params) if resume else None
+                        if env is None:
+                            env = provider.fetch_institutional_flow(sid, t_date, t_date)
+                            h_val, _ = raw_store.save(env, ds)
+                        else:
+                            h_val = env.content_hash
                         raw_hashes.append(h_val)
                         models.extend(inst_normalizer.normalize(env))
                     except Exception as exc:
@@ -272,8 +325,17 @@ def update(
                 margin_normalizer = MarginNormalizer(stock_master=stock_master)
                 for sid in stock_master:
                     try:
-                        env = provider.fetch_margin(sid, t_date, t_date)
-                        h_val, _ = raw_store.save(env, ds)
+                        required_params = {
+                            "data_id": sid,
+                            "start_date": t_date,
+                            "end_date": t_date,
+                        }
+                        env = raw_store.load_matching(ds, required_params) if resume else None
+                        if env is None:
+                            env = provider.fetch_margin(sid, t_date, t_date)
+                            h_val, _ = raw_store.save(env, ds)
+                        else:
+                            h_val = env.content_hash
                         raw_hashes.append(h_val)
                         models.extend(margin_normalizer.normalize(env))
                     except Exception as exc:
