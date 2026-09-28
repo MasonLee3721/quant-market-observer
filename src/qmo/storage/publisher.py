@@ -6,7 +6,7 @@ import logging
 import shutil
 import uuid
 from pathlib import Path
-from typing import Callable, List, Optional, Sequence
+from typing import Any, Callable, List, Optional, Sequence
 
 from pydantic import BaseModel
 
@@ -29,6 +29,7 @@ class AtomicBatchPublisher:
         self,
         root_dir: Path,
         catalog: Optional[DuckDBCatalog] = None,
+        validator: Optional[Any] = None,
     ) -> None:
         self.root_dir = Path(root_dir)
         self.staging_dir = self.root_dir / "staging"
@@ -36,6 +37,7 @@ class AtomicBatchPublisher:
         self.catalog = catalog or DuckDBCatalog(
             self.root_dir / "catalog" / "qmo_catalog.duckdb"
         )
+        self.validator = validator
 
     def _verify_existing_published_provenance(
         self,
@@ -145,6 +147,16 @@ class AtomicBatchPublisher:
                     f"expected '{schema_version}'"
                 )
                 raise StorageValidationError(err_ver)
+
+        # Execute Quality Gate validation if a validator is configured
+        if self.validator is not None:
+            self.validator.validate_batch(
+                batch_id=batch_id,
+                dataset=dataset,
+                models=models,
+                schema_version=schema_version,
+                raise_on_failure=True,
+            )
 
         target_dataset_dir = self.normalized_dir / dataset
         target_published_dir = target_dataset_dir / batch_id
