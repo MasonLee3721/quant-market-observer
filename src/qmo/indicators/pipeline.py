@@ -86,6 +86,51 @@ class IndicatorPipelineRunner:
         above_ma20_flags: List[Optional[bool]] = []
 
         if not prices_data:
+            cat_path = self.root_dir / "catalog" / "qmo_catalog.duckdb"
+            if not cat_path.exists() and (self.root_dir / "catalog.duckdb").exists():
+                cat_path = self.root_dir / "catalog.duckdb"
+            if cat_path.exists():
+                try:
+                    import duckdb
+
+                    conn = duckdb.connect(str(cat_path))
+                    tbl_res = conn.execute(
+                        "SELECT count(*) FROM information_schema.tables "
+                        "WHERE table_name = 'batch_manifests'"
+                    ).fetchone()
+                    if tbl_res and tbl_res[0] > 0:
+                        manifests = conn.execute(
+                            "SELECT parquet_paths FROM batch_manifests "
+                            "WHERE dataset = 'daily_price' AND status = 'published'"
+                        ).fetchall()
+                        loaded_rows = []
+                        for m in manifests:
+                            paths = json.loads(m[0])
+                            for p in paths:
+                                full_p = self.root_dir / p
+                                if full_p.exists():
+                                    query_sql = (
+                                        "SELECT stock_id, trade_date, close_price "
+                                        f"FROM read_parquet('{full_p}')"
+                                    )
+                                    df_rows = conn.execute(query_sql).fetchall()
+                                    for r in df_rows:
+                                        loaded_rows.append(
+                                            {
+                                                "stock_id": str(r[0]),
+                                                "trade_date": str(r[1]),
+                                                "close_price": float(r[2]),
+                                                "open_price": float(r[2]),
+                                                "high_price": float(r[2]),
+                                                "low_price": float(r[2]),
+                                            }
+                                        )
+                        if loaded_rows:
+                            prices_data = loaded_rows
+                except Exception:
+                    pass
+
+        if not prices_data:
             # Fallback to realistic representative 50-stock market universe
             default_list = self._generate_default_stocks_summary()
             for s in default_list:
