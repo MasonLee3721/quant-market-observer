@@ -731,3 +731,91 @@ def test_verify_schema_contract_detects_missing_non_partition_field(tmp_path: Pa
         )
 
 
+def test_concurrent_same_batch_id_conflicting_provenance_race(tmp_path: Path) -> None:
+    """Verify concurrent publish with different raw hashes fails with BatchConflictError."""
+    import threading
+
+    db_file = tmp_path / "catalog" / "qmo_catalog.duckdb"
+    catalog_a = DuckDBCatalog(db_file)
+    catalog_b = DuckDBCatalog(db_file)
+    publisher_a = AtomicBatchPublisher(root_dir=tmp_path, catalog=catalog_a)
+    publisher_b = AtomicBatchPublisher(root_dir=tmp_path, catalog=catalog_b)
+
+    models = [
+        DailyPrice(
+            trade_date="2026-09-25",
+            stock_id="2330",
+            market="TWSE",
+            open_price=100.0,
+            close_price=105.0,
+            trading_volume=1000,
+            trading_value=105000,
+            source="FinMind:TaiwanStockPrice",
+        )
+    ]
+
+    pre_swap_barrier = threading.Barrier(2)
+    results: Dict[str, Any] = {}
+
+    def thread_a_worker() -> None:
+        def hook_a() -> None:
+            pre_swap_barrier.wait(timeout=5)
+
+        try:
+            manifest_a = publisher_a.publish_batch(
+                batch_id="batch_prov_race",
+                dataset="daily_price",
+                models=models,
+                source_raw_hashes=[VALID_RAW_HASH_1],
+                _pre_swap_hook=hook_a,
+            )
+            results["thread_a_manifest"] = manifest_a
+        except Exception as e:
+            results["thread_a_error"] = str(e)
+
+    def thread_b_worker() -> None:
+        def hook_b() -> None:
+            pre_swap_barrier.wait(timeout=5)
+
+        try:
+            manifest_b = publisher_b.publish_batch(
+                batch_id="batch_prov_race",
+                dataset="daily_price",
+                models=models,
+                source_raw_hashes=[VALID_RAW_HASH_2],
+                _pre_swap_hook=hook_b,
+            )
+            results["thread_b_manifest"] = manifest_b
+        except Exception as e:
+            results["thread_b_error"] = str(e)
+
+    t_a = threading.Thread(target=thread_a_worker)
+    t_b = threading.Thread(target=thread_b_worker)
+
+    t_a.start()
+    t_b.start()
+    t_a.join(timeout=10)
+    t_b.join(timeout=10)
+
+    assert not t_a.is_alive()
+    assert not t_b.is_alive()
+
+    # One publisher must succeed, and the conflicting provenance publisher must fail
+    has_a_success = "thread_a_manifest" in results
+    has_b_success = "thread_b_manifest" in results
+    assert has_a_success != has_b_success, f"Exactly one publisher must succeed: {results}"
+
+    if has_a_success:
+        assert "thread_b_error" in results
+        winning_hashes = [VALID_RAW_HASH_1]
+    else:
+        assert "thread_a_error" in results
+        winning_hashes = [VALID_RAW_HASH_2]
+
+    # Verify Catalog provenance matches the winning publisher's raw hashes exactly
+    cat_manifest = catalog_a.get_batch_manifest("daily_price", "batch_prov_race")
+    assert cat_manifest is not None
+    assert cat_manifest.status == BatchStatus.PUBLISHED
+    assert sorted(cat_manifest.source_raw_hashes) == sorted(winning_hashes)
+
+

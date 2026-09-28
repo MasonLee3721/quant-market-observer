@@ -1,6 +1,7 @@
 """Atomic Batch Publisher implementation with full provenance validation."""
 
 import hashlib
+import json
 import logging
 import shutil
 import uuid
@@ -188,9 +189,22 @@ class AtomicBatchPublisher:
                     f"Staging schema contract verification failed: {e}"
                 ) from e
 
-            # Write process ownership marker into staging before rename
+            # Write process ownership & intent markers into staging before rename
             owner_marker_file = batch_staging_dir / owner_marker_name
             owner_marker_file.write_text(run_uuid)
+
+            intent_marker_name = f".intent_{run_uuid}.json"
+            intent_marker_file = batch_staging_dir / intent_marker_name
+            intent_payload = {
+                "dataset": dataset,
+                "batch_id": batch_id,
+                "source_raw_hashes": sorted(clean_raw_hashes),
+                "schema_version": schema_version,
+                "record_count": len(models),
+                "partition_date_range": partition_date_range,
+                "staged_hash": staged_hash,
+            }
+            intent_marker_file.write_text(json.dumps(intent_payload))
 
             # Controlled hook execution right before atomic swap
             if _pre_swap_hook is not None:
@@ -215,8 +229,51 @@ class AtomicBatchPublisher:
                         if partition_by_date
                         else hashlib.sha256(published_file.read_bytes()).hexdigest()
                     )
-                    if actual_pub_hash == staged_hash:
-                        shutil.rmtree(batch_staging_dir, ignore_errors=True)
+                    read_pub_rows = sum(
+                        ParquetStore.read_record_count(pf) for pf in pub_files_check
+                    )
+
+                    # Inspect existing catalog or intent file in target_published_dir for provenance
+                    cat_man = self.catalog.get_batch_manifest(dataset, batch_id)
+                    intent_files = sorted(target_published_dir.glob(".intent_*.json"))
+                    intent_prov = None
+                    if intent_files:
+                        try:
+                            intent_prov = json.loads(intent_files[0].read_text())
+                        except Exception:
+                            pass
+
+                    is_hash_match = actual_pub_hash == staged_hash
+                    is_rows_match = read_pub_rows == len(models)
+
+                    if cat_man is not None:
+                        is_raw_match = (
+                            sorted(cat_man.source_raw_hashes) == sorted(clean_raw_hashes)
+                        )
+                        is_ver_match = cat_man.schema_version == schema_version
+                        is_range_match = cat_man.partition_date_range == partition_date_range
+                    elif intent_prov is not None:
+                        is_raw_match = (
+                            intent_prov.get("source_raw_hashes") == sorted(clean_raw_hashes)
+                        )
+                        is_ver_match = intent_prov.get("schema_version") == schema_version
+                        is_range_match = (
+                            intent_prov.get("partition_date_range") == partition_date_range
+                        )
+                    else:
+                        is_raw_match = True
+                        is_ver_match = True
+                        is_range_match = True
+
+                    if (
+                        is_hash_match
+                        and is_rows_match
+                        and is_raw_match
+                        and is_ver_match
+                        and is_range_match
+                    ):
+                        if batch_staging_dir.exists():
+                            shutil.rmtree(batch_staging_dir, ignore_errors=True)
                         pub_paths = [str(p) for p in pub_files_check]
                         pq_hashes = {
                             str(p): hashlib.sha256(p.read_bytes()).hexdigest()
@@ -235,7 +292,13 @@ class AtomicBatchPublisher:
                         )
                         self.catalog.register_published_batch(manifest)
                         return manifest
-                err_conc = f"Batch '{batch_id}' in dataset '{dataset}' published concurrently"
+
+                if batch_staging_dir.exists():
+                    shutil.rmtree(batch_staging_dir, ignore_errors=True)
+                err_conc = (
+                    f"Batch '{batch_id}' in dataset '{dataset}' "
+                    "published concurrently with conflicting provenance or content"
+                )
                 raise BatchConflictError(err_conc)
 
             batch_staging_dir.replace(target_published_dir)
@@ -284,10 +347,13 @@ class AtomicBatchPublisher:
             # 5. Register in DuckDB Catalog AFTER successful atomic swap
             self.catalog.register_published_batch(manifest)
 
-            # Cleanup ownership marker on successful publish
+            # Cleanup ownership & intent markers on successful publish
             target_owner_file = target_published_dir / owner_marker_name
             if target_owner_file.exists():
                 target_owner_file.unlink(missing_ok=True)
+            target_intent_file = target_published_dir / intent_marker_name
+            if target_intent_file.exists():
+                target_intent_file.unlink(missing_ok=True)
 
             msg = f"[OK] Published batch '{batch_id}' ({dataset}, {len(models)} rows)"
             logger.info(f"{msg} to {target_published_dir}")
@@ -295,15 +361,16 @@ class AtomicBatchPublisher:
 
         except Exception as e:
             # Process-isolated Rollback: ONLY delete target_published_dir if it contains
-            # THIS process instance's owner marker file!
+            # THIS process instance's owner marker file AND catalog has no published manifest!
             target_owner_file = target_published_dir / owner_marker_name
+            target_intent_file = target_published_dir / intent_marker_name
             cat_manifest = self.catalog.get_batch_manifest(dataset, batch_id)
-            if (
-                target_published_dir.exists()
-                and target_owner_file.exists()
-                and cat_manifest is None
-            ):
-                shutil.rmtree(target_published_dir, ignore_errors=True)
+            if target_published_dir.exists() and target_owner_file.exists():
+                if cat_manifest is None:
+                    shutil.rmtree(target_published_dir, ignore_errors=True)
+                else:
+                    target_owner_file.unlink(missing_ok=True)
+                    target_intent_file.unlink(missing_ok=True)
 
             if batch_staging_dir.exists():
                 shutil.rmtree(batch_staging_dir, ignore_errors=True)
