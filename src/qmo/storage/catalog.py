@@ -84,6 +84,25 @@ class DuckDBCatalog:
                     "ALTER TABLE quality_reports ADD COLUMN report_hash VARCHAR DEFAULT ''"
                 )
 
+            # Backfill report_hash for legacy quality_reports rows missing report_hash
+            query = (
+                "SELECT dataset, batch_id, report_json FROM quality_reports "
+                "WHERE report_hash IS NULL OR report_hash = ''"
+            )
+            legacy_qrs = self.conn.execute(query).fetchall()
+            for ds, b_id, r_json in legacy_qrs:
+                try:
+                    from qmo.validation.models import QualityReport
+
+                    qr = QualityReport.model_validate_json(r_json)
+                    calc_hash = qr.compute_report_hash()
+                except Exception:
+                    calc_hash = hashlib.sha256(r_json.encode("utf-8")).hexdigest()
+                self.conn.execute(
+                    "UPDATE quality_reports SET report_hash = ? WHERE dataset = ? AND batch_id = ?",
+                    (calc_hash, ds, b_id),
+                )
+
     def _create_tables(self) -> None:
         """Create standard catalog tables."""
         self.conn.execute(
@@ -275,6 +294,18 @@ class DuckDBCatalog:
                 )
 
             if quality_report is not None:
+                qr_ds = getattr(quality_report, "dataset", None)
+                qr_bid = getattr(quality_report, "batch_id", None)
+                if qr_ds and qr_ds != manifest.dataset:
+                    raise ValueError(
+                        f"QualityReport dataset '{qr_ds}' does not match "
+                        f"BatchManifest dataset '{manifest.dataset}'"
+                    )
+                if qr_bid and qr_bid != manifest.batch_id:
+                    raise ValueError(
+                        f"QualityReport batch_id '{qr_bid}' does not match "
+                        f"BatchManifest batch_id '{manifest.batch_id}'"
+                    )
                 self._register_quality_report_impl(
                     quality_report,
                     fallback_batch_id=manifest.batch_id,
@@ -300,21 +331,52 @@ class DuckDBCatalog:
         overall_passed = getattr(report, "overall_passed", True)
         created_at = getattr(report, "created_at", "") or fallback_created_at
         summary = getattr(report, "summary", {})
-        report_hash = getattr(report, "report_hash", "")
-        if not report_hash and hasattr(report, "compute_report_hash"):
-            report_hash = report.compute_report_hash()
+
+        # Compute canonical hash
+        if hasattr(report, "compute_report_hash"):
+            computed_hash = report.compute_report_hash()
+        else:
+            computed_hash = hashlib.sha256(report_json.encode("utf-8")).hexdigest()
+
+        declared_hash = getattr(report, "report_hash", "")
+        if declared_hash and declared_hash != computed_hash:
+            err_mismatch = (
+                f"QualityReport hash mismatch: declared '{declared_hash}', "
+                f"computed '{computed_hash}'"
+            )
+            raise ValueError(err_mismatch)
+        report_hash = computed_hash
+
         total_records = summary.get("total_records", 0)
         passed_checks = summary.get("passed_checks", 0)
         total_checks = summary.get("total_checks", 0)
 
-        existing_qr = self.conn.execute(
-            "SELECT report_hash FROM quality_reports WHERE dataset = ? AND batch_id = ?",
-            (ds, b_id),
-        ).fetchall()
+        qr_sql = (
+            "SELECT report_hash, report_json FROM quality_reports "
+            "WHERE dataset = ? AND batch_id = ?"
+        )
+        existing_qr = self.conn.execute(qr_sql, (ds, b_id)).fetchall()
 
         if existing_qr:
             existing_report_hash = existing_qr[0][0]
-            if existing_report_hash and report_hash and existing_report_hash != report_hash:
+            existing_report_json = existing_qr[0][1]
+
+            if not existing_report_hash:
+                try:
+                    from qmo.validation.models import QualityReport
+
+                    old_qr = QualityReport.model_validate_json(existing_report_json)
+                    existing_report_hash = old_qr.compute_report_hash()
+                except Exception:
+                    existing_report_hash = hashlib.sha256(
+                        existing_report_json.encode("utf-8")
+                    ).hexdigest()
+                self.conn.execute(
+                    "UPDATE quality_reports SET report_hash = ? WHERE dataset = ? AND batch_id = ?",
+                    (existing_report_hash, ds, b_id),
+                )
+
+            if existing_report_hash != report_hash:
                 raise BatchConflictError(
                     f"QualityReport for batch '{b_id}' in dataset '{ds}' "
                     f"already exists with conflicting report_hash "

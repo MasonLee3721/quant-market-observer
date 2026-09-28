@@ -1001,7 +1001,7 @@ def test_publisher_forbids_disabling_validator(tmp_path: Path) -> None:
 
 
 def test_catalog_quality_report_immutable_conflict_detection(tmp_path: Path) -> None:
-    """Verify DuckDBCatalog rejects re-registering QualityReport with conflicting report_hash."""
+    """Verify DuckDBCatalog computes SHA-256 and rejects re-registering report with conflict."""
     from qmo.validation.models import QualityReport
 
     catalog = DuckDBCatalog(tmp_path / "qmo_catalog.duckdb")
@@ -1012,15 +1012,14 @@ def test_catalog_quality_report_immutable_conflict_detection(tmp_path: Path) -> 
         overall_passed=True,
         total_records=1,
         summary={"total_records": 1, "passed_checks": 1, "total_checks": 1},
-        report_hash="hash_alpha_1111",
     )
 
     catalog.register_quality_report(report1)
 
-    # Identical report_hash is idempotent
+    # Identical report content is idempotent
     catalog.register_quality_report(report1)
 
-    # Conflicting report_hash raises BatchConflictError
+    # Conflicting report content produces different compute_report_hash and raises error
     report2 = QualityReport(
         batch_id="b_qr_conflict",
         dataset="daily_price",
@@ -1028,7 +1027,6 @@ def test_catalog_quality_report_immutable_conflict_detection(tmp_path: Path) -> 
         overall_passed=False,
         total_records=1,
         summary={"total_records": 1, "passed_checks": 0, "total_checks": 1},
-        report_hash="hash_beta_2222",
     )
 
     with pytest.raises(BatchConflictError, match="conflicting report_hash"):
@@ -1038,7 +1036,9 @@ def test_catalog_quality_report_immutable_conflict_detection(tmp_path: Path) -> 
 def test_duckdb_catalog_migrates_legacy_quality_reports_table_missing_report_hash_column(
     tmp_path: Path,
 ) -> None:
-    """Verify DuckDBCatalog adds report_hash column to existing quality_reports table missing it."""
+    """Verify DuckDBCatalog backfills canonical hash for legacy quality_reports rows."""
+    from qmo.validation.models import QualityReport
+
     db_file = tmp_path / "legacy_qr_catalog.duckdb"
     conn = duckdb.connect(str(db_file))
     conn.execute(
@@ -1056,9 +1056,83 @@ def test_duckdb_catalog_migrates_legacy_quality_reports_table_missing_report_has
         );
         """
     )
+    legacy_qr = QualityReport(
+        batch_id="legacy_batch",
+        dataset="daily_price",
+        created_at="2026-09-20T00:00:00Z",
+        overall_passed=True,
+    )
+    expected_hash = legacy_qr.compute_report_hash()
+    insert_sql = (
+        "INSERT INTO quality_reports (dataset, batch_id, overall_passed, created_at, "
+        "total_records, passed_checks, total_checks, report_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?);"
+    )
+    conn.execute(
+        insert_sql,
+        (
+            "daily_price",
+            "legacy_batch",
+            True,
+            "2026-09-20T00:00:00Z",
+            0,
+            0,
+            0,
+            legacy_qr.to_json(),
+        ),
+    )
     conn.close()
 
     catalog = DuckDBCatalog(db_file)
     info = catalog.conn.execute("PRAGMA table_info('quality_reports')").fetchall()
     cols = [r[1] for r in info]
     assert "report_hash" in cols
+
+    row = catalog.conn.execute(
+        "SELECT report_hash FROM quality_reports WHERE dataset = ? AND batch_id = ?",
+        ("daily_price", "legacy_batch"),
+    ).fetchone()
+    assert row is not None
+    assert row[0] == expected_hash
+
+
+def test_catalog_rejects_cross_batch_report_and_forged_hash(tmp_path: Path) -> None:
+    """Verify Catalog rejects QualityReport with forged report_hash or dataset/batch_id mismatch."""
+    from qmo.validation.models import QualityReport
+
+    publisher = AtomicBatchPublisher(root_dir=tmp_path)
+
+    # 1. Forged report_hash in QualityReport model raises ValueError
+    with pytest.raises(ValueError, match="Invalid or forged report_hash"):
+        QualityReport(
+            batch_id="b_forged",
+            dataset="daily_price",
+            created_at="2026-09-25T00:00:00Z",
+            overall_passed=True,
+            report_hash="forged_sha256_hash",
+        )
+
+    import hashlib
+
+    dummy_file = tmp_path / "dummy.parquet"
+    dummy_file.write_bytes(b"dummy content")
+    dummy_hash = hashlib.sha256(b"dummy content").hexdigest()
+
+    manifest = BatchManifest(
+        batch_id="b_correct",
+        dataset="daily_price",
+        source_raw_hashes=[VALID_RAW_HASH_1],
+        schema_version="schema-v0.1",
+        record_count=1,
+        partition_date_range=None,
+        status=BatchStatus.PUBLISHED,
+        published_filepaths=[str(dummy_file)],
+        parquet_file_hashes={str(dummy_file): dummy_hash},
+    )
+    mismatched_qr = QualityReport(
+        batch_id="b_WRONG",
+        dataset="daily_price",
+        created_at="2026-09-25T00:00:00Z",
+        overall_passed=True,
+    )
+    with pytest.raises(ValueError, match="does not match BatchManifest"):
+        publisher.catalog.register_published_batch(manifest, quality_report=mismatched_qr)

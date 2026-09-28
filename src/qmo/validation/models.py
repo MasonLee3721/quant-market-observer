@@ -52,8 +52,15 @@ class QualityReport(BaseModel):
         return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
 
     def model_post_init(self, __context: Any) -> None:
+        computed = self.compute_report_hash()
         if not self.report_hash:
-            self.report_hash = self.compute_report_hash()
+            self.report_hash = computed
+        elif self.report_hash != computed:
+            err_msg = (
+                f"Invalid or forged report_hash: declared '{self.report_hash}', "
+                f"expected '{computed}'"
+            )
+            raise ValueError(err_msg)
 
     def to_json(self, indent: int = 2) -> str:
         """Serialize QualityReport to JSON format."""
