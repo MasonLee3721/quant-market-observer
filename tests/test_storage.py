@@ -1024,3 +1024,32 @@ def test_catalog_quality_report_immutable_conflict_detection(tmp_path: Path) -> 
 
     with pytest.raises(BatchConflictError, match="conflicting report_hash"):
         catalog.register_quality_report(report2)
+
+
+def test_duckdb_catalog_migrates_legacy_quality_reports_table_missing_report_hash_column(
+    tmp_path: Path,
+) -> None:
+    """Verify DuckDBCatalog adds report_hash column to existing quality_reports table missing it."""
+    db_file = tmp_path / "legacy_qr_catalog.duckdb"
+    conn = duckdb.connect(str(db_file))
+    conn.execute(
+        """
+        CREATE TABLE quality_reports (
+            dataset VARCHAR NOT NULL,
+            batch_id VARCHAR NOT NULL,
+            overall_passed BOOLEAN NOT NULL,
+            created_at VARCHAR NOT NULL,
+            total_records BIGINT NOT NULL,
+            passed_checks INTEGER NOT NULL,
+            total_checks INTEGER NOT NULL,
+            report_json VARCHAR NOT NULL,
+            PRIMARY KEY (dataset, batch_id)
+        );
+        """
+    )
+    conn.close()
+
+    catalog = DuckDBCatalog(db_file)
+    info = catalog.conn.execute("PRAGMA table_info('quality_reports')").fetchall()
+    cols = [r[1] for r in info]
+    assert "report_hash" in cols
