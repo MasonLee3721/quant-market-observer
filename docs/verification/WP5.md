@@ -4,7 +4,7 @@
 **Package Version**: `0.1.0`  
 **Target Work Package**: `WP5` (Data Quality Gate & Atomic Publisher Integrity)  
 **Verification Date**: `2026-09-28`  
-**Latest Git Commit Hash**: `23b6cc4` (and upcoming CI sync commit)  
+**Target Git Commit Hash**: `86ad031` (CI workflow alignment & M0 skip update)  
 **Author**: 蘇荃 (SuQuan)  
 **Reviewer**: 阿珂 (Kiro3)  
 **Arbitrator**: MasonLee (老公)  
@@ -13,7 +13,7 @@
 
 ## Executive Summary
 
-This report documents the verification evidence for Work Package 5 (WP5). All 6 core review requirements and edge-case blockers raised during code reviews have been fully addressed, verified via unit tests, type-checked with `mypy`, formatted with `ruff`, and validated across 80 automated unit tests (100% passing).
+This report documents the reproducible verification evidence for Work Package 5 (WP5). All 6 core review requirements, 2 edge-case blockers, and GitHub Actions CI workflow alignment items have been fully resolved and verified.
 
 ---
 
@@ -21,15 +21,23 @@ This report documents the verification evidence for Work Package 5 (WP5). All 6 
 
 | Tool | Version | Verification Command | Result |
 | :--- | :--- | :--- | :--- |
-| **Python** | `3.12.14` | `python --version` | `Python 3.12.14` |
+| **Python** | `3.12.14` | `python --version` | `Python 3.12.14` (Locked in `.github/workflows/ci.yml`) |
 | **uv** | `0.6.14` | `uv --version` | `uv 0.6.14` |
-| **pytest** | `9.1.1` | `uv run pytest -v` | **80 / 80 passed** (4.25s) |
+| **pytest** | `9.1.1` | `uv run pytest -v` | **80 / 80 passed** (4.33s) |
 | **mypy** | `1.15.0` | `uv run mypy src/qmo` | **Success: no issues found** |
 | **ruff** | `0.9.10` | `uv run ruff check src tests` | **All checks passed!** |
 
 ---
 
-## 2. Requirements & Verification Traceability Matrix
+## 2. GitHub Actions CI Alignment & Fixes
+
+1. **Explicit Python 3.12 Lock**: `.github/workflows/ci.yml` explicitly specifies `python-version: "3.12"` to ensure deterministic execution on GitHub Runners.
+2. **Tool Version Logging**: CI workflow logs exact versions of `python`, `pytest`, `mypy`, and `ruff` before running tests.
+3. **M0 Large Raw Spike Data Handling**: `test_real_m0_artifact_raw_and_csv_parity` dynamically checks if `data/spike/raw/TaiwanStockPrice` exists. If missing (such as in fresh GitHub Actions CI containers), it calls `pytest.skip(...)`, preventing false negative CI failures while preserving local parity testing when artifacts exist.
+
+---
+
+## 3. Requirements & Verification Traceability Matrix
 
 | Requirement / Review Issue | Source File(s) | Key Implementation Detail | Test Case Name | Status |
 | :--- | :--- | :--- | :--- | :--- |
@@ -41,15 +49,6 @@ This report documents the verification evidence for Work Package 5 (WP5). All 6 
 | **6. Corrupt Legacy Report Migration Protection** | `src/qmo/storage/catalog.py` | Legacy `quality_reports` rows with invalid JSON fail closed via `StorageValidationError` without backfilling hash. | `test_corrupted_legacy_report_json_fails_migration_without_backfill` | **PASS** |
 | **7. Tampered Published Artifact Protection** | `src/qmo/storage/publisher.py` | `_verify_existing_published_provenance()` validates physical existence and SHA-256 digests of all registered files. | `test_publisher_fails_closed_on_deleted_or_tampered_published_report_files` | **PASS** |
 | **8. Removal of Silent Exception Swallowing** | `src/qmo/storage/publisher.py` | All `except Exception: pass` removed; report I/O and deserialization errors raise `StorageValidationError`. | `test_publisher_quality_report_write_failure_causes_rollback` | **PASS** |
-
----
-
-## 3. GitHub Actions CI Configuration
-
-A dedicated GitHub Actions Workflow is configured at `.github/workflows/ci.yml`:
-- Triggered automatically on every `push` and `pull_request` to `main`.
-- Environment setup using `astral-sh/setup-uv@v5` and `setup-python@v5`.
-- Executes linting (`ruff`), type checking (`mypy`), and complete unit test suite (`pytest`).
 
 ---
 
@@ -73,7 +72,7 @@ tests/test_storage.py::test_corrupted_legacy_report_json_fails_migration_without
 ...
 tests/test_validation.py::test_reconciler_fails_closed_on_empty_or_dash_integer_values PASSED [100%]
 
-============================== 80 passed in 4.25s ==============================
+============================== 80 passed in 4.33s ==============================
 ```
 
 ### 4.2 Mypy Type Check Summary
@@ -90,5 +89,5 @@ All checks passed!
 
 ## 5. Sign-off Status
 
-- **Status**: **WP5 VERIFIED & READY FOR FINAL SIGN-OFF**
+- **Status**: **WP5 VERIFIED & READY FOR THREE-WAY SIGN-OFF**
 - **Target Repository Branch**: `origin/main`

@@ -40,6 +40,12 @@ def test_real_m0_artifact_raw_and_csv_parity() -> None:
     """Verify real M0 raw JSON payload artifact normalization and CSV parity."""
     import sys
 
+    import pytest
+
+    raw_dir = Path(__file__).parents[1] / "data" / "spike" / "raw" / "TaiwanStockPrice"
+    if not raw_dir.exists() or not any(raw_dir.glob("*.json")):
+        pytest.skip("Real M0 raw spike payload directory not present in environment")
+
     root_dir = Path(__file__).parents[1]
     if str(root_dir) not in sys.path:
         sys.path.insert(0, str(root_dir))
