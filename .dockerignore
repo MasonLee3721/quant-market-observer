@@ -1,0 +1,12 @@
+.git
+.github
+.venv
+data
+output
+tests
+docs
+__pycache__
+*.pyc
+*.duckdb
+*.parquet
+.env*
