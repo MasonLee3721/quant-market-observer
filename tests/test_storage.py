@@ -668,6 +668,9 @@ def test_concurrent_same_batch_id_race_rollback_isolation(tmp_path: Path) -> Non
     def thread_b_worker() -> None:
         def hook_b() -> None:
             pre_swap_barrier.wait(timeout=5)
+            import time
+
+            time.sleep(0.05)
 
         try:
             manifest_b = publisher_b.publish_batch(
@@ -772,6 +775,7 @@ def test_concurrent_same_batch_id_conflicting_provenance_race(tmp_path: Path) ->
             results["thread_a_manifest"] = manifest_a
         except Exception as e:
             results["thread_a_error"] = str(e)
+            results["thread_a_exc"] = e
 
     def thread_b_worker() -> None:
         def hook_b() -> None:
@@ -788,6 +792,7 @@ def test_concurrent_same_batch_id_conflicting_provenance_race(tmp_path: Path) ->
             results["thread_b_manifest"] = manifest_b
         except Exception as e:
             results["thread_b_error"] = str(e)
+            results["thread_b_exc"] = e
 
     t_a = threading.Thread(target=thread_a_worker)
     t_b = threading.Thread(target=thread_b_worker)
@@ -807,9 +812,11 @@ def test_concurrent_same_batch_id_conflicting_provenance_race(tmp_path: Path) ->
 
     if has_a_success:
         assert "thread_b_error" in results
+        assert isinstance(results["thread_b_exc"], BatchConflictError)
         winning_hashes = [VALID_RAW_HASH_1]
     else:
         assert "thread_a_error" in results
+        assert isinstance(results["thread_a_exc"], BatchConflictError)
         winning_hashes = [VALID_RAW_HASH_2]
 
     # Verify Catalog provenance matches the winning publisher's raw hashes exactly
@@ -817,5 +824,126 @@ def test_concurrent_same_batch_id_conflicting_provenance_race(tmp_path: Path) ->
     assert cat_manifest is not None
     assert cat_manifest.status == BatchStatus.PUBLISHED
     assert sorted(cat_manifest.source_raw_hashes) == sorted(winning_hashes)
+
+
+def test_orphaned_directory_crash_recovery_and_provenance_conflict(tmp_path: Path) -> None:
+    """Verify crash recovery adopts orphaned directory with matching intent,
+    but rejects conflicting provenance.
+    """
+    publisher = AtomicBatchPublisher(root_dir=tmp_path)
+    models = [
+        DailyPrice(
+            trade_date="2026-09-25",
+            stock_id="2330",
+            market="TWSE",
+            open_price=100.0,
+            close_price=105.0,
+            trading_volume=1000,
+            trading_value=105000,
+            source="FinMind:TaiwanStockPrice",
+        )
+    ]
+
+    target_dir = tmp_path / "normalized" / "daily_price" / "batch_crash_recovery"
+    target_dir.mkdir(parents=True, exist_ok=True)
+    parquet_path = target_dir / "data.parquet"
+    staged_hash = ParquetStore.write_models(models, parquet_path)
+
+    # Simulate Process A leaving intent file before crashing (no catalog record)
+    intent_file = target_dir / ".intent_crash1.json"
+    intent_payload = {
+        "dataset": "daily_price",
+        "batch_id": "batch_crash_recovery",
+        "source_raw_hashes": [VALID_RAW_HASH_1],
+        "schema_version": "schema-v0.1",
+        "record_count": 1,
+        "partition_date_range": None,
+        "staged_hash": staged_hash,
+    }
+    intent_file.write_text(json.dumps(intent_payload))
+
+    # Process B with DIFFERENT raw hash must fail closed with BatchConflictError
+    with pytest.raises(BatchConflictError, match="conflicting provenance or content"):
+        publisher.publish_batch(
+            batch_id="batch_crash_recovery",
+            dataset="daily_price",
+            models=models,
+            source_raw_hashes=[VALID_RAW_HASH_2],
+        )
+
+    # Process B with IDENTICAL raw hash adopts orphaned directory and registers catalog
+    manifest = publisher.publish_batch(
+        batch_id="batch_crash_recovery",
+        dataset="daily_price",
+        models=models,
+        source_raw_hashes=[VALID_RAW_HASH_1],
+    )
+    assert manifest.status == BatchStatus.PUBLISHED
+    assert manifest.batch_id == "batch_crash_recovery"
+    cat_manifest = publisher.catalog.get_batch_manifest("daily_price", "batch_crash_recovery")
+    assert cat_manifest is not None
+    assert cat_manifest.source_raw_hashes == [VALID_RAW_HASH_1]
+
+
+def test_missing_corrupted_or_multiple_intent_fails_closed(tmp_path: Path) -> None:
+    """Verify published directory without Catalog manifest fails closed if Intent is
+    missing, corrupted, or non-unique.
+    """
+    publisher = AtomicBatchPublisher(root_dir=tmp_path)
+    models = [
+        DailyPrice(
+            trade_date="2026-09-25",
+            stock_id="2330",
+            market="TWSE",
+            open_price=100.0,
+            close_price=105.0,
+            trading_volume=1000,
+            trading_value=105000,
+            source="FinMind:TaiwanStockPrice",
+        )
+    ]
+
+    # 1. Directory exists with data, NO intent marker file -> BatchConflictError
+    target_dir1 = tmp_path / "normalized" / "daily_price" / "batch_no_intent"
+    target_dir1.mkdir(parents=True, exist_ok=True)
+    ParquetStore.write_models(models, target_dir1 / "data.parquet")
+
+    with pytest.raises(BatchConflictError):
+        publisher.publish_batch(
+            batch_id="batch_no_intent",
+            dataset="daily_price",
+            models=models,
+            source_raw_hashes=[VALID_RAW_HASH_1],
+        )
+
+    # 2. Directory exists with corrupted intent marker -> BatchConflictError
+    target_dir2 = tmp_path / "normalized" / "daily_price" / "batch_corrupt_intent"
+    target_dir2.mkdir(parents=True, exist_ok=True)
+    ParquetStore.write_models(models, target_dir2 / "data.parquet")
+    (target_dir2 / ".intent_corrupt.json").write_text("{invalid json content")
+
+    with pytest.raises(BatchConflictError):
+        publisher.publish_batch(
+            batch_id="batch_corrupt_intent",
+            dataset="daily_price",
+            models=models,
+            source_raw_hashes=[VALID_RAW_HASH_1],
+        )
+
+    # 3. Directory exists with MULTIPLE intent markers -> BatchConflictError
+    target_dir3 = tmp_path / "normalized" / "daily_price" / "batch_multi_intent"
+    target_dir3.mkdir(parents=True, exist_ok=True)
+    ParquetStore.write_models(models, target_dir3 / "data.parquet")
+    (target_dir3 / ".intent_1.json").write_text("{}")
+    (target_dir3 / ".intent_2.json").write_text("{}")
+
+    with pytest.raises(BatchConflictError):
+        publisher.publish_batch(
+            batch_id="batch_multi_intent",
+            dataset="daily_price",
+            models=models,
+            source_raw_hashes=[VALID_RAW_HASH_1],
+        )
+
 
 

@@ -33,7 +33,89 @@ class AtomicBatchPublisher:
         self.root_dir = Path(root_dir)
         self.staging_dir = self.root_dir / "staging"
         self.normalized_dir = self.root_dir / "normalized"
-        self.catalog = catalog or DuckDBCatalog(self.root_dir / "catalog" / "qmo_catalog.duckdb")
+        self.catalog = catalog or DuckDBCatalog(
+            self.root_dir / "catalog" / "qmo_catalog.duckdb"
+        )
+
+    def _verify_existing_published_provenance(
+        self,
+        dataset: str,
+        batch_id: str,
+        models: Sequence[BaseModel],
+        clean_raw_hashes: List[str],
+        schema_version: str,
+        partition_date_range: Optional[str],
+        target_published_dir: Path,
+        published_file: Path,
+        partition_by_date: bool,
+        staged_hash: str,
+    ) -> bool:
+        """Verify content hash, row count, and provenance against Catalog or Intent file.
+
+        Fails closed (returns False) if neither Catalog Manifest nor a single valid
+        Intent Marker exists, or if any metadata (raw hashes, schema version, record count,
+        date range, content hash) mismatches.
+        """
+        pub_files = (
+            sorted(p for p in target_published_dir.glob("**/*.parquet") if p.is_file())
+            if partition_by_date
+            else ([published_file] if published_file.exists() else [])
+        )
+        if not pub_files:
+            return False
+
+        actual_pub_hash = (
+            hashlib.sha256(
+                "".join(
+                    hashlib.sha256(pf.read_bytes()).hexdigest() for pf in pub_files
+                ).encode("utf-8")
+            ).hexdigest()
+            if partition_by_date
+            else hashlib.sha256(published_file.read_bytes()).hexdigest()
+        )
+        if actual_pub_hash != staged_hash:
+            return False
+
+        read_pub_rows = sum(ParquetStore.read_record_count(pf) for pf in pub_files)
+        if read_pub_rows != len(models):
+            return False
+
+        cat_manifest = self.catalog.get_batch_manifest(dataset, batch_id)
+        if cat_manifest is not None:
+            if sorted(cat_manifest.source_raw_hashes) != sorted(clean_raw_hashes):
+                return False
+            if cat_manifest.schema_version != schema_version:
+                return False
+            if cat_manifest.record_count != len(models):
+                return False
+            if cat_manifest.partition_date_range != partition_date_range:
+                return False
+            return True
+
+        # FAIL CLOSED: Require exactly one valid Intent marker file if Catalog manifest is absent
+        intent_files = sorted(target_published_dir.glob(".intent_*.json"))
+        if len(intent_files) != 1:
+            return False
+
+        try:
+            intent_data = json.loads(intent_files[0].read_text())
+            if intent_data.get("dataset") != dataset:
+                return False
+            if intent_data.get("batch_id") != batch_id:
+                return False
+            if intent_data.get("source_raw_hashes") != sorted(clean_raw_hashes):
+                return False
+            if intent_data.get("schema_version") != schema_version:
+                return False
+            if intent_data.get("record_count") != len(models):
+                return False
+            if intent_data.get("partition_date_range") != partition_date_range:
+                return False
+            if intent_data.get("staged_hash") != staged_hash:
+                return False
+            return True
+        except Exception:
+            return False
 
     def publish_batch(
         self,
@@ -89,71 +171,46 @@ class AtomicBatchPublisher:
                 if batch_staging_dir.exists():
                     shutil.rmtree(batch_staging_dir, ignore_errors=True)
 
-                pub_files = (
-                    sorted(
-                        p for p in target_published_dir.glob("**/*.parquet") if p.is_file()
-                    )
-                    if partition_by_date
-                    else ([published_file] if published_file.exists() else [])
-                )
-
-                if pub_files:
-                    actual_pub_hash = (
-                        hashlib.sha256(
-                            "".join(
-                                hashlib.sha256(pf.read_bytes()).hexdigest() for pf in pub_files
-                            ).encode("utf-8")
-                        ).hexdigest()
-                        if partition_by_date
-                        else hashlib.sha256(published_file.read_bytes()).hexdigest()
-                    )
-                    read_pub_rows = sum(
-                        ParquetStore.read_record_count(pf) for pf in pub_files
-                    )
-
-                    is_hash_match = actual_pub_hash == staged_temp_hash
-                    is_rows_match = read_pub_rows == len(models)
-                    cat_hashes = (
-                        sorted(existing_catalog_manifest.source_raw_hashes)
-                        if existing_catalog_manifest
-                        else []
-                    )
-                    is_raw_hashes_match = (
-                        existing_catalog_manifest is None
-                        or cat_hashes == sorted(clean_raw_hashes)
-                    )
-                    is_range_match = (
-                        existing_catalog_manifest is None
-                        or existing_catalog_manifest.partition_date_range == partition_date_range
-                    )
-
-                    if (
-                        is_hash_match
-                        and is_rows_match
-                        and is_raw_hashes_match
-                        and is_range_match
-                    ):
-                        if existing_catalog_manifest:
-                            return existing_catalog_manifest
-                        else:
-                            pub_paths = [str(p) for p in pub_files]
-                            pq_hashes = {
-                                str(p): hashlib.sha256(p.read_bytes()).hexdigest()
-                                for p in pub_files
-                            }
-                            manifest = BatchManifest(
-                                batch_id=batch_id,
-                                dataset=dataset,
-                                source_raw_hashes=clean_raw_hashes,
-                                schema_version=schema_version,
-                                record_count=len(models),
-                                partition_date_range=partition_date_range,
-                                status=BatchStatus.PUBLISHED,
-                                published_filepaths=pub_paths,
-                                parquet_file_hashes=pq_hashes,
+                if self._verify_existing_published_provenance(
+                    dataset=dataset,
+                    batch_id=batch_id,
+                    models=models,
+                    clean_raw_hashes=clean_raw_hashes,
+                    schema_version=schema_version,
+                    partition_date_range=partition_date_range,
+                    target_published_dir=target_published_dir,
+                    published_file=published_file,
+                    partition_by_date=partition_by_date,
+                    staged_hash=staged_temp_hash,
+                ):
+                    if existing_catalog_manifest is not None:
+                        return existing_catalog_manifest
+                    else:
+                        pub_files = (
+                            sorted(
+                                p for p in target_published_dir.glob("**/*.parquet") if p.is_file()
                             )
-                            self.catalog.register_published_batch(manifest)
-                            return manifest
+                            if partition_by_date
+                            else ([published_file] if published_file.exists() else [])
+                        )
+                        pub_paths = [str(p) for p in pub_files]
+                        pq_hashes = {
+                            str(p): hashlib.sha256(p.read_bytes()).hexdigest()
+                            for p in pub_files
+                        }
+                        manifest = BatchManifest(
+                            batch_id=batch_id,
+                            dataset=dataset,
+                            source_raw_hashes=clean_raw_hashes,
+                            schema_version=schema_version,
+                            record_count=len(models),
+                            partition_date_range=partition_date_range,
+                            status=BatchStatus.PUBLISHED,
+                            published_filepaths=pub_paths,
+                            parquet_file_hashes=pq_hashes,
+                        )
+                        self.catalog.register_published_batch(manifest)
+                        return manifest
 
             err_conflict = (
                 f"Batch '{batch_id}' in dataset '{dataset}' "
@@ -213,67 +270,87 @@ class AtomicBatchPublisher:
             # 3. Prepare Target & Perform Atomic Directory Swap
             target_dataset_dir.mkdir(parents=True, exist_ok=True)
             if target_published_dir.exists():
-                pub_files_check = (
-                    sorted(p for p in target_published_dir.glob("**/*.parquet") if p.is_file())
-                    if partition_by_date
-                    else ([published_file] if published_file.exists() else [])
-                )
-                if pub_files_check:
-                    actual_pub_hash = (
-                        hashlib.sha256(
-                            "".join(
-                                hashlib.sha256(pf.read_bytes()).hexdigest()
-                                for pf in pub_files_check
-                            ).encode("utf-8")
-                        ).hexdigest()
-                        if partition_by_date
-                        else hashlib.sha256(published_file.read_bytes()).hexdigest()
-                    )
-                    read_pub_rows = sum(
-                        ParquetStore.read_record_count(pf) for pf in pub_files_check
-                    )
-
-                    # Inspect existing catalog or intent file in target_published_dir for provenance
+                if self._verify_existing_published_provenance(
+                    dataset=dataset,
+                    batch_id=batch_id,
+                    models=models,
+                    clean_raw_hashes=clean_raw_hashes,
+                    schema_version=schema_version,
+                    partition_date_range=partition_date_range,
+                    target_published_dir=target_published_dir,
+                    published_file=published_file,
+                    partition_by_date=partition_by_date,
+                    staged_hash=staged_hash,
+                ):
+                    if batch_staging_dir.exists():
+                        shutil.rmtree(batch_staging_dir, ignore_errors=True)
                     cat_man = self.catalog.get_batch_manifest(dataset, batch_id)
-                    intent_files = sorted(target_published_dir.glob(".intent_*.json"))
-                    intent_prov = None
-                    if intent_files:
-                        try:
-                            intent_prov = json.loads(intent_files[0].read_text())
-                        except Exception:
-                            pass
-
-                    is_hash_match = actual_pub_hash == staged_hash
-                    is_rows_match = read_pub_rows == len(models)
-
                     if cat_man is not None:
-                        is_raw_match = (
-                            sorted(cat_man.source_raw_hashes) == sorted(clean_raw_hashes)
-                        )
-                        is_ver_match = cat_man.schema_version == schema_version
-                        is_range_match = cat_man.partition_date_range == partition_date_range
-                    elif intent_prov is not None:
-                        is_raw_match = (
-                            intent_prov.get("source_raw_hashes") == sorted(clean_raw_hashes)
-                        )
-                        is_ver_match = intent_prov.get("schema_version") == schema_version
-                        is_range_match = (
-                            intent_prov.get("partition_date_range") == partition_date_range
-                        )
-                    else:
-                        is_raw_match = True
-                        is_ver_match = True
-                        is_range_match = True
+                        return cat_man
 
-                    if (
-                        is_hash_match
-                        and is_rows_match
-                        and is_raw_match
-                        and is_ver_match
-                        and is_range_match
+                    pub_files_check = (
+                        sorted(
+                            p for p in target_published_dir.glob("**/*.parquet") if p.is_file()
+                        )
+                        if partition_by_date
+                        else ([published_file] if published_file.exists() else [])
+                    )
+                    pub_paths = [str(p) for p in pub_files_check]
+                    pq_hashes = {
+                        str(p): hashlib.sha256(p.read_bytes()).hexdigest()
+                        for p in pub_files_check
+                    }
+                    manifest = BatchManifest(
+                        batch_id=batch_id,
+                        dataset=dataset,
+                        source_raw_hashes=clean_raw_hashes,
+                        schema_version=schema_version,
+                        record_count=len(models),
+                        partition_date_range=partition_date_range,
+                        status=BatchStatus.PUBLISHED,
+                        published_filepaths=pub_paths,
+                        parquet_file_hashes=pq_hashes,
+                    )
+                    self.catalog.register_published_batch(manifest)
+                    return manifest
+
+                if batch_staging_dir.exists():
+                    shutil.rmtree(batch_staging_dir, ignore_errors=True)
+                err_conc = (
+                    f"Batch '{batch_id}' in dataset '{dataset}' "
+                    "published concurrently with conflicting provenance or content"
+                )
+                raise BatchConflictError(err_conc)
+
+            try:
+                batch_staging_dir.replace(target_published_dir)
+            except OSError as err:
+                if target_published_dir.exists():
+                    if self._verify_existing_published_provenance(
+                        dataset=dataset,
+                        batch_id=batch_id,
+                        models=models,
+                        clean_raw_hashes=clean_raw_hashes,
+                        schema_version=schema_version,
+                        partition_date_range=partition_date_range,
+                        target_published_dir=target_published_dir,
+                        published_file=published_file,
+                        partition_by_date=partition_by_date,
+                        staged_hash=staged_hash,
                     ):
                         if batch_staging_dir.exists():
                             shutil.rmtree(batch_staging_dir, ignore_errors=True)
+                        cat_man = self.catalog.get_batch_manifest(dataset, batch_id)
+                        if cat_man is not None:
+                            return cat_man
+
+                        pub_files_check = (
+                            sorted(
+                                p for p in target_published_dir.glob("**/*.parquet") if p.is_file()
+                            )
+                            if partition_by_date
+                            else ([published_file] if published_file.exists() else [])
+                        )
                         pub_paths = [str(p) for p in pub_files_check]
                         pq_hashes = {
                             str(p): hashlib.sha256(p.read_bytes()).hexdigest()
@@ -293,15 +370,15 @@ class AtomicBatchPublisher:
                         self.catalog.register_published_batch(manifest)
                         return manifest
 
-                if batch_staging_dir.exists():
-                    shutil.rmtree(batch_staging_dir, ignore_errors=True)
-                err_conc = (
-                    f"Batch '{batch_id}' in dataset '{dataset}' "
-                    "published concurrently with conflicting provenance or content"
-                )
-                raise BatchConflictError(err_conc)
-
-            batch_staging_dir.replace(target_published_dir)
+                    if batch_staging_dir.exists():
+                        shutil.rmtree(batch_staging_dir, ignore_errors=True)
+                    err_conc = (
+                        f"Batch '{batch_id}' in dataset '{dataset}' "
+                        "published concurrently with conflicting provenance or content"
+                    )
+                    raise BatchConflictError(err_conc) from err
+                else:
+                    batch_staging_dir.replace(target_published_dir)
 
             # Post-Swap Validation
             pub_files = (
@@ -374,6 +451,9 @@ class AtomicBatchPublisher:
 
             if batch_staging_dir.exists():
                 shutil.rmtree(batch_staging_dir, ignore_errors=True)
+
+            if isinstance(e, BatchConflictError):
+                raise
 
             logger.error(f"[ROLLBACK] Batch '{batch_id}' failed during publish: {e}")
             err_msg = f"Atomic publish failed for batch '{batch_id}': {e}"
