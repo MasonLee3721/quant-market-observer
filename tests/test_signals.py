@@ -63,9 +63,9 @@ def test_report_generation() -> None:
     ]
 
     md_report = generate_markdown_report(summary, signals, portfolio)
-    assert "# Quant Market Observer Daily Report" in md_report
+    assert "# Quant Market Observer 每日量化市場觀測報告" in md_report
     assert "`2330`" in md_report
 
     html_report = generate_html_report(summary, signals, portfolio)
     assert "<!DOCTYPE html>" in html_report
-    assert "Quant Market Observer Daily Dashboard" in html_report
+    assert "Quant Market Observer 每日量化市場觀測儀表板" in html_report

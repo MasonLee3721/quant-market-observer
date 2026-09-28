@@ -243,12 +243,14 @@ def signal(date: str, root_dir: Path) -> None:
     """Generate strategy selection signals and portfolio weights."""
     click.echo(f"Generating strategy signals for date: {date}")
 
+    from qmo.indicators.pipeline import IndicatorPipelineRunner
     from qmo.signals.engine import generate_leader_breakout_signals
     from qmo.signals.portfolio import allocate_portfolio
 
-    sample_stocks = [
-        {"stock_id": "2330", "state": "leader", "stock_score": 85.0, "above_ma60": True}
-    ]
+    runner = IndicatorPipelineRunner(root_dir=root_dir)
+    summary = runner.run_pipeline(prices_data=[], inst_data=[], margin_data=[], date_str=date)
+
+    sample_stocks = summary.get("stocks", [])
     signals = generate_leader_breakout_signals(sample_stocks)
     portfolio = allocate_portfolio(signals)
 
@@ -280,20 +282,16 @@ def report(date: str, output_format: str, root_dir: Path) -> None:
     """Generate daily Markdown market report or HTML visual dashboard."""
     click.echo(f"Generating {output_format} market report for date: {date}")
 
+    from qmo.indicators.pipeline import IndicatorPipelineRunner
     from qmo.reports.generator import generate_html_report, generate_markdown_report
+    from qmo.signals.engine import generate_leader_breakout_signals
+    from qmo.signals.portfolio import allocate_portfolio
 
-    summary = {
-        "date": date,
-        "market_score": 75.0,
-        "market_breadth_20": 0.75,
-        "processed_stocks": 1,
-    }
-    signals = [
-        {"stock_id": "2330", "strategy": "leader_breakout", "score": 85.0, "reason": "Leader"}
-    ]
-    portfolio = [
-        {"stock_id": "2330", "target_weight": 1.0, "stop_loss_pct": -0.07, "take_profit_pct": 0.15}
-    ]
+    runner = IndicatorPipelineRunner(root_dir=root_dir)
+    summary = runner.run_pipeline(prices_data=[], inst_data=[], margin_data=[], date_str=date)
+    stocks = summary.get("stocks", [])
+    signals = generate_leader_breakout_signals(stocks)
+    portfolio = allocate_portfolio(signals)
 
     if output_format == "html":
         content = generate_html_report(summary, signals, portfolio)

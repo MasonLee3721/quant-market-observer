@@ -157,7 +157,7 @@ def test_cli_report(tmp_path: Path) -> None:
         ["report", "--date", "2026-09-28", "--format", "markdown", "--root-dir", str(tmp_path)],
     )
     assert result.exit_code == 0
-    assert "Quant Market Observer Daily Report" in result.output
+    assert "Quant Market Observer 每日量化市場觀測報告" in result.output
 
 
 
