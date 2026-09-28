@@ -18,24 +18,58 @@ class StockMaster(BaseModel):
 
 
 def parse_stock_info_payload(payload_json: str) -> Dict[str, StockMaster]:
-    """Parse raw TaiwanStockInfo JSON payload into StockMaster registry dictionary."""
-    import json
+    """Parse the latest active TWSE/TPEx common-stock universe.
 
-    registry: Dict[str, StockMaster] = {}
+    FinMind TaiwanStockInfo contains historical snapshots and non-equity
+    instruments. Production ingestion deliberately excludes ETFs, ETNs,
+    indices, depositary receipts, warrants, and non-four-digit symbols.
+    """
+    import json
+    import re
+
     data_obj = json.loads(payload_json)
     if not isinstance(data_obj, dict) or not isinstance(data_obj.get("data"), list):
         raise ValueError("TaiwanStockInfo payload must contain a data list")
-    for row in data_obj["data"]:
-        if not isinstance(row, dict):
-            raise ValueError("TaiwanStockInfo data rows must be objects")
-        sid = str(row.get("stock_id", "")).strip()
-        stock_type = str(row.get("type", "")).strip()
-        if not sid:
+    rows = data_obj["data"]
+    if any(not isinstance(row, dict) for row in rows):
+        raise ValueError("TaiwanStockInfo data rows must be objects")
+
+    iso_date = re.compile(r"\d{4}-\d{2}-\d{2}")
+    market_types = {"twse", "tpex", "上市", "上櫃"}
+    valid_dates = [
+        str(row.get("date"))
+        for row in rows
+        if str(row.get("type", "")).strip().casefold() in market_types
+        and iso_date.fullmatch(str(row.get("date")))
+    ]
+    if not valid_dates:
+        raise ValueError("TaiwanStockInfo contained no valid snapshot dates")
+    latest_date = max(valid_dates)
+    excluded_categories = (
+        "etf",
+        "etn",
+        "index",
+        "指數",
+        "存託憑證",
+        "受益證券",
+        "所有證券",
+        "大盤",
+    )
+
+    registry: Dict[str, StockMaster] = {}
+    for row in rows:
+        if str(row.get("date")) != latest_date:
             continue
-        normalized_type = stock_type.casefold()
-        if normalized_type in {"tpex", "上櫃"}:
+        sid = str(row.get("stock_id", "")).strip()
+        stock_type = str(row.get("type", "")).strip().casefold()
+        industry = str(row.get("industry_category", "")).strip()
+        if not re.fullmatch(r"\d{4}", sid) or sid.startswith("00"):
+            continue
+        if any(token in industry.casefold() for token in excluded_categories):
+            continue
+        if stock_type in {"tpex", "上櫃"}:
             market = "TPEx"
-        elif normalized_type in {"twse", "上市"}:
+        elif stock_type in {"twse", "上市"}:
             market = "TWSE"
         else:
             continue
@@ -43,11 +77,11 @@ def parse_stock_info_payload(payload_json: str) -> Dict[str, StockMaster]:
             symbol=sid,
             name=str(row.get("stock_name", sid)),
             market=market,
-            industry=row.get("industry_category"),
+            industry=industry or None,
             is_active=True,
         )
     if not registry:
-        raise ValueError("TaiwanStockInfo contained no listed or OTC stocks")
+        raise ValueError("TaiwanStockInfo contained no active listed or OTC common stocks")
     return registry
 
 
