@@ -197,7 +197,7 @@ class PriceNormalizer:
                 if stock is None or stock.market != expected_market:
                     continue
             else:
-                if not re.fullmatch(r"\d{4}", sid) or sid.startswith("00"):
+                if not re.fullmatch(r"\d{4}", sid) or sid.startswith(("00", "91")):
                     continue
             results.append(self._official_price_row(row, envelope, trade_date, sid, provider))
         if not results:

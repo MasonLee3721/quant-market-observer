@@ -256,7 +256,7 @@ class InstitutionalNormalizer:
                     if stock is None or stock.market != "TWSE":
                         continue
                 else:
-                    if not re.fullmatch(r"\d{4}", sid) or sid.startswith("00"):
+                    if not re.fullmatch(r"\d{4}", sid) or sid.startswith(("00", "91")):
                         continue
 
                 f_buy = _official_int(
@@ -315,7 +315,7 @@ class InstitutionalNormalizer:
                     if stock is None or stock.market != "TPEx":
                         continue
                 else:
-                    if not re.fullmatch(r"\d{4}", sid) or sid.startswith("00"):
+                    if not re.fullmatch(r"\d{4}", sid) or sid.startswith(("00", "91")):
                         continue
 
                 f_buy = _official_int(values[8], "foreign_buy", provider)

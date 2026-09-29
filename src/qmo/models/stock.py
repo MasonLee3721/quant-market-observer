@@ -151,7 +151,7 @@ def extract_official_stock_master(envelopes: Sequence[Any]) -> Dict[str, StockMa
                 if not isinstance(row, list) or len(row) <= idx_sid:
                     continue
                 sid = str(row[idx_sid]).strip()
-                if not re.fullmatch(r"\d{4}", sid) or sid.startswith("00"):
+                if not re.fullmatch(r"\d{4}", sid) or sid.startswith(("00", "91")):
                     continue
                 name = (
                     str(row[idx_name]).strip()

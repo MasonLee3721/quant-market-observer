@@ -249,7 +249,7 @@ class MarginNormalizer:
                     if stock is None or stock.market != "TWSE":
                         continue
                 else:
-                    if not re.fullmatch(r"\d{4}", sid) or sid.startswith("00"):
+                    if not re.fullmatch(r"\d{4}", sid) or sid.startswith(("00", "91")):
                         continue
 
                 mp_buy = _official_int(_get_val(values, "融資買進", 2), "mp_buy", provider)
@@ -306,7 +306,7 @@ class MarginNormalizer:
                     if stock is None or stock.market != "TPEx":
                         continue
                 else:
-                    if not re.fullmatch(r"\d{4}", sid) or sid.startswith("00"):
+                    if not re.fullmatch(r"\d{4}", sid) or sid.startswith(("00", "91")):
                         continue
 
                 mp_prev = _official_int(values[2], "mp_prev", provider)
