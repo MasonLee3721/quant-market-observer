@@ -40,6 +40,42 @@ def _official_int(val: Any, field: str, provider: str) -> int:
         ) from exc
 
 
+def _resolve_twse_margin_column_indices(fields: List[str]) -> Dict[str, int]:
+    """Dynamically resolve TWSE MI_MARGN column indices for Margin Purchase and Short Sale."""
+    fields_clean = [str(f).strip() for f in fields]
+    buy_idxs = [i for i, f in enumerate(fields_clean) if f == "買進"]
+    sell_idxs = [i for i, f in enumerate(fields_clean) if f == "賣出"]
+    red_mp_idxs = [i for i, f in enumerate(fields_clean) if "現金" in f or "償還" in f]
+    red_ss_idxs = [i for i, f in enumerate(fields_clean) if "現券" in f or "償還" in f]
+    prev_idxs = [i for i, f in enumerate(fields_clean) if "前日" in f]
+    today_idxs = [i for i, f in enumerate(fields_clean) if "今日" in f]
+    limit_idxs = [i for i, f in enumerate(fields_clean) if "限額" in f]
+    offset_idxs = [i for i, f in enumerate(fields_clean) if "資券" in f]
+    note_idxs = [i for i, f in enumerate(fields_clean) if "註記" in f]
+
+    return {
+        "sid": 0,
+        "mp_buy": buy_idxs[0] if len(buy_idxs) > 0 else 2,
+        "mp_sell": sell_idxs[0] if len(sell_idxs) > 0 else 3,
+        "mp_red": red_mp_idxs[0] if len(red_mp_idxs) > 0 else 4,
+        "mp_prev": prev_idxs[0] if len(prev_idxs) > 0 else 5,
+        "mp_bal": today_idxs[0] if len(today_idxs) > 0 else 6,
+        "mp_quota": limit_idxs[0] if len(limit_idxs) > 0 else 7,
+        "ss_buy": buy_idxs[1] if len(buy_idxs) > 1 else 8,
+        "ss_sell": sell_idxs[1] if len(sell_idxs) > 1 else 9,
+        "ss_red": (
+            red_ss_idxs[1]
+            if len(red_ss_idxs) > 1
+            else (red_ss_idxs[0] if len(red_ss_idxs) > 0 else 10)
+        ),
+        "ss_prev": prev_idxs[1] if len(prev_idxs) > 1 else 11,
+        "ss_bal": today_idxs[1] if len(today_idxs) > 1 else 12,
+        "ss_quota": limit_idxs[1] if len(limit_idxs) > 1 else 13,
+        "offset": offset_idxs[0] if len(offset_idxs) > 0 else 14,
+        "note": note_idxs[0] if len(note_idxs) > 0 else 15,
+    }
+
+
 class MarginNormalizer:
     """Normalizes raw provider payload into standardized Margin models."""
 
@@ -227,15 +263,13 @@ class MarginNormalizer:
             table = self._extract_twse_table(payload, required, provider)
             fields = table.get("fields", [])
             data_rows = table.get("data", [])
-            col_map = {str(name).strip(): i for i, name in enumerate(fields)} if fields else {}
+            col_map = _resolve_twse_margin_column_indices(fields)
 
-            def _get_val(row_vals: List[Any], col_name: str, fallback_idx: int) -> Any:
-                if col_name in col_map and col_map[col_name] < len(row_vals):
-                    return row_vals[col_map[col_name]]
-                for k, idx in col_map.items():
-                    if col_name in k and idx < len(row_vals):
-                        return row_vals[idx]
-                return row_vals[fallback_idx] if fallback_idx < len(row_vals) else None
+            def _get_val(row_vals: List[Any], col_key: str) -> Any:
+                idx = col_map.get(col_key)
+                if idx is not None and idx < len(row_vals):
+                    return row_vals[idx]
+                return None
 
             for values in data_rows:
                 if not isinstance(values, list) or len(values) < 15:
@@ -243,7 +277,7 @@ class MarginNormalizer:
                         "Official TWSE margin row width mismatch", provider=provider
                     )
 
-                sid = str(_get_val(values, "代號", 0)).strip()
+                sid = str(_get_val(values, "sid") or values[0]).strip()
                 if self.stock_master is not None:
                     stock = self.stock_master.get(sid)
                     if stock is None or stock.market != "TWSE":
@@ -252,21 +286,21 @@ class MarginNormalizer:
                     if not re.fullmatch(r"\d{4}", sid) or sid.startswith(("00", "91")):
                         continue
 
-                mp_buy = _official_int(_get_val(values, "融資買進", 2), "mp_buy", provider)
-                mp_sell = _official_int(_get_val(values, "融資賣出", 3), "mp_sell", provider)
-                mp_red = _official_int(_get_val(values, "融資現金償還", 4), "mp_red", provider)
-                mp_prev = _official_int(_get_val(values, "融資前日餘額", 5), "mp_prev", provider)
-                mp_bal = _official_int(_get_val(values, "融資今日餘額", 6), "mp_bal", provider)
-                mp_quota = _official_int(_get_val(values, "融資限額", 7), "mp_quota", provider)
+                mp_buy = _official_int(_get_val(values, "mp_buy"), "mp_buy", provider)
+                mp_sell = _official_int(_get_val(values, "mp_sell"), "mp_sell", provider)
+                mp_red = _official_int(_get_val(values, "mp_red"), "mp_red", provider)
+                mp_prev = _official_int(_get_val(values, "mp_prev"), "mp_prev", provider)
+                mp_bal = _official_int(_get_val(values, "mp_bal"), "mp_bal", provider)
+                mp_quota = _official_int(_get_val(values, "mp_quota"), "mp_quota", provider)
 
-                ss_buy = _official_int(_get_val(values, "融券買進", 8), "ss_buy", provider)
-                ss_sell = _official_int(_get_val(values, "融券賣出", 9), "ss_sell", provider)
-                ss_red = _official_int(_get_val(values, "融券現金償還", 10), "ss_red", provider)
-                ss_prev = _official_int(_get_val(values, "融券前日餘額", 11), "ss_prev", provider)
-                ss_bal = _official_int(_get_val(values, "融券今日餘額", 12), "ss_bal", provider)
-                ss_quota = _official_int(_get_val(values, "融券限額", 13), "ss_quota", provider)
-                offset = _official_int(_get_val(values, "資券互抵", 14), "offset", provider)
-                note_raw = _get_val(values, "註記", 15)
+                ss_buy = _official_int(_get_val(values, "ss_buy"), "ss_buy", provider)
+                ss_sell = _official_int(_get_val(values, "ss_sell"), "ss_sell", provider)
+                ss_red = _official_int(_get_val(values, "ss_red"), "ss_red", provider)
+                ss_prev = _official_int(_get_val(values, "ss_prev"), "ss_prev", provider)
+                ss_bal = _official_int(_get_val(values, "ss_bal"), "ss_bal", provider)
+                ss_quota = _official_int(_get_val(values, "ss_quota"), "ss_quota", provider)
+                offset = _official_int(_get_val(values, "offset"), "offset", provider)
+                note_raw = _get_val(values, "note")
                 note = str(note_raw).strip() if note_raw else None
 
                 results.append(

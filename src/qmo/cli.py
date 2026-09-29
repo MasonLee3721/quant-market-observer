@@ -241,6 +241,7 @@ def update(
     from datetime import datetime, timezone
 
     from qmo.models.stock import (
+        apply_balanced_universe_limit,
         extract_official_stock_master,
         load_universe_stock_master,
         parse_stock_info_payload,
@@ -304,7 +305,7 @@ def update(
         stock_master = load_universe_stock_master()
 
     if limit is not None:
-        stock_master = dict(list(stock_master.items())[:limit])
+        stock_master = apply_balanced_universe_limit(stock_master, limit)
         click.echo(f"Smoke-run universe limited to {len(stock_master)} ticker(s).")
 
     for ds in target_datasets:
@@ -396,7 +397,7 @@ def update(
                     if ext_master:
                         stock_master.update(ext_master)
                     if limit is not None:
-                        norm_obj.stock_master = dict(list(stock_master.items())[:limit])
+                        norm_obj.stock_master = apply_balanced_universe_limit(stock_master, limit)
                     elif stock_master:
                         norm_obj.stock_master = stock_master
                     norm_recs = norm_obj.normalize(env)

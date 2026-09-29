@@ -159,6 +159,8 @@ def extract_official_stock_master(envelopes: Sequence[Any]) -> Dict[str, StockMa
                     else sid
                 )
                 name = re.sub(r"<[^>]+>", "", name).strip()
+                if name.endswith("-DR") or "存託憑證" in name:
+                    continue
                 if sid not in registry:
                     registry[sid] = StockMaster(
                         symbol=sid,
@@ -167,4 +169,27 @@ def extract_official_stock_master(envelopes: Sequence[Any]) -> Dict[str, StockMa
                         is_active=True,
                     )
     return registry
+
+
+def apply_balanced_universe_limit(
+    stock_master: Dict[str, StockMaster], limit: int
+) -> Dict[str, StockMaster]:
+    """Slice stock master limit while guaranteeing balanced TWSE and TPEx market representation."""
+    if limit <= 0 or len(stock_master) <= limit:
+        return stock_master
+
+    twse_stocks = [s for s in stock_master.values() if s.market == "TWSE"]
+    tpex_stocks = [s for s in stock_master.values() if s.market == "TPEx"]
+
+    if not twse_stocks:
+        return {s.symbol: s for s in tpex_stocks[:limit]}
+    if not tpex_stocks:
+        return {s.symbol: s for s in twse_stocks[:limit]}
+
+    n_twse = max(1, limit // 2)
+    n_tpex = limit - n_twse
+
+    selected = twse_stocks[:n_twse] + tpex_stocks[:n_tpex]
+    return {s.symbol: s for s in selected}
+
 

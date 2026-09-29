@@ -544,3 +544,122 @@ def test_official_margin_normalizer_twse_and_tpex() -> None:
     assert r_tpex.margin_purchase_balance == 5050
     assert r_tpex.short_sale_balance == 105
     assert r_tpex.source == "TPEx:margin/balance"
+
+
+def test_resolve_twse_margin_column_indices() -> None:
+    from qmo.normalizers.margin import _resolve_twse_margin_column_indices
+
+    fields = [
+        "代號",
+        "名稱",
+        "買進",
+        "賣出",
+        "現金償還",
+        "前日餘額",
+        "今日餘額",
+        "次一營業日限額",
+        "買進",
+        "賣出",
+        "現券償還",
+        "前日餘額",
+        "今日餘額",
+        "次一營業日限額",
+        "資券互抵",
+        "註記",
+    ]
+    resolved = _resolve_twse_margin_column_indices(fields)
+    assert resolved["mp_buy"] == 2
+    assert resolved["mp_sell"] == 3
+    assert resolved["mp_red"] == 4
+    assert resolved["ss_buy"] == 8
+    assert resolved["ss_sell"] == 9
+    assert resolved["ss_red"] == 10
+    assert resolved["offset"] == 14
+
+    # Test column index resolution under column position drift/reordering
+    fields_reordered = [
+        "代號",
+        "名稱",
+        "前日餘額",
+        "買進",
+        "賣出",
+        "現金償還",
+        "今日餘額",
+        "限額",
+        "前日餘額",
+        "買進",
+        "賣出",
+        "現券償還",
+        "今日餘額",
+        "限額",
+        "資券互抵",
+        "註記",
+    ]
+    drifted = _resolve_twse_margin_column_indices(fields_reordered)
+    assert drifted["mp_prev"] == 2
+    assert drifted["mp_buy"] == 3
+    assert drifted["mp_sell"] == 4
+    assert drifted["ss_prev"] == 8
+    assert drifted["ss_buy"] == 9
+    assert drifted["ss_sell"] == 10
+
+
+def test_balanced_universe_limit() -> None:
+    from qmo.models.stock import StockMaster, apply_balanced_universe_limit
+
+    master = {
+        f"233{i}": StockMaster(symbol=f"233{i}", name=f"TWSE_{i}", market="TWSE")
+        for i in range(10)
+    }
+    master.update(
+        {
+            f"806{i}": StockMaster(symbol=f"806{i}", name=f"TPEx_{i}", market="TPEx")
+            for i in range(10)
+        }
+    )
+
+    limited = apply_balanced_universe_limit(master, 2)
+    markets = [s.market for s in limited.values()]
+    assert len(limited) == 2
+    assert "TWSE" in markets and "TPEx" in markets
+
+    limited10 = apply_balanced_universe_limit(master, 10)
+    twse_cnt = sum(1 for s in limited10.values() if s.market == "TWSE")
+    tpex_cnt = sum(1 for s in limited10.values() if s.market == "TPEx")
+    assert len(limited10) == 10
+    assert twse_cnt == 5
+    assert tpex_cnt == 5
+
+
+def test_extract_official_stock_master_real_universe_counts() -> None:
+    from pathlib import Path
+
+    from qmo.models.stock import extract_official_stock_master
+    from qmo.providers.protocols import RawResponseEnvelope
+
+    twse_p = Path("/tmp/twse_price_full.json")
+    tpex_p = Path("/tmp/tpex_price_full.json")
+
+    if twse_p.exists() and tpex_p.exists():
+        e1 = RawResponseEnvelope(
+            provider_name="twse",
+            endpoint="",
+            params={},
+            status_code=200,
+            raw_body_bytes=twse_p.read_bytes(),
+        )
+        e2 = RawResponseEnvelope(
+            provider_name="tpex",
+            endpoint="",
+            params={},
+            status_code=200,
+            raw_body_bytes=tpex_p.read_bytes(),
+        )
+        reg = extract_official_stock_master([e1, e2])
+        twse_c = sum(1 for s in reg.values() if s.market == "TWSE")
+        tpex_c = sum(1 for s in reg.values() if s.market == "TPEx")
+        assert twse_c == 1081
+        assert tpex_c == 890
+        assert len(reg) == 1971
+
+
