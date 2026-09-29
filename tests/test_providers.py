@@ -234,24 +234,23 @@ def test_twse_fetch_market_daily_price_endpoint() -> None:
 
 
 def test_tpex_fetch_market_daily_price_endpoint() -> None:
-    """Verify TPEx Provider uses stk_quote_result.php with ROC date conversion."""
+    """Verify TPEx Provider uses afterTrading/dailyQuotes with ROC date conversion."""
 
     def mock_request(
         url: str, params: Dict[str, Any], headers: Dict[str, str]
     ) -> Tuple[int, Dict[str, str], bytes]:
-        assert "stk_quote_result.php" in url
-        assert params["d"] == "115/09/24"
-        assert params["l"] == "zh-tw"
-        assert params["s"] == "0,asc,0"
+        assert "afterTrading/dailyQuotes" in url
+        assert params["date"] == "115/09/24"
+        assert params["response"] == "json"
         return 200, {"Content-Type": "application/json"}, b'{"stat": "OK", "aaData": []}'
 
     transport = HttpTransport(request_func=mock_request)
     provider = TpexProvider(transport=transport)
     envelope = provider.fetch_market_daily_price("2026-09-24")
 
-    assert "stk_quote_result.php" in envelope.endpoint
+    assert "afterTrading/dailyQuotes" in envelope.endpoint
     assert envelope.status_code == 200
-    assert envelope.params["d"] == "115/09/24"
+    assert envelope.params["date"] == "115/09/24"
 
 
 def test_twse_margin_endpoint() -> None:
@@ -290,9 +289,9 @@ def test_tpex_institutional_and_margin_endpoints() -> None:
 
     env_inst = provider.fetch_institutional_flow("6488", "2026-09-24", "2026-09-24")
     assert "insti/dailyTrade" in env_inst.endpoint
-    assert env_inst.params["d"] == "115/09/24"
+    assert env_inst.params["date"] == "115/09/24"
     assert env_inst.params["type"] == "Daily"
 
     env_margin = provider.fetch_margin("6488", "2026-09-24", "2026-09-24")
     assert "margin/balance" in env_margin.endpoint
-    assert env_margin.params["d"] == "115/09/24"
+    assert env_margin.params["date"] == "115/09/24"

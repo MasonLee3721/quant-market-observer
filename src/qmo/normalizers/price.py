@@ -230,55 +230,67 @@ class PriceNormalizer:
     def _official_trade_date(
         payload: Dict[str, Any], envelope: RawResponseEnvelope, provider: str
     ) -> str:
-        raw = str(
-            envelope.params.get("date")
-            or envelope.params.get("d")
-            or payload.get("date")
-            or ""
-        )
-        try:
-            if re.fullmatch(r"\d{8}", raw):
-                t_date = datetime.strptime(raw, "%Y%m%d").strftime("%Y-%m-%d")
-            elif re.fullmatch(r"\d{3}/\d{2}/\d{2}", raw):
-                year, month, day = raw.split("/")
-                t_date = f"{int(year) + 1911:04d}-{month}-{day}"
-            elif re.fullmatch(r"\d{7}", raw):
-                year, month, day = raw[:3], raw[3:5], raw[5:7]
-                t_date = f"{int(year) + 1911:04d}-{month}-{day}"
-            else:
-                t_date = datetime.strptime(raw, "%Y-%m-%d").strftime("%Y-%m-%d")
-        except ValueError as exc:
+        resp_date: Optional[str] = None
+        if payload.get("date"):
+            raw_p = str(payload["date"]).strip()
+            try:
+                if re.fullmatch(r"\d{8}", raw_p):
+                    resp_date = datetime.strptime(raw_p, "%Y%m%d").strftime("%Y-%m-%d")
+                elif re.fullmatch(r"\d{3}/\d{2}/\d{2}", raw_p):
+                    y, m, d = raw_p.split("/")
+                    resp_date = f"{int(y) + 1911:04d}-{m}-{d}"
+                elif re.fullmatch(r"\d{7}", raw_p):
+                    y, m, d = raw_p[:3], raw_p[3:5], raw_p[5:7]
+                    resp_date = f"{int(y) + 1911:04d}-{m}-{d}"
+                elif re.fullmatch(r"\d{4}-\d{2}-\d{2}", raw_p):
+                    resp_date = datetime.strptime(raw_p, "%Y-%m-%d").strftime("%Y-%m-%d")
+            except ValueError:
+                pass
+
+        if resp_date is None:
+            tables = payload.get("tables")
+            if isinstance(tables, list):
+                for t in tables:
+                    if isinstance(t, dict) and "title" in t:
+                        title = str(t["title"])
+                        match = re.search(r"(\d{3})年(\d{2})月(\d{2})日", title)
+                        if match:
+                            y, m, d = match.group(1), match.group(2), match.group(3)
+                            resp_date = f"{int(y) + 1911:04d}-{m}-{d}"
+                            break
+
+        if resp_date is None:
             raise SchemaValidationError(
-                f"Invalid official trade date: {raw}", provider=provider
-            ) from exc
+                f"Official {provider.upper()} response missing official trade date in payload",
+                provider=provider,
+            )
 
-        if provider == "twse" and payload.get("date"):
-            p_date_raw = str(payload["date"])
-            if re.fullmatch(r"\d{8}", p_date_raw):
-                p_date = datetime.strptime(p_date_raw, "%Y%m%d").strftime("%Y-%m-%d")
-                if p_date != t_date:
-                    raise SchemaValidationError(
-                        f"Official TWSE response date '{p_date}' does not match "
-                        f"requested date '{t_date}'",
-                        provider=provider,
-                    )
+        req_raw = envelope.params.get("date") or envelope.params.get("d")
+        if req_raw:
+            req_str = str(req_raw).strip()
+            req_date: Optional[str] = None
+            try:
+                if re.fullmatch(r"\d{8}", req_str):
+                    req_date = datetime.strptime(req_str, "%Y%m%d").strftime("%Y-%m-%d")
+                elif re.fullmatch(r"\d{3}/\d{2}/\d{2}", req_str):
+                    y, m, d = req_str.split("/")
+                    req_date = f"{int(y) + 1911:04d}-{m}-{d}"
+                elif re.fullmatch(r"\d{7}", req_str):
+                    y, m, d = req_str[:3], req_str[3:5], req_str[5:7]
+                    req_date = f"{int(y) + 1911:04d}-{m}-{d}"
+                elif re.fullmatch(r"\d{4}-\d{2}-\d{2}", req_str):
+                    req_date = datetime.strptime(req_str, "%Y-%m-%d").strftime("%Y-%m-%d")
+            except ValueError:
+                pass
 
-        tables = payload.get("tables")
-        if isinstance(tables, list):
-            for t in tables:
-                if isinstance(t, dict) and "title" in t:
-                    title = str(t["title"])
-                    match = re.search(r"(\d{3})年(\d{2})月(\d{2})日", title)
-                    if match:
-                        y, m, d = match.group(1), match.group(2), match.group(3)
-                        title_date = f"{int(y) + 1911:04d}-{m}-{d}"
-                        if title_date != t_date:
-                            raise SchemaValidationError(
-                                f"Official response table date '{title_date}' does not match "
-                                f"requested date '{t_date}'",
-                                provider=provider,
-                            )
-        return t_date
+            if req_date and resp_date != req_date:
+                raise SchemaValidationError(
+                    f"Official {provider.upper()} response date '{resp_date}' does not match "
+                    f"requested date '{req_date}'",
+                    provider=provider,
+                )
+
+        return resp_date
 
     @staticmethod
     def _official_number(value: Any, field: str, provider: str, *, integer: bool = False) -> Any:

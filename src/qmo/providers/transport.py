@@ -48,6 +48,13 @@ class HttpResponse:
     def __init__(self, status_code: int, headers: Dict[str, str], raw_bytes: bytes) -> None:
         self.status_code = status_code
         self.headers = headers
+        if raw_bytes.startswith(b"\x1f\x8b"):
+            import gzip
+
+            try:
+                raw_bytes = gzip.decompress(raw_bytes)
+            except Exception:
+                pass
         self.raw_bytes = raw_bytes
 
     @property
@@ -91,7 +98,8 @@ class HttpTransport:
         """Execute HTTP request with status classification and exponential backoff retries."""
         params_dict = params or {}
         headers_dict = headers or {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) QuantMarketObserver/1.0"
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) QuantMarketObserver/1.0",
+            "Accept-Encoding": "gzip, deflate",
         }
 
         last_exception: Optional[Exception] = None

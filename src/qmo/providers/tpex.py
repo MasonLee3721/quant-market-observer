@@ -43,13 +43,10 @@ class TpexProvider:
         parts = date.split("-")
         roc_year = int(parts[0]) - 1911
         roc_date = f"{roc_year}/{parts[1]}/{parts[2]}"
-        url = (
-            "https://www.tpex.org.tw/web/stock/aftertrading/daily_close_quotes/stk_quote_result.php"
-        )
+        url = "https://www.tpex.org.tw/www/zh-tw/afterTrading/dailyQuotes"
         params = {
-            "d": roc_date,
-            "l": "zh-tw",
-            "s": "0,asc,0",
+            "date": roc_date,
+            "response": "json",
         }
         res = self.transport.execute(url, params=params)
         return RawResponseEnvelope(
@@ -68,7 +65,7 @@ class TpexProvider:
         roc_year = int(parts[0]) - 1911
         roc_date = f"{roc_year}/{parts[1]}/{parts[2]}"
         url = "https://www.tpex.org.tw/www/zh-tw/insti/dailyTrade"
-        params = {"type": "Daily", "d": roc_date, "response": "json"}
+        params = {"type": "Daily", "date": roc_date, "response": "json"}
         res = self.transport.execute(url, params=params)
         return RawResponseEnvelope(
             provider_name=self.provider_name,
@@ -84,7 +81,7 @@ class TpexProvider:
         roc_year = int(parts[0]) - 1911
         roc_date = f"{roc_year}/{parts[1]}/{parts[2]}"
         url = "https://www.tpex.org.tw/www/zh-tw/margin/balance"
-        params = {"d": roc_date, "response": "json"}
+        params = {"date": roc_date, "response": "json"}
         res = self.transport.execute(url, params=params)
         return RawResponseEnvelope(
             provider_name=self.provider_name,

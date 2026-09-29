@@ -177,7 +177,7 @@ def test_cli_update_official_bulk_e2e(tmp_path: Path) -> None:
     fx_dir = Path("tests/fixtures/official")
     fixtures_map = {
         "MI_INDEX": (fx_dir / "twse_price_mi_index_20260924.json").read_bytes(),
-        "stk_quote_result.php": (fx_dir / "tpex_price_stk_quote_20260924.json").read_bytes(),
+        "afterTrading/dailyQuotes": (fx_dir / "tpex_price_stk_quote_20260924.json").read_bytes(),
         "fund/T86": (fx_dir / "twse_inst_t86_20260924.json").read_bytes(),
         "insti/dailyTrade": (fx_dir / "tpex_inst_dailyTrade_20260924.json").read_bytes(),
         "MI_MARGN": (fx_dir / "twse_margin_mimargn_20260924.json").read_bytes(),
@@ -540,7 +540,7 @@ def test_cli_update_official_bulk_limit_10_balanced(tmp_path: Path) -> None:
     def mock_execute(url: str, params: dict | None = None) -> HttpResponse:
         if "MI_INDEX" in url:
             body = json.dumps(twse_price_payload).encode("utf-8")
-        elif "stk_quote_result.php" in url:
+        elif "afterTrading/dailyQuotes" in url or "stk_quote" in url:
             body = json.dumps(tpex_price_payload).encode("utf-8")
         elif "fund/T86" in url:
             body = json.dumps(twse_inst_payload).encode("utf-8")
@@ -860,7 +860,7 @@ def test_cli_cross_dataset_universe_does_not_expand(tmp_path: Path) -> None:
     def mock_execute(url: str, params: dict | None = None) -> HttpResponse:
         if "MI_INDEX" in url:
             body = json.dumps(twse_price_payload).encode("utf-8")
-        elif "stk_quote_result.php" in url:
+        elif "afterTrading/dailyQuotes" in url or "stk_quote" in url:
             body = json.dumps(tpex_price_payload).encode("utf-8")
         elif "fund/T86" in url:
             body = json.dumps(twse_inst_payload).encode("utf-8")

@@ -365,12 +365,7 @@ def update(
                             }
                     else:
                         roc_date = f"{int(parts[0]) - 1911}/{parts[1]}/{parts[2]}"
-                        if ds == "daily_price":
-                            req_params = {"d": roc_date, "l": "zh-tw", "s": "0,asc,0"}
-                        elif ds == "institutional_flow":
-                            req_params = {"type": "Daily", "d": roc_date, "response": "json"}
-                        else:
-                            req_params = {"d": roc_date, "response": "json"}
+                        req_params = {"date": roc_date, "response": "json"}
 
                     env = raw_store.load_matching(ds, req_params) if resume else None
                     if env is None:

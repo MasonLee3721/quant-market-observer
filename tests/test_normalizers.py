@@ -825,3 +825,29 @@ def test_tpex_mismatched_table_date_fails_closed() -> None:
         norm.normalize(env)
 
 
+def test_tpex_mismatched_payload_date_without_title_date_fails_closed() -> None:
+    """Verify TPEx payload with date 20260929 and title without date fails closed."""
+    payload = {
+        "stat": "OK",
+        "date": "20260929",
+        "tables": [
+            {
+                "title": "三大法人買賣明細資訊",
+                "fields": ["代號", "名稱"] + ["0"] * 22,
+                "data": [["8069", "元太"] + ["0"] * 22],
+            }
+        ],
+    }
+    env = RawResponseEnvelope(
+        provider_name="tpex",
+        endpoint="https://www.tpex.org.tw/www/zh-tw/insti/dailyTrade",
+        params={"date": "115/09/24", "type": "Daily", "response": "json"},
+        status_code=200,
+        raw_body_bytes=json.dumps(payload).encode("utf-8"),
+    )
+    norm = InstitutionalNormalizer()
+    with pytest.raises(SchemaValidationError, match="does not match requested date"):
+        norm.normalize(env)
+
+
+
