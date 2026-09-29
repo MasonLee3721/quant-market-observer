@@ -369,6 +369,43 @@ def test_official_market_price_normalizer(
     assert record.source.startswith(market)
 
 
+@pytest.mark.parametrize(("raw_change", "expected"), [("+2", 2.0), ("-2", -2.0), ("0.00", 0.0)])
+def test_tpex_official_change_sign_boundaries(raw_change: str, expected: float) -> None:
+    payload = {
+        "stat": "OK",
+        "date": "115/09/24",
+        "tables": [
+            {
+                "fields": [
+                    "代號",
+                    "成交股數",
+                    "成交金額(元)",
+                    "成交筆數",
+                    "開盤",
+                    "最高",
+                    "最低",
+                    "收盤",
+                    "漲跌",
+                ],
+                "data": [
+                    ["8069", "1,000", "200,000", "25", "200", "205", "198", "202", raw_change]
+                ],
+            }
+        ],
+    }
+    envelope = RawResponseEnvelope(
+        provider_name="tpex",
+        endpoint="official",
+        params={"d": "115/09/24"},
+        status_code=200,
+        raw_body_bytes=json.dumps(payload, ensure_ascii=False).encode(),
+    )
+    registry = {"8069": StockMaster(symbol="8069", name="元太", market="TPEx")}
+    record = PriceNormalizer(stock_master=registry).normalize(envelope)[0]
+    assert record.change == expected
+    assert record.no_trade is False
+
+
 def test_official_market_price_normalizer_fails_closed_on_schema_drift() -> None:
     envelope = RawResponseEnvelope(
         provider_name="twse",
