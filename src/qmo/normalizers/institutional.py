@@ -1,12 +1,45 @@
 """Institutional Investor Flow Normalizer Implementation."""
 
 import json
+import re
+from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
 from qmo.models.institutional import InstitutionalFlow
 from qmo.models.stock import StockMaster, load_universe_stock_master
 from qmo.providers.exceptions import SchemaValidationError
 from qmo.providers.protocols import RawResponseEnvelope
+
+
+def _official_trade_date(
+    payload: Dict[str, Any], envelope: RawResponseEnvelope, provider: str
+) -> str:
+    raw = str(
+        payload.get("date") or envelope.params.get("date") or envelope.params.get("d") or ""
+    )
+    try:
+        if re.fullmatch(r"\d{8}", raw):
+            return datetime.strptime(raw, "%Y%m%d").strftime("%Y-%m-%d")
+        if re.fullmatch(r"\d{3}/\d{2}/\d{2}", raw):
+            year, month, day = raw.split("/")
+            return f"{int(year) + 1911:04d}-{month}-{day}"
+        return datetime.strptime(raw, "%Y-%m-%d").strftime("%Y-%m-%d")
+    except ValueError as exc:
+        raise SchemaValidationError(
+            f"Invalid official trade date: {raw}", provider=provider
+        ) from exc
+
+
+def _official_int(val: Any, field: str, provider: str) -> int:
+    text = str(val).strip().replace(",", "")
+    if text in {"", "-", "--", "---", "None"}:
+        return 0
+    try:
+        return int(text)
+    except (ValueError, TypeError) as exc:
+        raise SchemaValidationError(
+            f"Invalid official numeric field '{field}': {val}", provider=provider
+        ) from exc
 
 
 class InstitutionalNormalizer:
@@ -29,11 +62,8 @@ class InstitutionalNormalizer:
 
     def normalize(self, envelope: RawResponseEnvelope) -> List[InstitutionalFlow]:
         """Convert raw payload envelope to a list of InstitutionalFlow instances."""
-        if envelope.provider_name in ["twse", "tpex"]:
-            raise SchemaValidationError(
-                f"Normalizer for provider '{envelope.provider_name}' not yet implemented",
-                provider=envelope.provider_name,
-            )
+        if envelope.provider_name in {"twse", "tpex"}:
+            return self._normalize_official_market(envelope)
 
         if envelope.provider_name != "finmind":
             raise SchemaValidationError(
@@ -179,3 +209,192 @@ class InstitutionalNormalizer:
             ) from e
 
         return results
+
+    def _normalize_official_market(
+        self, envelope: RawResponseEnvelope
+    ) -> List[InstitutionalFlow]:
+        """Normalize official TWSE/TPEx market-wide daily institutional response."""
+        provider = envelope.provider_name
+        if envelope.status_code != 200 or not envelope.raw_body_bytes:
+            raise SchemaValidationError(
+                "Official market response is unavailable", provider=provider
+            )
+        try:
+            payload = json.loads(envelope.raw_body_str)
+        except (TypeError, json.JSONDecodeError) as exc:
+            raise SchemaValidationError(
+                f"Failed to parse JSON body: {exc}", provider=provider
+            ) from exc
+
+        if not isinstance(payload, dict) or payload.get("stat") not in {"OK", "ok"}:
+            raise SchemaValidationError("Official payload status is not OK", provider=provider)
+
+        trade_date = _official_trade_date(payload, envelope, provider)
+        results: List[InstitutionalFlow] = []
+
+        if provider == "twse":
+            required = {
+                "證券代號",
+                "外陸資買進股數(不含外資自營商)",
+                "外陸資賣出股數(不含外資自營商)",
+                "外資自營商買進股數",
+                "外資自營商賣出股數",
+                "投信買進股數",
+                "投信賣出股數",
+                "自營商買進股數(自行買賣)",
+                "自營商賣出股數(自行買賣)",
+                "自營商買進股數(避險)",
+                "自營商賣出股數(避險)",
+                "三大法人買賣超股數",
+            }
+            fields, data_rows = self._extract_twse_table(payload, required, provider)
+            for values in data_rows:
+                if not isinstance(values, list) or len(values) != len(fields):
+                    raise SchemaValidationError(
+                        "Official institutional row width mismatch", provider=provider
+                    )
+                row = dict(zip(fields, values, strict=True))
+                sid = str(row["證券代號"]).strip()
+                stock = self.stock_master.get(sid)
+                if stock is None or stock.market != "TWSE":
+                    continue
+
+                f_buy = _official_int(
+                    row.get("外陸資買進股數(不含外資自營商)"), "foreign_buy_1", provider
+                ) + _official_int(row.get("外資自營商買進股數"), "foreign_buy_2", provider)
+                f_sell = _official_int(
+                    row.get("外陸資賣出股數(不含外資自營商)"), "foreign_sell_1", provider
+                ) + _official_int(row.get("外資自營商賣出股數"), "foreign_sell_2", provider)
+                f_net = f_buy - f_sell
+
+                t_buy = _official_int(row.get("投信買進股數"), "trust_buy", provider)
+                t_sell = _official_int(row.get("投信賣出股數"), "trust_sell", provider)
+                t_net = t_buy - t_sell
+
+                d_buy = _official_int(
+                    row.get("自營商買進股數(自行買賣)"), "dealer_buy_1", provider
+                ) + _official_int(row.get("自營商買進股數(避險)"), "dealer_buy_2", provider)
+                d_sell = _official_int(
+                    row.get("自營商賣出股數(自行買賣)"), "dealer_sell_1", provider
+                ) + _official_int(row.get("自營商賣出股數(避險)"), "dealer_sell_2", provider)
+                d_net = d_buy - d_sell
+
+                total_net = f_net + t_net + d_net
+
+                results.append(
+                    InstitutionalFlow(
+                        trade_date=trade_date,
+                        stock_id=sid,
+                        market="TWSE",
+                        foreign_buy=f_buy,
+                        foreign_sell=f_sell,
+                        foreign_net=f_net,
+                        investment_trust_buy=t_buy,
+                        investment_trust_sell=t_sell,
+                        investment_trust_net=t_net,
+                        dealer_buy=d_buy,
+                        dealer_sell=d_sell,
+                        dealer_net=d_net,
+                        total_net=total_net,
+                        categories="Foreign|InvestmentTrust|Dealer",
+                        source="TWSE:fund/T86",
+                        retrieved_at=envelope.retrieved_at,
+                    )
+                )
+        else:
+            table = self._extract_tpex_table(payload, provider)
+            data_rows = table.get("data", [])
+            for values in data_rows:
+                if not isinstance(values, list) or len(values) < 24:
+                    raise SchemaValidationError(
+                        "Official TPEx institutional row width mismatch", provider=provider
+                    )
+                sid = str(values[0]).strip()
+                stock = self.stock_master.get(sid)
+                if stock is None or stock.market != "TPEx":
+                    continue
+
+                f_buy = _official_int(values[8], "foreign_buy", provider)
+                f_sell = _official_int(values[9], "foreign_sell", provider)
+                f_net = f_buy - f_sell
+
+                t_buy = _official_int(values[11], "trust_buy", provider)
+                t_sell = _official_int(values[12], "trust_sell", provider)
+                t_net = t_buy - t_sell
+
+                d_buy = _official_int(values[20], "dealer_buy", provider)
+                d_sell = _official_int(values[21], "dealer_sell", provider)
+                d_net = d_buy - d_sell
+
+                tot_net = _official_int(values[23], "total_net", provider)
+
+                results.append(
+                    InstitutionalFlow(
+                        trade_date=trade_date,
+                        stock_id=sid,
+                        market="TPEx",
+                        foreign_buy=f_buy,
+                        foreign_sell=f_sell,
+                        foreign_net=f_net,
+                        investment_trust_buy=t_buy,
+                        investment_trust_sell=t_sell,
+                        investment_trust_net=t_net,
+                        dealer_buy=d_buy,
+                        dealer_sell=d_sell,
+                        dealer_net=d_net,
+                        total_net=tot_net,
+                        categories="Foreign|InvestmentTrust|Dealer",
+                        source="TPEx:insti/dailyTrade",
+                        retrieved_at=envelope.retrieved_at,
+                    )
+                )
+
+        if not results:
+            raise SchemaValidationError(
+                "Official market table contained no stocks from the active universe",
+                provider=provider,
+            )
+        return results
+
+    @staticmethod
+    def _extract_twse_table(
+        payload: Dict[str, Any], required: set[str], provider: str
+    ) -> Tuple[List[str], List[Any]]:
+        fields = payload.get("fields")
+        data = payload.get("data")
+        if isinstance(fields, list) and required.issubset(set(fields)) and isinstance(data, list):
+            return fields, data
+
+        tables = payload.get("tables")
+        if isinstance(tables, list):
+            for t in tables:
+                if not isinstance(t, dict):
+                    continue
+                tf = t.get("fields")
+                td = t.get("data")
+                if isinstance(tf, list) and required.issubset(set(tf)) and isinstance(td, list):
+                    return tf, td
+        raise SchemaValidationError(
+            "Official TWSE institutional table not found", provider=provider
+        )
+
+    @staticmethod
+    def _extract_tpex_table(payload: Dict[str, Any], provider: str) -> Dict[str, Any]:
+        tables = payload.get("tables")
+        if isinstance(tables, list):
+            for t in tables:
+                if not isinstance(t, dict):
+                    continue
+                tf = t.get("fields")
+                td = t.get("data")
+                if (
+                    isinstance(tf, list)
+                    and len(tf) >= 24
+                    and isinstance(td, list)
+                    and (t.get("title") == "三大法人買賣明細資訊" or tf[0] in {"代號", "證券代號"})
+                ):
+                    return t
+        raise SchemaValidationError(
+            "Official TPEx institutional table not found", provider=provider
+        )
+

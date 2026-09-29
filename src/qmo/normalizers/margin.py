@@ -1,12 +1,45 @@
 """Margin Trading Normalizer Implementation."""
 
 import json
-from typing import Dict, List, Optional
+import re
+from datetime import datetime
+from typing import Any, Dict, List, Optional, Tuple
 
 from qmo.models.margin import Margin
 from qmo.models.stock import StockMaster, load_universe_stock_master
 from qmo.providers.exceptions import SchemaValidationError
 from qmo.providers.protocols import RawResponseEnvelope
+
+
+def _official_trade_date(
+    payload: Dict[str, Any], envelope: RawResponseEnvelope, provider: str
+) -> str:
+    raw = str(
+        payload.get("date") or envelope.params.get("date") or envelope.params.get("d") or ""
+    )
+    try:
+        if re.fullmatch(r"\d{8}", raw):
+            return datetime.strptime(raw, "%Y%m%d").strftime("%Y-%m-%d")
+        if re.fullmatch(r"\d{3}/\d{2}/\d{2}", raw):
+            year, month, day = raw.split("/")
+            return f"{int(year) + 1911:04d}-{month}-{day}"
+        return datetime.strptime(raw, "%Y-%m-%d").strftime("%Y-%m-%d")
+    except ValueError as exc:
+        raise SchemaValidationError(
+            f"Invalid official trade date: {raw}", provider=provider
+        ) from exc
+
+
+def _official_int(val: Any, field: str, provider: str) -> int:
+    text = str(val).strip().replace(",", "")
+    if text in {"", "-", "--", "---", "None"}:
+        return 0
+    try:
+        return int(text)
+    except (ValueError, TypeError) as exc:
+        raise SchemaValidationError(
+            f"Invalid official numeric field '{field}': {val}", provider=provider
+        ) from exc
 
 
 class MarginNormalizer:
@@ -29,11 +62,8 @@ class MarginNormalizer:
 
     def normalize(self, envelope: RawResponseEnvelope) -> List[Margin]:
         """Convert raw payload envelope to a list of Margin instances."""
-        if envelope.provider_name in ["twse", "tpex"]:
-            raise SchemaValidationError(
-                f"Normalizer for provider '{envelope.provider_name}' not yet implemented",
-                provider=envelope.provider_name,
-            )
+        if envelope.provider_name in {"twse", "tpex"}:
+            return self._normalize_official_market(envelope)
 
         if envelope.provider_name != "finmind":
             raise SchemaValidationError(
@@ -173,3 +203,177 @@ class MarginNormalizer:
             ) from e
 
         return results
+
+    def _normalize_official_market(self, envelope: RawResponseEnvelope) -> List[Margin]:
+        """Normalize official TWSE/TPEx market-wide daily margin trading response."""
+        provider = envelope.provider_name
+        if envelope.status_code != 200 or not envelope.raw_body_bytes:
+            raise SchemaValidationError(
+                "Official market response is unavailable", provider=provider
+            )
+        try:
+            payload = json.loads(envelope.raw_body_str)
+        except (TypeError, json.JSONDecodeError) as exc:
+            raise SchemaValidationError(
+                f"Failed to parse JSON body: {exc}", provider=provider
+            ) from exc
+
+        if not isinstance(payload, dict) or payload.get("stat") not in {"OK", "ok"}:
+            raise SchemaValidationError("Official payload status is not OK", provider=provider)
+
+        trade_date = _official_trade_date(payload, envelope, provider)
+        results: List[Margin] = []
+
+        if provider == "twse":
+            required = {"代號", "前日餘額", "當日賣出", "當日還券", "當日餘額"}
+            fields, data_rows = self._extract_twse_table(payload, required, provider)
+            for values in data_rows:
+                if not isinstance(values, list) or len(values) != len(fields):
+                    raise SchemaValidationError(
+                        "Official TWSE margin row width mismatch", provider=provider
+                    )
+                row = dict(zip(fields, values, strict=True))
+                sid = str(row["代號"]).strip()
+                stock = self.stock_master.get(sid)
+                if stock is None or stock.market != "TWSE":
+                    continue
+
+                mp_prev = _official_int(values[2], "mp_prev", provider)
+                mp_buy = _official_int(values[3], "mp_buy", provider)
+                mp_sell = _official_int(values[4], "mp_sell", provider)
+                mp_red = _official_int(values[5], "mp_red", provider)
+                mp_bal = _official_int(values[6], "mp_bal", provider)
+                mp_quota = _official_int(values[7], "mp_quota", provider)
+
+                ss_prev = _official_int(values[8], "ss_prev", provider)
+                ss_sell = _official_int(values[9], "ss_sell", provider)
+                ss_buy = _official_int(values[10], "ss_buy", provider)
+                ss_red = _official_int(values[11], "ss_red", provider)
+                ss_bal = _official_int(values[12], "ss_bal", provider)
+                ss_quota = _official_int(values[13], "ss_quota", provider)
+                note = str(values[14]).strip() if len(values) > 14 and values[14] else None
+
+                results.append(
+                    Margin(
+                        trade_date=trade_date,
+                        stock_id=sid,
+                        market="TWSE",
+                        margin_purchase_buy=mp_buy,
+                        margin_purchase_sell=mp_sell,
+                        margin_purchase_cash_redemption=mp_red,
+                        margin_purchase_balance=mp_bal,
+                        margin_purchase_previous_balance=mp_prev,
+                        margin_purchase_quota=mp_quota,
+                        short_sale_buy=ss_buy,
+                        short_sale_sell=ss_sell,
+                        short_sale_cash_redemption=ss_red,
+                        short_sale_balance=ss_bal,
+                        short_sale_previous_balance=ss_prev,
+                        short_sale_quota=ss_quota,
+                        note=note,
+                        source="TWSE:marginTrading/TWT93U",
+                        retrieved_at=envelope.retrieved_at,
+                    )
+                )
+        else:
+            table = self._extract_tpex_table(payload, provider)
+            data_rows = table.get("data", [])
+            for values in data_rows:
+                if not isinstance(values, list) or len(values) < 20:
+                    raise SchemaValidationError(
+                        "Official TPEx margin row width mismatch", provider=provider
+                    )
+                sid = str(values[0]).strip()
+                stock = self.stock_master.get(sid)
+                if stock is None or stock.market != "TPEx":
+                    continue
+
+                mp_prev = _official_int(values[2], "mp_prev", provider)
+                mp_buy = _official_int(values[3], "mp_buy", provider)
+                mp_sell = _official_int(values[4], "mp_sell", provider)
+                mp_red = _official_int(values[5], "mp_red", provider)
+                mp_bal = _official_int(values[6], "mp_bal", provider)
+                mp_quota = _official_int(values[9], "mp_quota", provider)
+
+                ss_prev = _official_int(values[10], "ss_prev", provider)
+                ss_sell = _official_int(values[11], "ss_sell", provider)
+                ss_buy = _official_int(values[12], "ss_buy", provider)
+                ss_red = _official_int(values[13], "ss_red", provider)
+                ss_bal = _official_int(values[14], "ss_bal", provider)
+                ss_quota = _official_int(values[17], "ss_quota", provider)
+                offset = _official_int(values[18], "offset", provider)
+                note = str(values[19]).strip() if len(values) > 19 and values[19] else None
+
+                results.append(
+                    Margin(
+                        trade_date=trade_date,
+                        stock_id=sid,
+                        market="TPEx",
+                        margin_purchase_buy=mp_buy,
+                        margin_purchase_sell=mp_sell,
+                        margin_purchase_cash_redemption=mp_red,
+                        margin_purchase_balance=mp_bal,
+                        margin_purchase_previous_balance=mp_prev,
+                        margin_purchase_quota=mp_quota,
+                        short_sale_buy=ss_buy,
+                        short_sale_sell=ss_sell,
+                        short_sale_cash_redemption=ss_red,
+                        short_sale_balance=ss_bal,
+                        short_sale_previous_balance=ss_prev,
+                        short_sale_quota=ss_quota,
+                        offset_loan_and_short=offset,
+                        note=note,
+                        source="TPEx:margin/balance",
+                        retrieved_at=envelope.retrieved_at,
+                    )
+                )
+
+        if not results:
+            raise SchemaValidationError(
+                "Official market table contained no stocks from the active universe",
+                provider=provider,
+            )
+        return results
+
+    @staticmethod
+    def _extract_twse_table(
+        payload: Dict[str, Any], required: set[str], provider: str
+    ) -> Tuple[List[str], List[Any]]:
+        fields = payload.get("fields")
+        data = payload.get("data")
+        if isinstance(fields, list) and required.issubset(set(fields)) and isinstance(data, list):
+            return fields, data
+
+        tables = payload.get("tables")
+        if isinstance(tables, list):
+            for t in tables:
+                if not isinstance(t, dict):
+                    continue
+                tf = t.get("fields")
+                td = t.get("data")
+                if isinstance(tf, list) and required.issubset(set(tf)) and isinstance(td, list):
+                    return tf, td
+        raise SchemaValidationError(
+            "Official TWSE margin table not found", provider=provider
+        )
+
+    @staticmethod
+    def _extract_tpex_table(payload: Dict[str, Any], provider: str) -> Dict[str, Any]:
+        tables = payload.get("tables")
+        if isinstance(tables, list):
+            for t in tables:
+                if not isinstance(t, dict):
+                    continue
+                tf = t.get("fields")
+                td = t.get("data")
+                if (
+                    isinstance(tf, list)
+                    and len(tf) >= 20
+                    and isinstance(td, list)
+                    and (t.get("title") == "上櫃股票融資融券餘額" or tf[0] in {"代號", "證券代號"})
+                ):
+                    return t
+        raise SchemaValidationError(
+            "Official TPEx margin table not found", provider=provider
+        )
+

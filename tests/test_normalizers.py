@@ -1,6 +1,7 @@
 """Normalizer Tests for Schema Validation, Zero/Null Semantics, and Quality Flags."""
 
 import json
+from pathlib import Path
 
 import pytest
 
@@ -447,3 +448,93 @@ def test_official_market_price_normalizer_fails_closed_on_schema_drift() -> None
     )
     with pytest.raises(SchemaValidationError, match="quote table not found"):
         PriceNormalizer(stock_master={}).normalize(envelope)
+
+
+def test_official_institutional_normalizer_twse_and_tpex() -> None:
+    registry = {
+        "1303": StockMaster(symbol="1303", name="南亞", market="TWSE"),
+        "00411A": StockMaster(symbol="00411A", name="主動統一前沿科技", market="TPEx"),
+    }
+    normalizer = InstitutionalNormalizer(stock_master=registry)
+
+    # 1. TWSE
+    twse_bytes = (Path("tests/fixtures/official") / "twse_inst_t86_20260924.json").read_bytes()
+    env_twse = RawResponseEnvelope(
+        provider_name="twse",
+        endpoint="official",
+        params={"date": "20260924"},
+        status_code=200,
+        raw_body_bytes=twse_bytes,
+    )
+    recs_twse = normalizer.normalize(env_twse)
+    assert len(recs_twse) == 1
+    r_twse = recs_twse[0]
+    assert r_twse.stock_id == "1303"
+    assert r_twse.market == "TWSE"
+    assert r_twse.trade_date == "2026-09-24"
+    assert r_twse.total_net == 14239802
+
+    # 2. TPEx
+    tpex_bytes = (
+        Path("tests/fixtures/official") / "tpex_inst_dailyTrade_20260924.json"
+    ).read_bytes()
+    env_tpex = RawResponseEnvelope(
+        provider_name="tpex",
+        endpoint="official",
+        params={"d": "115/09/24"},
+        status_code=200,
+        raw_body_bytes=tpex_bytes,
+    )
+    recs_tpex = normalizer.normalize(env_tpex)
+    assert len(recs_tpex) == 1
+    r_tpex = recs_tpex[0]
+    assert r_tpex.stock_id == "00411A"
+    assert r_tpex.market == "TPEx"
+    assert r_tpex.trade_date == "2026-09-24"
+    assert r_tpex.total_net == 2610820
+
+
+def test_official_margin_normalizer_twse_and_tpex() -> None:
+    registry = {
+        "00400A": StockMaster(symbol="00400A", name="主動國泰動能高息", market="TWSE"),
+        "00411A": StockMaster(symbol="00411A", name="主動統一前沿科技", market="TPEx"),
+    }
+    normalizer = MarginNormalizer(stock_master=registry)
+
+    # 1. TWSE
+    twse_bytes = (Path("tests/fixtures/official") / "twse_margin_twt93u_20260924.json").read_bytes()
+    env_twse = RawResponseEnvelope(
+        provider_name="twse",
+        endpoint="official",
+        params={"date": "20260924"},
+        status_code=200,
+        raw_body_bytes=twse_bytes,
+    )
+    recs_twse = normalizer.normalize(env_twse)
+    assert len(recs_twse) == 1
+    r_twse = recs_twse[0]
+    assert r_twse.stock_id == "00400A"
+    assert r_twse.market == "TWSE"
+    assert r_twse.trade_date == "2026-09-24"
+    assert r_twse.margin_purchase_balance == 64000
+    assert r_twse.short_sale_balance == 26720000
+
+    # 2. TPEx
+    tpex_bytes = (
+        Path("tests/fixtures/official") / "tpex_margin_balance_20260924.json"
+    ).read_bytes()
+    env_tpex = RawResponseEnvelope(
+        provider_name="tpex",
+        endpoint="official",
+        params={"d": "115/09/24"},
+        status_code=200,
+        raw_body_bytes=tpex_bytes,
+    )
+    recs_tpex = normalizer.normalize(env_tpex)
+    assert len(recs_tpex) == 1
+    r_tpex = recs_tpex[0]
+    assert r_tpex.stock_id == "00411A"
+    assert r_tpex.market == "TPEx"
+    assert r_tpex.trade_date == "2026-09-24"
+    assert r_tpex.margin_purchase_balance == 5475
+    assert r_tpex.short_sale_balance == 11
