@@ -3,7 +3,7 @@
 import json
 import re
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 from qmo.models.margin import Margin
 from qmo.models.stock import StockMaster, load_universe_stock_master
@@ -14,9 +14,7 @@ from qmo.providers.protocols import RawResponseEnvelope
 def _official_trade_date(
     payload: Dict[str, Any], envelope: RawResponseEnvelope, provider: str
 ) -> str:
-    raw = str(
-        payload.get("date") or envelope.params.get("date") or envelope.params.get("d") or ""
-    )
+    raw = str(payload.get("date") or envelope.params.get("date") or envelope.params.get("d") or "")
     try:
         if re.fullmatch(r"\d{8}", raw):
             return datetime.strptime(raw, "%Y%m%d").strftime("%Y-%m-%d")
@@ -225,33 +223,34 @@ class MarginNormalizer:
         results: List[Margin] = []
 
         if provider == "twse":
-            required = {"代號", "前日餘額", "當日賣出", "當日還券", "當日餘額"}
-            fields, data_rows = self._extract_twse_table(payload, required, provider)
+            required = {"代號", "前日餘額", "資券互抵"}
+            table = self._extract_twse_table(payload, required, provider)
+            data_rows = table.get("data", [])
             for values in data_rows:
-                if not isinstance(values, list) or len(values) != len(fields):
+                if not isinstance(values, list) or len(values) < 15:
                     raise SchemaValidationError(
                         "Official TWSE margin row width mismatch", provider=provider
                     )
-                row = dict(zip(fields, values, strict=True))
-                sid = str(row["代號"]).strip()
+                sid = str(values[0]).strip()
                 stock = self.stock_master.get(sid)
                 if stock is None or stock.market != "TWSE":
                     continue
 
-                mp_prev = _official_int(values[2], "mp_prev", provider)
-                mp_buy = _official_int(values[3], "mp_buy", provider)
-                mp_sell = _official_int(values[4], "mp_sell", provider)
-                mp_red = _official_int(values[5], "mp_red", provider)
+                mp_buy = _official_int(values[2], "mp_buy", provider)
+                mp_sell = _official_int(values[3], "mp_sell", provider)
+                mp_red = _official_int(values[4], "mp_red", provider)
+                mp_prev = _official_int(values[5], "mp_prev", provider)
                 mp_bal = _official_int(values[6], "mp_bal", provider)
                 mp_quota = _official_int(values[7], "mp_quota", provider)
 
-                ss_prev = _official_int(values[8], "ss_prev", provider)
+                ss_buy = _official_int(values[8], "ss_buy", provider)
                 ss_sell = _official_int(values[9], "ss_sell", provider)
-                ss_buy = _official_int(values[10], "ss_buy", provider)
-                ss_red = _official_int(values[11], "ss_red", provider)
+                ss_red = _official_int(values[10], "ss_red", provider)
+                ss_prev = _official_int(values[11], "ss_prev", provider)
                 ss_bal = _official_int(values[12], "ss_bal", provider)
                 ss_quota = _official_int(values[13], "ss_quota", provider)
-                note = str(values[14]).strip() if len(values) > 14 and values[14] else None
+                offset = _official_int(values[14], "offset", provider) if len(values) > 14 else None
+                note = str(values[15]).strip() if len(values) > 15 and values[15] else None
 
                 results.append(
                     Margin(
@@ -270,8 +269,9 @@ class MarginNormalizer:
                         short_sale_balance=ss_bal,
                         short_sale_previous_balance=ss_prev,
                         short_sale_quota=ss_quota,
+                        offset_loan_and_short=offset,
                         note=note,
-                        source="TWSE:marginTrading/TWT93U",
+                        source="TWSE:marginTrading/MI_MARGN",
                         retrieved_at=envelope.retrieved_at,
                     )
                 )
@@ -338,12 +338,7 @@ class MarginNormalizer:
     @staticmethod
     def _extract_twse_table(
         payload: Dict[str, Any], required: set[str], provider: str
-    ) -> Tuple[List[str], List[Any]]:
-        fields = payload.get("fields")
-        data = payload.get("data")
-        if isinstance(fields, list) and required.issubset(set(fields)) and isinstance(data, list):
-            return fields, data
-
+    ) -> Dict[str, Any]:
         tables = payload.get("tables")
         if isinstance(tables, list):
             for t in tables:
@@ -351,11 +346,21 @@ class MarginNormalizer:
                     continue
                 tf = t.get("fields")
                 td = t.get("data")
-                if isinstance(tf, list) and required.issubset(set(tf)) and isinstance(td, list):
-                    return tf, td
-        raise SchemaValidationError(
-            "Official TWSE margin table not found", provider=provider
-        )
+                title = str(t.get("title", ""))
+                if (
+                    isinstance(tf, list)
+                    and required.issubset(set(tf))
+                    and isinstance(td, list)
+                    and ("融資融券彙總" in title or tf[0] == "代號")
+                ):
+                    return t
+
+        fields = payload.get("fields")
+        data = payload.get("data")
+        if isinstance(fields, list) and required.issubset(set(fields)) and isinstance(data, list):
+            return {"fields": fields, "data": data}
+
+        raise SchemaValidationError("Official TWSE margin table not found", provider=provider)
 
     @staticmethod
     def _extract_tpex_table(payload: Dict[str, Any], provider: str) -> Dict[str, Any]:
@@ -373,7 +378,4 @@ class MarginNormalizer:
                     and (t.get("title") == "上櫃股票融資融券餘額" or tf[0] in {"代號", "證券代號"})
                 ):
                     return t
-        raise SchemaValidationError(
-            "Official TPEx margin table not found", provider=provider
-        )
-
+        raise SchemaValidationError("Official TPEx margin table not found", provider=provider)

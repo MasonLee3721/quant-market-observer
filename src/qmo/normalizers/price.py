@@ -175,7 +175,7 @@ class PriceNormalizer:
             raise SchemaValidationError(
                 f"Failed to parse JSON body: {exc}", provider=provider
             ) from exc
-        if not isinstance(payload, dict) or payload.get("stat") != "OK":
+        if not isinstance(payload, dict) or payload.get("stat") not in {"OK", "ok"}:
             raise SchemaValidationError("Official payload status is not OK", provider=provider)
         required = (
             {"證券代號", "成交股數", "成交筆數", "成交金額", "開盤價", "最高價", "最低價", "收盤價"}

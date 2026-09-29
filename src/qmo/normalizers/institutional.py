@@ -14,9 +14,7 @@ from qmo.providers.protocols import RawResponseEnvelope
 def _official_trade_date(
     payload: Dict[str, Any], envelope: RawResponseEnvelope, provider: str
 ) -> str:
-    raw = str(
-        payload.get("date") or envelope.params.get("date") or envelope.params.get("d") or ""
-    )
+    raw = str(payload.get("date") or envelope.params.get("date") or envelope.params.get("d") or "")
     try:
         if re.fullmatch(r"\d{8}", raw):
             return datetime.strptime(raw, "%Y%m%d").strftime("%Y-%m-%d")
@@ -210,9 +208,7 @@ class InstitutionalNormalizer:
 
         return results
 
-    def _normalize_official_market(
-        self, envelope: RawResponseEnvelope
-    ) -> List[InstitutionalFlow]:
+    def _normalize_official_market(self, envelope: RawResponseEnvelope) -> List[InstitutionalFlow]:
         """Normalize official TWSE/TPEx market-wide daily institutional response."""
         provider = envelope.provider_name
         if envelope.status_code != 200 or not envelope.raw_body_bytes:
@@ -397,4 +393,3 @@ class InstitutionalNormalizer:
         raise SchemaValidationError(
             "Official TPEx institutional table not found", provider=provider
         )
-

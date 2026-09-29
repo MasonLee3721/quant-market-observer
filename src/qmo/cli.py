@@ -266,7 +266,7 @@ def update(
     transport = HttpTransport(max_retries=max_retries, min_request_interval=request_interval)
     provider = FinMindProvider(transport=transport, api_token=api_token)
 
-    if real_api:
+    if real_api and provider_mode != "official-bulk" and api_token:
         click.echo("Fetching full Taiwan listed and OTC stock master universe from FinMind API...")
         try:
             info_envelope = (
@@ -323,28 +323,53 @@ def update(
 
             for prov_name in ("twse", "tpex"):
                 try:
-                    req_params = {"dataset": ds, "provider": prov_name, "date": t_date}
+                    parts = t_date.split("-")
+                    if prov_name == "twse":
+                        twse_date = t_date.replace("-", "")
+                        if ds == "daily_price":
+                            req_params = {
+                                "date": twse_date,
+                                "type": "ALLBUT0999",
+                                "response": "json",
+                            }
+                        elif ds == "institutional_flow":
+                            req_params = {
+                                "date": twse_date,
+                                "selectType": "ALLBUT0999",
+                                "response": "json",
+                            }
+                        else:
+                            req_params = {
+                                "date": twse_date,
+                                "selectType": "ALL",
+                                "response": "json",
+                            }
+                    else:
+                        roc_date = f"{int(parts[0]) - 1911}/{parts[1]}/{parts[2]}"
+                        if ds == "daily_price":
+                            req_params = {"d": roc_date, "l": "zh-tw", "s": "0,asc,0"}
+                        elif ds == "institutional_flow":
+                            req_params = {"type": "Daily", "d": roc_date, "response": "json"}
+                        else:
+                            req_params = {"d": roc_date, "response": "json"}
+
                     env = raw_store.load_matching(ds, req_params) if resume else None
                     if env is None:
                         api_requests += 1
-                        if ds == "daily_price":
-                            env = (
-                                twse_p.fetch_market_daily_price(t_date)
-                                if prov_name == "twse"
-                                else tpex_p.fetch_market_daily_price(t_date)
-                            )
-                        elif ds == "institutional_flow":
-                            env = (
-                                twse_p.fetch_institutional_flow("", t_date, t_date)
-                                if prov_name == "twse"
-                                else tpex_p.fetch_institutional_flow("", t_date, t_date)
-                            )
+                        if prov_name == "twse":
+                            if ds == "daily_price":
+                                env = twse_p.fetch_market_daily_price(t_date)
+                            elif ds == "institutional_flow":
+                                env = twse_p.fetch_institutional_flow("", t_date, t_date)
+                            else:
+                                env = twse_p.fetch_margin("", t_date, t_date)
                         else:
-                            env = (
-                                twse_p.fetch_margin("", t_date, t_date)
-                                if prov_name == "twse"
-                                else tpex_p.fetch_margin("", t_date, t_date)
-                            )
+                            if ds == "daily_price":
+                                env = tpex_p.fetch_market_daily_price(t_date)
+                            elif ds == "institutional_flow":
+                                env = tpex_p.fetch_institutional_flow("", t_date, t_date)
+                            else:
+                                env = tpex_p.fetch_margin("", t_date, t_date)
                         h_val, _ = raw_store.save(env, ds)
                     else:
                         cache_hits += 1

@@ -496,13 +496,15 @@ def test_official_institutional_normalizer_twse_and_tpex() -> None:
 
 def test_official_margin_normalizer_twse_and_tpex() -> None:
     registry = {
-        "00400A": StockMaster(symbol="00400A", name="主動國泰動能高息", market="TWSE"),
+        "2330": StockMaster(symbol="2330", name="台積電", market="TWSE"),
         "00411A": StockMaster(symbol="00411A", name="主動統一前沿科技", market="TPEx"),
     }
     normalizer = MarginNormalizer(stock_master=registry)
 
     # 1. TWSE
-    twse_bytes = (Path("tests/fixtures/official") / "twse_margin_twt93u_20260924.json").read_bytes()
+    twse_bytes = (
+        Path("tests/fixtures/official") / "twse_margin_mimargn_20260924.json"
+    ).read_bytes()
     env_twse = RawResponseEnvelope(
         provider_name="twse",
         endpoint="official",
@@ -513,11 +515,14 @@ def test_official_margin_normalizer_twse_and_tpex() -> None:
     recs_twse = normalizer.normalize(env_twse)
     assert len(recs_twse) == 1
     r_twse = recs_twse[0]
-    assert r_twse.stock_id == "00400A"
+    assert r_twse.stock_id == "2330"
     assert r_twse.market == "TWSE"
     assert r_twse.trade_date == "2026-09-24"
-    assert r_twse.margin_purchase_balance == 64000
-    assert r_twse.short_sale_balance == 26720000
+    assert r_twse.margin_purchase_buy == 1139
+    assert r_twse.margin_purchase_sell == 215
+    assert r_twse.margin_purchase_balance == 29707
+    assert r_twse.short_sale_balance == 16
+    assert r_twse.source == "TWSE:marginTrading/MI_MARGN"
 
     # 2. TPEx
     tpex_bytes = (
@@ -538,3 +543,4 @@ def test_official_margin_normalizer_twse_and_tpex() -> None:
     assert r_tpex.trade_date == "2026-09-24"
     assert r_tpex.margin_purchase_balance == 5475
     assert r_tpex.short_sale_balance == 11
+    assert r_tpex.source == "TPEx:margin/balance"

@@ -165,3 +165,83 @@ def test_cli_report(tmp_path: Path) -> None:
     )
     assert result.exit_code == 0
     assert "Quant Market Observer 每日量化市場觀測報告" in result.output
+
+
+def test_cli_update_official_bulk_e2e(tmp_path: Path) -> None:
+    """Verify qmo update official-bulk mode E2E workflow."""
+    from unittest.mock import MagicMock, patch
+
+    from qmo.providers.transport import HttpResponse
+    from qmo.storage.catalog import DuckDBCatalog
+
+    fx_dir = Path("tests/fixtures/official")
+    fixtures_map = {
+        "MI_INDEX": (fx_dir / "twse_price_mi_index_20260924.json").read_bytes(),
+        "stk_quote_result.php": (fx_dir / "tpex_price_stk_quote_20260924.json").read_bytes(),
+        "fund/T86": (fx_dir / "twse_inst_t86_20260924.json").read_bytes(),
+        "insti/dailyTrade": (fx_dir / "tpex_inst_dailyTrade_20260924.json").read_bytes(),
+        "MI_MARGN": (fx_dir / "twse_margin_mimargn_20260924.json").read_bytes(),
+        "margin/balance": (fx_dir / "tpex_margin_balance_20260924.json").read_bytes(),
+    }
+
+    mock_execute = MagicMock()
+
+    def side_effect(url: str, params: dict | None = None) -> HttpResponse:
+        for key, body in fixtures_map.items():
+            if key in url:
+                return HttpResponse(
+                    status_code=200,
+                    headers={"content-type": "application/json"},
+                    raw_bytes=body,
+                )
+        raise ValueError(f"Unexpected URL: {url}")
+
+    mock_execute.side_effect = side_effect
+
+    runner = CliRunner()
+
+    with patch("qmo.providers.transport.HttpTransport.execute", mock_execute):
+        # 1. First run: cold execution
+        res1 = runner.invoke(
+            main,
+            [
+                "update",
+                "--provider-mode",
+                "official-bulk",
+                "--date",
+                "2026-09-24",
+                "--root-dir",
+                str(tmp_path),
+            ],
+        )
+        assert res1.exit_code == 0, f"CLI update failed: {res1.output}"
+        assert mock_execute.call_count == 6  # Exactly 6 requests (3 TWSE + 3 TPEx)
+
+        # Verify DuckDB Catalog registered batches
+        catalog = DuckDBCatalog(tmp_path / "catalog" / "qmo_catalog.duckdb")
+        for ds in ["daily_price", "institutional_flow", "margin"]:
+            batches = catalog.list_published_batches(ds)
+            assert len(batches) == 1
+            assert batches[0]["record_count"] > 0
+
+        # Verify Raw Snapshots exist
+        raw_files = list((tmp_path / "raw").rglob("*.json"))
+        assert len(raw_files) == 6
+
+        # 2. Second run with --resume: should hit cache with 0 new HTTP requests
+        mock_execute.reset_mock()
+        res2 = runner.invoke(
+            main,
+            [
+                "update",
+                "--provider-mode",
+                "official-bulk",
+                "--date",
+                "2026-09-24",
+                "--resume",
+                "--root-dir",
+                str(tmp_path),
+            ],
+        )
+        assert res2.exit_code == 0
+        assert mock_execute.call_count == 0  # 100% cache hits from RawSnapshotStore!
