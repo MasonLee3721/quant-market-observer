@@ -67,8 +67,8 @@ class TpexProvider:
         parts = start_date.split("-")
         roc_year = int(parts[0]) - 1911
         roc_date = f"{roc_year}/{parts[1]}/{parts[2]}"
-        url = "https://www.tpex.org.tw/web/stock/3shares/3shares_result.php"
-        params = {"d": roc_date, "l": "zh-tw"}
+        url = "https://www.tpex.org.tw/www/zh-tw/insti/dailyTrade"
+        params = {"type": "Daily", "d": roc_date, "response": "json"}
         res = self.transport.execute(url, params=params)
         return RawResponseEnvelope(
             provider_name=self.provider_name,

@@ -288,8 +288,9 @@ def test_tpex_institutional_and_margin_endpoints() -> None:
     provider = TpexProvider(transport=transport)
 
     env_inst = provider.fetch_institutional_flow("6488", "2026-09-24", "2026-09-24")
-    assert "3shares" in env_inst.endpoint
+    assert "insti/dailyTrade" in env_inst.endpoint
     assert env_inst.params["d"] == "115/09/24"
+    assert env_inst.params["type"] == "Daily"
 
     env_margin = provider.fetch_margin("6488", "2026-09-24", "2026-09-24")
     assert "margin/balance" in env_margin.endpoint
