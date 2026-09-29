@@ -634,32 +634,136 @@ def test_balanced_universe_limit() -> None:
 def test_extract_official_stock_master_real_universe_counts() -> None:
     from pathlib import Path
 
+    import pytest
+
     from qmo.models.stock import extract_official_stock_master
     from qmo.providers.protocols import RawResponseEnvelope
 
     twse_p = Path("/tmp/twse_price_full.json")
     tpex_p = Path("/tmp/tpex_price_full.json")
 
-    if twse_p.exists() and tpex_p.exists():
-        e1 = RawResponseEnvelope(
-            provider_name="twse",
-            endpoint="",
-            params={},
-            status_code=200,
-            raw_body_bytes=twse_p.read_bytes(),
+    if not (twse_p.exists() and tpex_p.exists()):
+        pytest.skip(
+            "Real universe full payloads /tmp/twse_price_full.json or "
+            "/tmp/tpex_price_full.json not present"
         )
-        e2 = RawResponseEnvelope(
-            provider_name="tpex",
-            endpoint="",
-            params={},
-            status_code=200,
-            raw_body_bytes=tpex_p.read_bytes(),
-        )
-        reg = extract_official_stock_master([e1, e2])
-        twse_c = sum(1 for s in reg.values() if s.market == "TWSE")
-        tpex_c = sum(1 for s in reg.values() if s.market == "TPEx")
-        assert twse_c == 1081
-        assert tpex_c == 890
-        assert len(reg) == 1971
+
+    e1 = RawResponseEnvelope(
+        provider_name="twse",
+        endpoint="",
+        params={},
+        status_code=200,
+        raw_body_bytes=twse_p.read_bytes(),
+    )
+    e2 = RawResponseEnvelope(
+        provider_name="tpex",
+        endpoint="",
+        params={},
+        status_code=200,
+        raw_body_bytes=tpex_p.read_bytes(),
+    )
+    reg = extract_official_stock_master([e1, e2])
+    twse_c = sum(1 for s in reg.values() if s.market == "TWSE")
+    tpex_c = sum(1 for s in reg.values() if s.market == "TPEx")
+    assert twse_c == 1081
+    assert tpex_c == 890
+    assert len(reg) == 1971
+
+
+def test_twse_margin_fail_closed_header_validation() -> None:
+    import json
+
+    import pytest
+
+    from qmo.normalizers.margin import MarginNormalizer
+    from qmo.providers.exceptions import SchemaValidationError
+    from qmo.providers.protocols import RawResponseEnvelope
+
+    payload = {
+        "stat": "OK",
+        "date": "20260924",
+        "fields": ["代號", "買進", "賣出", "前日餘額", "今日餘額", "限額", "資券互抵"],
+        "data": [["2330", "10", "5", "100", "105", "1000", "0"]],
+    }
+    env = RawResponseEnvelope(
+        provider_name="twse",
+        endpoint="",
+        params={},
+        status_code=200,
+        raw_body_bytes=json.dumps(payload).encode("utf-8"),
+    )
+    norm = MarginNormalizer()
+    with pytest.raises(SchemaValidationError, match="Missing required duplicate headers"):
+        norm.normalize(env)
+
+
+def test_twse_margin_reordered_columns_numeric_output() -> None:
+    import json
+
+    from qmo.normalizers.margin import MarginNormalizer
+    from qmo.providers.protocols import RawResponseEnvelope
+
+    fields = [
+        "代號",
+        "名稱",
+        "賣出",
+        "買進",
+        "前日餘額",
+        "今日餘額",
+        "現金償還",
+        "限額",
+        "賣出",
+        "買進",
+        "前日餘額",
+        "今日餘額",
+        "現券償還",
+        "限額",
+        "資券互抵",
+        "註記",
+    ]
+    data_row = [
+        "2330",
+        "台積電",
+        "100",
+        "500",
+        "1000",
+        "1350",
+        "50",
+        "5000",
+        "200",
+        "50",
+        "300",
+        "400",
+        "50",
+        "2000",
+        "10",
+        "",
+    ]
+    payload = {"stat": "OK", "date": "20260924", "fields": fields, "data": [data_row]}
+    env = RawResponseEnvelope(
+        provider_name="twse",
+        endpoint="",
+        params={},
+        status_code=200,
+        raw_body_bytes=json.dumps(payload).encode("utf-8"),
+    )
+    norm = MarginNormalizer()
+    records = norm.normalize(env)
+    assert len(records) == 1
+    m = records[0]
+    assert m.stock_id == "2330"
+    assert m.margin_purchase_buy == 500
+    assert m.margin_purchase_sell == 100
+    assert m.margin_purchase_previous_balance == 1000
+    assert m.margin_purchase_balance == 1350
+    assert m.margin_purchase_cash_redemption == 50
+    assert m.margin_purchase_quota == 5000
+    assert m.short_sale_buy == 50
+    assert m.short_sale_sell == 200
+    assert m.short_sale_previous_balance == 300
+    assert m.short_sale_balance == 400
+    assert m.short_sale_cash_redemption == 50
+    assert m.short_sale_quota == 2000
+    assert m.offset_loan_and_short == 10
 
 

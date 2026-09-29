@@ -304,7 +304,7 @@ def update(
     else:
         stock_master = load_universe_stock_master()
 
-    if limit is not None:
+    if limit is not None and provider_mode != "official-bulk":
         stock_master = apply_balanced_universe_limit(stock_master, limit)
         click.echo(f"Smoke-run universe limited to {len(stock_master)} ticker(s).")
 
@@ -339,6 +339,7 @@ def update(
             else:  # margin
                 norm_obj = MarginNormalizer(stock_master=stock_master)
 
+            fetched_envelopes = []
             for prov_name in ("twse", "tpex"):
                 try:
                     parts = t_date.split("-")
@@ -393,13 +394,27 @@ def update(
                         cache_hits += 1
                         h_val = env.content_hash
                     raw_hashes.append(h_val)
-                    ext_master = extract_official_stock_master([env])
-                    if ext_master:
-                        stock_master.update(ext_master)
-                    if limit is not None:
-                        norm_obj.stock_master = apply_balanced_universe_limit(stock_master, limit)
-                    elif stock_master:
-                        norm_obj.stock_master = stock_master
+                    fetched_envelopes.append((prov_name, env))
+                except Exception as exc:
+                    failure_records.append(
+                        ExecutionFailureRecord(
+                            stock_id=prov_name,
+                            error_type=type(exc).__name__,
+                            error_message=str(exc),
+                        )
+                    )
+
+            ext_master = extract_official_stock_master([env for _, env in fetched_envelopes])
+            if ext_master:
+                stock_master.update(ext_master)
+
+            if limit is not None:
+                norm_obj.stock_master = apply_balanced_universe_limit(stock_master, limit)
+            elif stock_master:
+                norm_obj.stock_master = stock_master
+
+            for prov_name, env in fetched_envelopes:
+                try:
                     norm_recs = norm_obj.normalize(env)
                     if norm_recs:
                         success_count += len(norm_recs)

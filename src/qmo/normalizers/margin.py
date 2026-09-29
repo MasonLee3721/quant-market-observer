@@ -40,7 +40,7 @@ def _official_int(val: Any, field: str, provider: str) -> int:
         ) from exc
 
 
-def _resolve_twse_margin_column_indices(fields: List[str]) -> Dict[str, int]:
+def _resolve_twse_margin_column_indices(fields: List[str]) -> Dict[str, Optional[int]]:
     """Dynamically resolve TWSE MI_MARGN column indices for Margin Purchase and Short Sale."""
     fields_clean = [str(f).strip() for f in fields]
     buy_idxs = [i for i, f in enumerate(fields_clean) if f == "買進"]
@@ -53,26 +53,33 @@ def _resolve_twse_margin_column_indices(fields: List[str]) -> Dict[str, int]:
     offset_idxs = [i for i, f in enumerate(fields_clean) if "資券" in f]
     note_idxs = [i for i, f in enumerate(fields_clean) if "註記" in f]
 
+    if len(buy_idxs) < 2 or len(sell_idxs) < 2 or len(prev_idxs) < 2 or len(today_idxs) < 2:
+        raise SchemaValidationError(
+            "Missing required duplicate headers in TWSE MI_MARGN table",
+            provider="twse",
+        )
+    if not red_mp_idxs or not red_ss_idxs or len(limit_idxs) < 2 or not offset_idxs:
+        raise SchemaValidationError(
+            "Missing required column headers in TWSE MI_MARGN table",
+            provider="twse",
+        )
+
     return {
         "sid": 0,
-        "mp_buy": buy_idxs[0] if len(buy_idxs) > 0 else 2,
-        "mp_sell": sell_idxs[0] if len(sell_idxs) > 0 else 3,
-        "mp_red": red_mp_idxs[0] if len(red_mp_idxs) > 0 else 4,
-        "mp_prev": prev_idxs[0] if len(prev_idxs) > 0 else 5,
-        "mp_bal": today_idxs[0] if len(today_idxs) > 0 else 6,
-        "mp_quota": limit_idxs[0] if len(limit_idxs) > 0 else 7,
-        "ss_buy": buy_idxs[1] if len(buy_idxs) > 1 else 8,
-        "ss_sell": sell_idxs[1] if len(sell_idxs) > 1 else 9,
-        "ss_red": (
-            red_ss_idxs[1]
-            if len(red_ss_idxs) > 1
-            else (red_ss_idxs[0] if len(red_ss_idxs) > 0 else 10)
-        ),
-        "ss_prev": prev_idxs[1] if len(prev_idxs) > 1 else 11,
-        "ss_bal": today_idxs[1] if len(today_idxs) > 1 else 12,
-        "ss_quota": limit_idxs[1] if len(limit_idxs) > 1 else 13,
-        "offset": offset_idxs[0] if len(offset_idxs) > 0 else 14,
-        "note": note_idxs[0] if len(note_idxs) > 0 else 15,
+        "mp_buy": buy_idxs[0],
+        "mp_sell": sell_idxs[0],
+        "mp_red": red_mp_idxs[0],
+        "mp_prev": prev_idxs[0],
+        "mp_bal": today_idxs[0],
+        "mp_quota": limit_idxs[0],
+        "ss_buy": buy_idxs[1],
+        "ss_sell": sell_idxs[1],
+        "ss_red": red_ss_idxs[1] if len(red_ss_idxs) > 1 else red_ss_idxs[0],
+        "ss_prev": prev_idxs[1],
+        "ss_bal": today_idxs[1],
+        "ss_quota": limit_idxs[1],
+        "offset": offset_idxs[0],
+        "note": note_idxs[0] if note_idxs else None,
     }
 
 
