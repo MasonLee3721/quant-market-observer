@@ -767,3 +767,61 @@ def test_twse_margin_reordered_columns_numeric_output() -> None:
     assert m.offset_loan_and_short == 10
 
 
+def test_tpex_mismatched_table_date_fails_closed() -> None:
+    import json
+
+    import pytest
+
+    from qmo.normalizers.price import PriceNormalizer
+    from qmo.providers.exceptions import SchemaValidationError
+    from qmo.providers.protocols import RawResponseEnvelope
+
+    payload = {
+        "stat": "OK",
+        "date": "20260929",
+        "tables": [
+            {
+                "title": "115年09月29日 上櫃股票行情",
+                "fields": [
+                    "代號",
+                    "名稱",
+                    "收盤",
+                    "漲跌",
+                    "開盤",
+                    "最高",
+                    "最低",
+                    "均價",
+                    "成交股數",
+                    "成交金額(元)",
+                    "成交筆數",
+                ],
+                "data": [
+                    [
+                        "8069",
+                        "元太",
+                        "50.0",
+                        "1.0",
+                        "50.0",
+                        "51.0",
+                        "49.0",
+                        "50.0",
+                        "500",
+                        "25000",
+                        "5",
+                    ]
+                ],
+            }
+        ],
+    }
+    env = RawResponseEnvelope(
+        provider_name="tpex",
+        endpoint="",
+        params={"d": "115/09/24"},
+        status_code=200,
+        raw_body_bytes=json.dumps(payload).encode("utf-8"),
+    )
+    norm = PriceNormalizer()
+    with pytest.raises(SchemaValidationError, match="does not match requested date"):
+        norm.normalize(env)
+
+

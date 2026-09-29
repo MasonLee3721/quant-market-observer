@@ -404,9 +404,10 @@ def update(
                         )
                     )
 
-            ext_master = extract_official_stock_master([env for _, env in fetched_envelopes])
-            if ext_master:
-                stock_master.update(ext_master)
+            if ds == "daily_price" or not stock_master:
+                ext_master = extract_official_stock_master([env for _, env in fetched_envelopes])
+                if ext_master:
+                    stock_master.update(ext_master)
 
             if limit is not None:
                 norm_obj.stock_master = apply_balanced_universe_limit(stock_master, limit)

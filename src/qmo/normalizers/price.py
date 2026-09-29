@@ -238,15 +238,47 @@ class PriceNormalizer:
         )
         try:
             if re.fullmatch(r"\d{8}", raw):
-                return datetime.strptime(raw, "%Y%m%d").strftime("%Y-%m-%d")
-            if re.fullmatch(r"\d{3}/\d{2}/\d{2}", raw):
+                t_date = datetime.strptime(raw, "%Y%m%d").strftime("%Y-%m-%d")
+            elif re.fullmatch(r"\d{3}/\d{2}/\d{2}", raw):
                 year, month, day = raw.split("/")
-                return f"{int(year) + 1911:04d}-{month}-{day}"
-            return datetime.strptime(raw, "%Y-%m-%d").strftime("%Y-%m-%d")
+                t_date = f"{int(year) + 1911:04d}-{month}-{day}"
+            elif re.fullmatch(r"\d{7}", raw):
+                year, month, day = raw[:3], raw[3:5], raw[5:7]
+                t_date = f"{int(year) + 1911:04d}-{month}-{day}"
+            else:
+                t_date = datetime.strptime(raw, "%Y-%m-%d").strftime("%Y-%m-%d")
         except ValueError as exc:
             raise SchemaValidationError(
                 f"Invalid official trade date: {raw}", provider=provider
             ) from exc
+
+        if provider == "twse" and payload.get("date"):
+            p_date_raw = str(payload["date"])
+            if re.fullmatch(r"\d{8}", p_date_raw):
+                p_date = datetime.strptime(p_date_raw, "%Y%m%d").strftime("%Y-%m-%d")
+                if p_date != t_date:
+                    raise SchemaValidationError(
+                        f"Official TWSE response date '{p_date}' does not match "
+                        f"requested date '{t_date}'",
+                        provider=provider,
+                    )
+
+        tables = payload.get("tables")
+        if isinstance(tables, list):
+            for t in tables:
+                if isinstance(t, dict) and "title" in t:
+                    title = str(t["title"])
+                    match = re.search(r"(\d{3})年(\d{2})月(\d{2})日", title)
+                    if match:
+                        y, m, d = match.group(1), match.group(2), match.group(3)
+                        title_date = f"{int(y) + 1911:04d}-{m}-{d}"
+                        if title_date != t_date:
+                            raise SchemaValidationError(
+                                f"Official response table date '{title_date}' does not match "
+                                f"requested date '{t_date}'",
+                                provider=provider,
+                            )
+        return t_date
 
     @staticmethod
     def _official_number(value: Any, field: str, provider: str, *, integer: bool = False) -> Any:
