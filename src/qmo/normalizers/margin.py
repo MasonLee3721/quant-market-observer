@@ -225,13 +225,25 @@ class MarginNormalizer:
         if provider == "twse":
             required = {"代號", "前日餘額", "資券互抵"}
             table = self._extract_twse_table(payload, required, provider)
+            fields = table.get("fields", [])
             data_rows = table.get("data", [])
+            col_map = {str(name).strip(): i for i, name in enumerate(fields)} if fields else {}
+
+            def _get_val(row_vals: List[Any], col_name: str, fallback_idx: int) -> Any:
+                if col_name in col_map and col_map[col_name] < len(row_vals):
+                    return row_vals[col_map[col_name]]
+                for k, idx in col_map.items():
+                    if col_name in k and idx < len(row_vals):
+                        return row_vals[idx]
+                return row_vals[fallback_idx] if fallback_idx < len(row_vals) else None
+
             for values in data_rows:
                 if not isinstance(values, list) or len(values) < 15:
                     raise SchemaValidationError(
                         "Official TWSE margin row width mismatch", provider=provider
                     )
-                sid = str(values[0]).strip()
+
+                sid = str(_get_val(values, "代號", 0)).strip()
                 if self.stock_master is not None:
                     stock = self.stock_master.get(sid)
                     if stock is None or stock.market != "TWSE":
@@ -240,21 +252,22 @@ class MarginNormalizer:
                     if not re.fullmatch(r"\d{4}", sid) or sid.startswith("00"):
                         continue
 
-                mp_buy = _official_int(values[2], "mp_buy", provider)
-                mp_sell = _official_int(values[3], "mp_sell", provider)
-                mp_red = _official_int(values[4], "mp_red", provider)
-                mp_prev = _official_int(values[5], "mp_prev", provider)
-                mp_bal = _official_int(values[6], "mp_bal", provider)
-                mp_quota = _official_int(values[7], "mp_quota", provider)
+                mp_buy = _official_int(_get_val(values, "融資買進", 2), "mp_buy", provider)
+                mp_sell = _official_int(_get_val(values, "融資賣出", 3), "mp_sell", provider)
+                mp_red = _official_int(_get_val(values, "融資現金償還", 4), "mp_red", provider)
+                mp_prev = _official_int(_get_val(values, "融資前日餘額", 5), "mp_prev", provider)
+                mp_bal = _official_int(_get_val(values, "融資今日餘額", 6), "mp_bal", provider)
+                mp_quota = _official_int(_get_val(values, "融資限額", 7), "mp_quota", provider)
 
-                ss_buy = _official_int(values[8], "ss_buy", provider)
-                ss_sell = _official_int(values[9], "ss_sell", provider)
-                ss_red = _official_int(values[10], "ss_red", provider)
-                ss_prev = _official_int(values[11], "ss_prev", provider)
-                ss_bal = _official_int(values[12], "ss_bal", provider)
-                ss_quota = _official_int(values[13], "ss_quota", provider)
-                offset = _official_int(values[14], "offset", provider) if len(values) > 14 else None
-                note = str(values[15]).strip() if len(values) > 15 and values[15] else None
+                ss_buy = _official_int(_get_val(values, "融券買進", 8), "ss_buy", provider)
+                ss_sell = _official_int(_get_val(values, "融券賣出", 9), "ss_sell", provider)
+                ss_red = _official_int(_get_val(values, "融券現金償還", 10), "ss_red", provider)
+                ss_prev = _official_int(_get_val(values, "融券前日餘額", 11), "ss_prev", provider)
+                ss_bal = _official_int(_get_val(values, "融券今日餘額", 12), "ss_bal", provider)
+                ss_quota = _official_int(_get_val(values, "融券限額", 13), "ss_quota", provider)
+                offset = _official_int(_get_val(values, "資券互抵", 14), "offset", provider)
+                note_raw = _get_val(values, "註記", 15)
+                note = str(note_raw).strip() if note_raw else None
 
                 results.append(
                     Margin(
