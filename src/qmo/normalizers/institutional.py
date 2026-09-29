@@ -14,7 +14,9 @@ from qmo.providers.protocols import RawResponseEnvelope
 def _official_trade_date(
     payload: Dict[str, Any], envelope: RawResponseEnvelope, provider: str
 ) -> str:
-    raw = str(payload.get("date") or envelope.params.get("date") or envelope.params.get("d") or "")
+    raw = str(
+        envelope.params.get("date") or envelope.params.get("d") or payload.get("date") or ""
+    )
     try:
         if re.fullmatch(r"\d{8}", raw):
             return datetime.strptime(raw, "%Y%m%d").strftime("%Y-%m-%d")

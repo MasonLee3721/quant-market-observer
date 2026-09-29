@@ -231,7 +231,10 @@ class PriceNormalizer:
         payload: Dict[str, Any], envelope: RawResponseEnvelope, provider: str
     ) -> str:
         raw = str(
-            payload.get("date") or envelope.params.get("date") or envelope.params.get("d") or ""
+            envelope.params.get("date")
+            or envelope.params.get("d")
+            or payload.get("date")
+            or ""
         )
         try:
             if re.fullmatch(r"\d{8}", raw):
