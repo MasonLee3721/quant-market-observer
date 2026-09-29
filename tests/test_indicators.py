@@ -62,7 +62,7 @@ def test_flow_concentration() -> None:
     res = calculate_flow_concentration(inflows)
     assert res["top1_share"] == 0.6  # 600 / 1000
     assert res["top2_share"] == 0.9  # 900 / 1000
-    assert res["flow_hhi"] == 0.46   # 0.6^2 + 0.3^2 + 0.1^2 = 0.36 + 0.09 + 0.01 = 0.46
+    assert res["flow_hhi"] == 0.46  # 0.6^2 + 0.3^2 + 0.1^2 = 0.36 + 0.09 + 0.01 = 0.46
 
 
 def test_percentile_and_stock_classification() -> None:
@@ -157,5 +157,3 @@ def test_score_clamping_bounds() -> None:
     low_market = calculate_market_score(-50.0, -20.0, 0.0, 0.0, 0.0)
     assert high_market == 100.0
     assert low_market == 0.0
-
-

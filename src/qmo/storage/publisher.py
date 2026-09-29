@@ -156,9 +156,7 @@ class AtomicBatchPublisher:
             existed_md = qr_md.exists()
 
             if not existed_json or not existed_md:
-                staged_qr_dir = (
-                    self.staging_dir / dataset / f".qr_stage_{uuid.uuid4().hex}"
-                )
+                staged_qr_dir = self.staging_dir / dataset / f".qr_stage_{uuid.uuid4().hex}"
                 staged_qr_dir.mkdir(parents=True, exist_ok=True)
                 try:
                     staged_json = staged_qr_dir / "quality_report.json"
@@ -174,9 +172,7 @@ class AtomicBatchPublisher:
                         staged_md.write_text(quality_report.to_markdown())
 
                     if not existed_json:
-                        tmp_target_json = (
-                            target_published_dir / ".quality_report.json.tmp"
-                        )
+                        tmp_target_json = target_published_dir / ".quality_report.json.tmp"
                         shutil.copy2(staged_json, tmp_target_json)
                         created_target_files.append(tmp_target_json)
                         os.replace(tmp_target_json, qr_json)
@@ -184,9 +180,7 @@ class AtomicBatchPublisher:
                         created_target_files.append(qr_json)
 
                     if not existed_md:
-                        tmp_target_md = (
-                            target_published_dir / ".quality_report.md.tmp"
-                        )
+                        tmp_target_md = target_published_dir / ".quality_report.md.tmp"
                         shutil.copy2(staged_md, tmp_target_md)
                         created_target_files.append(tmp_target_md)
                         os.replace(tmp_target_md, qr_md)
@@ -218,9 +212,7 @@ class AtomicBatchPublisher:
                 all_pub_files.append(r_path)
 
         pub_paths = [str(p) for p in all_pub_files]
-        pq_hashes = {
-            str(p): hashlib.sha256(p.read_bytes()).hexdigest() for p in all_pub_files
-        }
+        pq_hashes = {str(p): hashlib.sha256(p.read_bytes()).hexdigest() for p in all_pub_files}
 
         manifest = BatchManifest(
             batch_id=batch_id,

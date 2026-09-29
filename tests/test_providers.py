@@ -210,3 +210,87 @@ def test_twse_t86_institutional_endpoint() -> None:
 
     assert "T86" in envelope.endpoint
     assert envelope.status_code == 200
+
+
+def test_twse_fetch_market_daily_price_endpoint() -> None:
+    """Verify TWSE Provider uses MI_INDEX endpoint with correct params."""
+
+    def mock_request(
+        url: str, params: Dict[str, Any], headers: Dict[str, str]
+    ) -> Tuple[int, Dict[str, str], bytes]:
+        assert "MI_INDEX" in url
+        assert params["date"] == "20260924"
+        assert params["type"] == "ALLBUT0999"
+        assert params["response"] == "json"
+        return 200, {"Content-Type": "application/json"}, b'{"stat": "OK", "tables": []}'
+
+    transport = HttpTransport(request_func=mock_request)
+    provider = TwseProvider(transport=transport)
+    envelope = provider.fetch_market_daily_price("2026-09-24")
+
+    assert "MI_INDEX" in envelope.endpoint
+    assert envelope.status_code == 200
+    assert envelope.params["date"] == "20260924"
+
+
+def test_tpex_fetch_market_daily_price_endpoint() -> None:
+    """Verify TPEx Provider uses stk_quote_result.php with ROC date conversion."""
+
+    def mock_request(
+        url: str, params: Dict[str, Any], headers: Dict[str, str]
+    ) -> Tuple[int, Dict[str, str], bytes]:
+        assert "stk_quote_result.php" in url
+        assert params["d"] == "115/09/24"
+        assert params["l"] == "zh-tw"
+        assert params["s"] == "0,asc,0"
+        return 200, {"Content-Type": "application/json"}, b'{"stat": "OK", "aaData": []}'
+
+    transport = HttpTransport(request_func=mock_request)
+    provider = TpexProvider(transport=transport)
+    envelope = provider.fetch_market_daily_price("2026-09-24")
+
+    assert "stk_quote_result.php" in envelope.endpoint
+    assert envelope.status_code == 200
+    assert envelope.params["d"] == "115/09/24"
+
+
+def test_twse_margin_endpoint() -> None:
+    """Verify TWSE Provider uses MI_MARGIN endpoint for margin trading report."""
+
+    def mock_request(
+        url: str, params: Dict[str, Any], headers: Dict[str, str]
+    ) -> Tuple[int, Dict[str, str], bytes]:
+        assert "MI_MARGIN" in url
+        assert params["date"] == "20260924"
+        assert params["selectType"] == "ALL"
+        return 200, {"Content-Type": "application/json"}, b'{"stat": "OK", "tables": []}'
+
+    transport = HttpTransport(request_func=mock_request)
+    provider = TwseProvider(transport=transport)
+    envelope = provider.fetch_margin("2330", "2026-09-24", "2026-09-24")
+
+    assert "MI_MARGIN" in envelope.endpoint
+    assert envelope.status_code == 200
+
+
+def test_tpex_institutional_and_margin_endpoints() -> None:
+    """Verify TPEx Provider institutional and margin endpoints convert Gregorian to ROC date."""
+
+    called_urls = []
+
+    def mock_request(
+        url: str, params: Dict[str, Any], headers: Dict[str, str]
+    ) -> Tuple[int, Dict[str, str], bytes]:
+        called_urls.append((url, params))
+        return 200, {"Content-Type": "application/json"}, b'{"stat": "OK", "aaData": []}'
+
+    transport = HttpTransport(request_func=mock_request)
+    provider = TpexProvider(transport=transport)
+
+    env_inst = provider.fetch_institutional_flow("6488", "2026-09-24", "2026-09-24")
+    assert "3shares_result.php" in env_inst.endpoint
+    assert env_inst.params["d"] == "115/09/24"
+
+    env_margin = provider.fetch_margin("6488", "2026-09-24", "2026-09-24")
+    assert "margin_bal_result.php" in env_margin.endpoint
+    assert env_margin.params["d"] == "115/09/24"

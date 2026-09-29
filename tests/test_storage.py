@@ -1273,4 +1273,3 @@ def test_corrupted_legacy_report_json_fails_migration_without_backfill(
     # Instantiating DuckDBCatalog triggers migration and must raise StorageValidationError
     with pytest.raises(StorageValidationError, match="corrupted"):
         DuckDBCatalog(db_path)
-

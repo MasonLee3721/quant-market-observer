@@ -38,6 +38,29 @@ class TpexProvider:
             raw_body_bytes=res.raw_bytes,
         )
 
+    def fetch_market_daily_price(self, date: str) -> RawResponseEnvelope:
+        """Fetch official daily market-wide price/volume quotes table for all TPEx stocks."""
+        parts = date.split("-")
+        roc_year = int(parts[0]) - 1911
+        roc_date = f"{roc_year}/{parts[1]}/{parts[2]}"
+        url = (
+            "https://www.tpex.org.tw/web/stock/aftertrading/daily_close_quotes/stk_quote_result.php"
+        )
+        params = {
+            "d": roc_date,
+            "l": "zh-tw",
+            "s": "0,asc,0",
+        }
+        res = self.transport.execute(url, params=params)
+        return RawResponseEnvelope(
+            provider_name=self.provider_name,
+            endpoint=url,
+            params=params,
+            status_code=res.status_code,
+            headers=res.headers,
+            raw_body_bytes=res.raw_bytes,
+        )
+
     def fetch_institutional_flow(
         self, symbol: str, start_date: str, end_date: str
     ) -> RawResponseEnvelope:

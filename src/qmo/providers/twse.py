@@ -34,6 +34,25 @@ class TwseProvider:
             raw_body_bytes=res.raw_bytes,
         )
 
+    def fetch_market_daily_price(self, date: str) -> RawResponseEnvelope:
+        """Fetch official daily market-wide price/volume quotes table for all TWSE stocks."""
+        twse_date = date.replace("-", "")
+        url = "https://www.twse.com.tw/rwd/zh/afterTrading/MI_INDEX"
+        params = {
+            "date": twse_date,
+            "type": "ALLBUT0999",
+            "response": "json",
+        }
+        res = self.transport.execute(url, params=params)
+        return RawResponseEnvelope(
+            provider_name=self.provider_name,
+            endpoint=url,
+            params=params,
+            status_code=res.status_code,
+            headers=res.headers,
+            raw_body_bytes=res.raw_bytes,
+        )
+
     def fetch_institutional_flow(
         self, symbol: str, start_date: str, end_date: str
     ) -> RawResponseEnvelope:

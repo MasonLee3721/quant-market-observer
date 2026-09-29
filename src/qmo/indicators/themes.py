@@ -24,7 +24,7 @@ def calculate_flow_concentration(inflows: Sequence[float]) -> Dict[str, Optional
 
     top1 = shares[0] if len(shares) >= 1 else 0.0
     top2 = sum(shares[:2]) if len(shares) >= 2 else top1
-    hhi = sum(s ** 2 for s in shares)
+    hhi = sum(s**2 for s in shares)
 
     return {
         "top1_share": round(top1, 4),

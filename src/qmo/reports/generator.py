@@ -211,7 +211,7 @@ def generate_html_report(
         </div>
         <div class="card">
             <h2>已處理個股總數</h2>
-            <div class="stat-val">{summary.get('processed_stocks', len(stocks))}</div>
+            <div class="stat-val">{summary.get("processed_stocks", len(stocks))}</div>
         </div>
     </div>
 
@@ -222,27 +222,27 @@ def generate_html_report(
             <tbody>
                 <tr>
                     <td><span class="badge badge-leader">強勢領頭 LEADER</span></td>
-                    <td><strong>{state_counts['leader']}</strong></td>
+                    <td><strong>{state_counts["leader"]}</strong></td>
                     <td>具備強勁價格動能與 60 日季線支撐之主力攻堅標的</td>
                 </tr>
                 <tr>
                     <td><span class="badge badge-emerging">新興積累 EMERGING</span></td>
-                    <td><strong>{state_counts['emerging']}</strong></td>
+                    <td><strong>{state_counts["emerging"]}</strong></td>
                     <td>法人資金持續卡位、中短期報酬為正之蓄勢標的</td>
                 </tr>
                 <tr>
                     <td><span class="badge badge-leveraged">槓桿警訊 LEVERAGED</span></td>
-                    <td><strong>{state_counts['leveraged']}</strong></td>
+                    <td><strong>{state_counts["leveraged"]}</strong></td>
                     <td>融資高升溫但法人參與度低之高槓桿風險標的</td>
                 </tr>
                 <tr>
                     <td><span class="badge badge-watch">觀察追蹤 WATCH</span></td>
-                    <td><strong>{state_counts['watch']}</strong></td>
+                    <td><strong>{state_counts["watch"]}</strong></td>
                     <td>滿足部分技術或籌碼訊號之觀察清單</td>
                 </tr>
                 <tr>
                     <td><span class="badge badge-excluded">暫時剔除 EXCLUDED</span></td>
-                    <td><strong>{state_counts['excluded']}</strong></td>
+                    <td><strong>{state_counts["excluded"]}</strong></td>
                     <td>流動性不足或資料過期不符合評分門檻</td>
                 </tr>
             </tbody>
@@ -282,4 +282,3 @@ def generate_html_report(
 </body>
 </html>
 """
-
