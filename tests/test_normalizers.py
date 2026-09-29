@@ -5,6 +5,7 @@ import json
 import pytest
 
 from qmo.models.price import DailyPrice
+from qmo.models.stock import StockMaster
 from qmo.normalizers.institutional import InstitutionalNormalizer
 from qmo.normalizers.margin import MarginNormalizer
 from qmo.normalizers.price import PriceNormalizer
@@ -262,3 +263,119 @@ def test_missing_required_fields_raise_schema_validation_error() -> None:
     )
     with pytest.raises(SchemaValidationError, match="missing required field 'MarginPurchaseBuy'"):
         MarginNormalizer().normalize(env_margin)
+
+
+@pytest.mark.parametrize(
+    ("provider", "params", "payload", "stock_id", "market", "expected_change"),
+    [
+        (
+            "twse",
+            {"date": "20260924"},
+            {
+                "stat": "OK",
+                "date": "20260924",
+                "tables": [
+                    {"fields": ["說明"], "data": [["not quotes"]]},
+                    {
+                        "fields": [
+                            "證券代號",
+                            "成交股數",
+                            "成交筆數",
+                            "成交金額",
+                            "開盤價",
+                            "最高價",
+                            "最低價",
+                            "收盤價",
+                            "漲跌(+/-)",
+                            "漲跌價差",
+                        ],
+                        "data": [
+                            [
+                                "2330",
+                                "14,557,662",
+                                "12,345",
+                                "36,107,476,243",
+                                "2480.00",
+                                "2490.00",
+                                "2470.00",
+                                "2475.00",
+                                "<p>-</p>",
+                                "5.00",
+                            ]
+                        ],
+                    },
+                ],
+            },
+            "2330",
+            "TWSE",
+            -5.0,
+        ),
+        (
+            "tpex",
+            {"d": "115/09/24"},
+            {
+                "stat": "OK",
+                "date": "115/09/24",
+                "tables": [
+                    {
+                        "fields": [
+                            "代號",
+                            "成交股數",
+                            "成交金額(元)",
+                            "成交筆數",
+                            "開盤",
+                            "最高",
+                            "最低",
+                            "收盤",
+                            "漲跌",
+                        ],
+                        "data": [
+                            ["8069", "1,000", "200,000", "25", "200", "205", "198", "202", "+2"]
+                        ],
+                    }
+                ],
+            },
+            "8069",
+            "TPEx",
+            2.0,
+        ),
+    ],
+)
+def test_official_market_price_normalizer(
+    provider: str,
+    params: dict[str, str],
+    payload: dict[str, object],
+    stock_id: str,
+    market: str,
+    expected_change: float,
+) -> None:
+    registry = {
+        "2330": StockMaster(symbol="2330", name="台積電", market="TWSE"),
+        "8069": StockMaster(symbol="8069", name="元太", market="TPEx"),
+    }
+    envelope = RawResponseEnvelope(
+        provider_name=provider,
+        endpoint="official",
+        params=params,
+        status_code=200,
+        raw_body_bytes=json.dumps(payload, ensure_ascii=False).encode(),
+    )
+    records = PriceNormalizer(stock_master=registry).normalize(envelope)
+    assert len(records) == 1
+    record = records[0]
+    assert (record.stock_id, record.market, record.trade_date) == (stock_id, market, "2026-09-24")
+    assert record.change == expected_change
+    assert record.trading_volume > 0
+    assert record.source.startswith(market)
+
+
+def test_official_market_price_normalizer_fails_closed_on_schema_drift() -> None:
+    envelope = RawResponseEnvelope(
+        provider_name="twse",
+        endpoint="official",
+        params={"date": "20260924"},
+        status_code=200,
+        raw_body_bytes=b'{"stat":"OK","tables":[]}',
+    )
+    with pytest.raises(SchemaValidationError, match="quote table not found"):
+        PriceNormalizer(stock_master={}).normalize(envelope)

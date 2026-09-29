@@ -1,6 +1,8 @@
 """Price Normalizer Implementation."""
 
 import json
+import re
+from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from qmo.models.price import DailyPrice
@@ -52,11 +54,8 @@ class PriceNormalizer:
 
     def normalize(self, envelope: RawResponseEnvelope) -> List[DailyPrice]:
         """Convert raw payload envelope to a list of DailyPrice instances."""
-        if envelope.provider_name in ["twse", "tpex"]:
-            raise SchemaValidationError(
-                f"Normalizer for provider '{envelope.provider_name}' not yet implemented",
-                provider=envelope.provider_name,
-            )
+        if envelope.provider_name in {"twse", "tpex"}:
+            return self._normalize_official_market(envelope)
 
         if envelope.provider_name != "finmind":
             raise SchemaValidationError(
@@ -162,3 +161,158 @@ class PriceNormalizer:
             ) from e
 
         return results
+
+    def _normalize_official_market(self, envelope: RawResponseEnvelope) -> List[DailyPrice]:
+        """Normalize one official TWSE/TPEx market-wide daily quote response."""
+        provider = envelope.provider_name
+        if envelope.status_code != 200 or not envelope.raw_body_bytes:
+            raise SchemaValidationError(
+                "Official market response is unavailable", provider=provider
+            )
+        try:
+            payload = json.loads(envelope.raw_body_str)
+        except (TypeError, json.JSONDecodeError) as exc:
+            raise SchemaValidationError(
+                f"Failed to parse JSON body: {exc}", provider=provider
+            ) from exc
+        if not isinstance(payload, dict) or payload.get("stat") != "OK":
+            raise SchemaValidationError("Official payload status is not OK", provider=provider)
+        required = (
+            {"證券代號", "成交股數", "成交金額", "開盤價", "最高價", "最低價", "收盤價"}
+            if provider == "twse"
+            else {"代號", "成交股數", "成交金額(元)", "開盤", "最高", "最低", "收盤"}
+        )
+        table = self._find_official_table(payload, required, provider)
+        fields = table["fields"]
+        trade_date = self._official_trade_date(payload, envelope, provider)
+        results: List[DailyPrice] = []
+        for values in table["data"]:
+            if not isinstance(values, list) or len(values) != len(fields):
+                raise SchemaValidationError("Official quote row width mismatch", provider=provider)
+            row = dict(zip(fields, values, strict=True))
+            sid = str(row["證券代號" if provider == "twse" else "代號"]).strip()
+            stock = self.stock_master.get(sid)
+            expected_market = "TWSE" if provider == "twse" else "TPEx"
+            if stock is None or stock.market != expected_market:
+                continue
+            results.append(self._official_price_row(row, envelope, trade_date, sid, provider))
+        if not results:
+            raise SchemaValidationError(
+                "Official market table contained no stocks from the active universe",
+                provider=provider,
+            )
+        return results
+
+    @staticmethod
+    def _find_official_table(
+        payload: Dict[str, Any], required: set[str], provider: str
+    ) -> Dict[str, Any]:
+        tables = payload.get("tables")
+        if not isinstance(tables, list):
+            raise SchemaValidationError("Official payload missing tables list", provider=provider)
+        for table in tables:
+            if not isinstance(table, dict):
+                continue
+            fields, data = table.get("fields"), table.get("data")
+            if (
+                isinstance(fields, list)
+                and required.issubset(set(fields))
+                and isinstance(data, list)
+            ):
+                return table
+        raise SchemaValidationError("Official daily quote table not found", provider=provider)
+
+    @staticmethod
+    def _official_trade_date(
+        payload: Dict[str, Any], envelope: RawResponseEnvelope, provider: str
+    ) -> str:
+        raw = str(
+            payload.get("date") or envelope.params.get("date") or envelope.params.get("d") or ""
+        )
+        try:
+            if re.fullmatch(r"\d{8}", raw):
+                return datetime.strptime(raw, "%Y%m%d").strftime("%Y-%m-%d")
+            if re.fullmatch(r"\d{3}/\d{2}/\d{2}", raw):
+                year, month, day = raw.split("/")
+                return f"{int(year) + 1911:04d}-{month}-{day}"
+            return datetime.strptime(raw, "%Y-%m-%d").strftime("%Y-%m-%d")
+        except ValueError as exc:
+            raise SchemaValidationError(
+                f"Invalid official trade date: {raw}", provider=provider
+            ) from exc
+
+    @staticmethod
+    def _official_number(value: Any, field: str, provider: str, *, integer: bool = False) -> Any:
+        text = str(value).strip().replace(",", "")
+        if text in {"", "-", "--", "---", "None"}:
+            return None
+        try:
+            return int(text) if integer else float(text)
+        except ValueError as exc:
+            raise SchemaValidationError(
+                f"Invalid official numeric field '{field}': {value}", provider=provider
+            ) from exc
+
+    def _official_price_row(
+        self,
+        row: Dict[str, Any],
+        envelope: RawResponseEnvelope,
+        trade_date: str,
+        sid: str,
+        provider: str,
+    ) -> DailyPrice:
+        if provider == "twse":
+            names = {
+                "open": "開盤價",
+                "high": "最高價",
+                "low": "最低價",
+                "close": "收盤價",
+                "volume": "成交股數",
+                "value": "成交金額",
+                "count": "成交筆數",
+            }
+            delta = self._official_number(row.get("漲跌價差"), "漲跌價差", provider)
+            sign = re.sub(r"<[^>]+>", "", str(row.get("漲跌(+/-)", ""))).strip()
+            change = -abs(delta) if delta is not None and "-" in sign else delta
+            source = "TWSE:MI_INDEX"
+        else:
+            names = {
+                "open": "開盤",
+                "high": "最高",
+                "low": "最低",
+                "close": "收盤",
+                "volume": "成交股數",
+                "value": "成交金額(元)",
+                "count": "成交筆數",
+            }
+            change = self._official_number(row.get("漲跌"), "漲跌", provider)
+            source = "TPEx:daily_close_quotes"
+        volume = self._official_number(
+            row.get(names["volume"]), names["volume"], provider, integer=True
+        )
+        value = self._official_number(
+            row.get(names["value"]), names["value"], provider, integer=True
+        )
+        count = self._official_number(
+            row.get(names["count"], 0), names["count"], provider, integer=True
+        )
+        if volume is None or value is None or count is None:
+            raise SchemaValidationError(
+                "Official quote row missing volume/value/count", provider=provider
+            )
+        return DailyPrice(
+            trade_date=trade_date,
+            stock_id=sid,
+            market="TWSE" if provider == "twse" else "TPEx",
+            open_price=self._official_number(row.get(names["open"]), names["open"], provider),
+            high_price=self._official_number(row.get(names["high"]), names["high"], provider),
+            low_price=self._official_number(row.get(names["low"]), names["low"], provider),
+            close_price=self._official_number(row.get(names["close"]), names["close"], provider),
+            change=change,
+            trading_volume=volume,
+            trading_value=value,
+            transaction_count=count,
+            no_trade=volume == 0 and value == 0,
+            source=source,
+            retrieved_at=envelope.retrieved_at,
+        )
