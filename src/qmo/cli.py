@@ -178,6 +178,12 @@ def validate(
     help="Use real providers (default); --synthetic is for explicit development only.",
 )
 @click.option(
+    "--provider-mode",
+    type=click.Choice(["official-bulk", "finmind", "synthetic"]),
+    default="official-bulk",
+    help="Provider ingestion mode (default: official-bulk 6-request market-wide).",
+)
+@click.option(
     "--holiday-calendar",
     type=click.Path(path_type=Path, exists=True, dir_okay=False),
     help="Optional CSV containing Taiwan market closure dates.",
@@ -212,6 +218,7 @@ def update(
     root_dir: Path,
     api_token: str,
     real_api: bool,
+    provider_mode: str,
     holiday_calendar: Optional[Path],
     limit: Optional[int],
     request_interval: float,
@@ -294,7 +301,70 @@ def update(
         empty_data_count = 0
         failure_records: List[ExecutionFailureRecord] = []
 
-        if real_api:
+        if not real_api:
+            provider_mode = "synthetic"
+
+        if provider_mode == "official-bulk":
+            from qmo.normalizers.institutional import InstitutionalNormalizer
+            from qmo.normalizers.margin import MarginNormalizer
+            from qmo.normalizers.price import PriceNormalizer
+            from qmo.providers.tpex import TpexProvider
+            from qmo.providers.twse import TwseProvider
+
+            twse_p = TwseProvider(transport=transport)
+            tpex_p = TpexProvider(transport=transport)
+
+            if ds == "daily_price":
+                norm_obj: Any = PriceNormalizer(stock_master=stock_master)
+            elif ds == "institutional_flow":
+                norm_obj = InstitutionalNormalizer(stock_master=stock_master)
+            else:  # margin
+                norm_obj = MarginNormalizer(stock_master=stock_master)
+
+            for prov_name in ("twse", "tpex"):
+                try:
+                    req_params = {"dataset": ds, "provider": prov_name, "date": t_date}
+                    env = raw_store.load_matching(ds, req_params) if resume else None
+                    if env is None:
+                        api_requests += 1
+                        if ds == "daily_price":
+                            env = (
+                                twse_p.fetch_market_daily_price(t_date)
+                                if prov_name == "twse"
+                                else tpex_p.fetch_market_daily_price(t_date)
+                            )
+                        elif ds == "institutional_flow":
+                            env = (
+                                twse_p.fetch_institutional_flow("", t_date, t_date)
+                                if prov_name == "twse"
+                                else tpex_p.fetch_institutional_flow("", t_date, t_date)
+                            )
+                        else:
+                            env = (
+                                twse_p.fetch_margin("", t_date, t_date)
+                                if prov_name == "twse"
+                                else tpex_p.fetch_margin("", t_date, t_date)
+                            )
+                        h_val, _ = raw_store.save(env, ds)
+                    else:
+                        cache_hits += 1
+                        h_val = env.content_hash
+                    raw_hashes.append(h_val)
+                    norm_recs = norm_obj.normalize(env)
+                    if norm_recs:
+                        success_count += len(norm_recs)
+                        models.extend(norm_recs)
+                    else:
+                        empty_data_count += 1
+                except Exception as exc:
+                    failure_records.append(
+                        ExecutionFailureRecord(
+                            stock_id=prov_name,
+                            error_type=type(exc).__name__,
+                            error_message=str(exc),
+                        )
+                    )
+        elif provider_mode == "finmind":
             if ds == "daily_price":
                 normalizer = PriceNormalizer(stock_master=stock_master)
                 for sid in stock_master:
@@ -391,7 +461,7 @@ def update(
                                 error_message=str(exc),
                             )
                         )
-        else:
+        else:  # synthetic
             from qmo.models.institutional import InstitutionalFlow
             from qmo.models.margin import Margin
             from qmo.models.price import DailyPrice
