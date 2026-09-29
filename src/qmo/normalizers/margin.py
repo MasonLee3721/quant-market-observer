@@ -44,15 +44,15 @@ class MarginNormalizer:
     """Normalizes raw provider payload into standardized Margin models."""
 
     def __init__(self, stock_master: Optional[Dict[str, StockMaster]] = None) -> None:
-        if stock_master is not None:
-            self.stock_master = stock_master
-        else:
-            self.stock_master = load_universe_stock_master()
+        self.stock_master = stock_master
 
     def get_stock_market(self, stock_id: str) -> str:
         """Lookup market for stock_id from injected StockMaster registry."""
-        if stock_id in self.stock_master:
-            return self.stock_master[stock_id].market
+        registry = (
+            self.stock_master if self.stock_master is not None else load_universe_stock_master()
+        )
+        if stock_id in registry:
+            return registry[stock_id].market
         raise SchemaValidationError(
             f"Unknown stock_id '{stock_id}' not found in StockMaster registry",
             provider="normalizer",
@@ -232,9 +232,13 @@ class MarginNormalizer:
                         "Official TWSE margin row width mismatch", provider=provider
                     )
                 sid = str(values[0]).strip()
-                stock = self.stock_master.get(sid)
-                if stock is None or stock.market != "TWSE":
-                    continue
+                if self.stock_master is not None:
+                    stock = self.stock_master.get(sid)
+                    if stock is None or stock.market != "TWSE":
+                        continue
+                else:
+                    if not re.fullmatch(r"\d{4}", sid) or sid.startswith("00"):
+                        continue
 
                 mp_buy = _official_int(values[2], "mp_buy", provider)
                 mp_sell = _official_int(values[3], "mp_sell", provider)
@@ -284,9 +288,13 @@ class MarginNormalizer:
                         "Official TPEx margin row width mismatch", provider=provider
                     )
                 sid = str(values[0]).strip()
-                stock = self.stock_master.get(sid)
-                if stock is None or stock.market != "TPEx":
-                    continue
+                if self.stock_master is not None:
+                    stock = self.stock_master.get(sid)
+                    if stock is None or stock.market != "TPEx":
+                        continue
+                else:
+                    if not re.fullmatch(r"\d{4}", sid) or sid.startswith("00"):
+                        continue
 
                 mp_prev = _official_int(values[2], "mp_prev", provider)
                 mp_buy = _official_int(values[3], "mp_buy", provider)

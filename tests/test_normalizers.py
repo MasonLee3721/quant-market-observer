@@ -453,7 +453,7 @@ def test_official_market_price_normalizer_fails_closed_on_schema_drift() -> None
 def test_official_institutional_normalizer_twse_and_tpex() -> None:
     registry = {
         "1303": StockMaster(symbol="1303", name="南亞", market="TWSE"),
-        "00411A": StockMaster(symbol="00411A", name="主動統一前沿科技", market="TPEx"),
+        "8069": StockMaster(symbol="8069", name="元太", market="TPEx"),
     }
     normalizer = InstitutionalNormalizer(stock_master=registry)
 
@@ -488,16 +488,16 @@ def test_official_institutional_normalizer_twse_and_tpex() -> None:
     recs_tpex = normalizer.normalize(env_tpex)
     assert len(recs_tpex) == 1
     r_tpex = recs_tpex[0]
-    assert r_tpex.stock_id == "00411A"
+    assert r_tpex.stock_id == "8069"
     assert r_tpex.market == "TPEx"
     assert r_tpex.trade_date == "2026-09-24"
-    assert r_tpex.total_net == 2610820
+    assert r_tpex.total_net == 500000
 
 
 def test_official_margin_normalizer_twse_and_tpex() -> None:
     registry = {
         "2330": StockMaster(symbol="2330", name="台積電", market="TWSE"),
-        "00411A": StockMaster(symbol="00411A", name="主動統一前沿科技", market="TPEx"),
+        "8069": StockMaster(symbol="8069", name="元太", market="TPEx"),
     }
     normalizer = MarginNormalizer(stock_master=registry)
 
@@ -538,9 +538,9 @@ def test_official_margin_normalizer_twse_and_tpex() -> None:
     recs_tpex = normalizer.normalize(env_tpex)
     assert len(recs_tpex) == 1
     r_tpex = recs_tpex[0]
-    assert r_tpex.stock_id == "00411A"
+    assert r_tpex.stock_id == "8069"
     assert r_tpex.market == "TPEx"
     assert r_tpex.trade_date == "2026-09-24"
-    assert r_tpex.margin_purchase_balance == 5475
-    assert r_tpex.short_sale_balance == 11
+    assert r_tpex.margin_purchase_balance == 5050
+    assert r_tpex.short_sale_balance == 105
     assert r_tpex.source == "TPEx:margin/balance"

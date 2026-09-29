@@ -217,12 +217,26 @@ def test_cli_update_official_bulk_e2e(tmp_path: Path) -> None:
         assert res1.exit_code == 0, f"CLI update failed: {res1.output}"
         assert mock_execute.call_count == 6  # Exactly 6 requests (3 TWSE + 3 TPEx)
 
-        # Verify DuckDB Catalog registered batches
+        # Verify DuckDB Catalog registered batches and Parquet content
+        import pyarrow.parquet as pq
+
         catalog = DuckDBCatalog(tmp_path / "catalog" / "qmo_catalog.duckdb")
         for ds in ["daily_price", "institutional_flow", "margin"]:
             batches = catalog.list_published_batches(ds)
             assert len(batches) == 1
             assert batches[0]["record_count"] > 0
+
+            # Assert Universe count & dual-market ticker coverage (TWSE 2330, TPEx 8069)
+            pq_file = tmp_path / "normalized" / ds / "b_20260924" / "data.parquet"
+            assert pq_file.exists()
+            tbl = pq.read_table(pq_file)
+            sids = set(tbl.column("stock_id").to_pylist())
+            markets = set(tbl.column("market").to_pylist())
+            assert "2330" in sids, f"TWSE stock 2330 missing from {ds}"
+            assert "8069" in sids, f"TPEx stock 8069 missing from {ds}"
+            assert "TWSE" in markets and "TPEx" in markets, (
+                f"Dual market coverage missing from {ds}"
+            )
 
         # Verify Raw Snapshots exist
         raw_files = list((tmp_path / "raw").rglob("*.json"))

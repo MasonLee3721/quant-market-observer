@@ -240,7 +240,11 @@ def update(
 
     from datetime import datetime, timezone
 
-    from qmo.models.stock import load_universe_stock_master, parse_stock_info_payload
+    from qmo.models.stock import (
+        extract_official_stock_master,
+        load_universe_stock_master,
+        parse_stock_info_payload,
+    )
     from qmo.normalizers.institutional import InstitutionalNormalizer
     from qmo.normalizers.margin import MarginNormalizer
     from qmo.normalizers.price import PriceNormalizer
@@ -266,6 +270,9 @@ def update(
     transport = HttpTransport(max_retries=max_retries, min_request_interval=request_interval)
     provider = FinMindProvider(transport=transport, api_token=api_token)
 
+    if not real_api:
+        provider_mode = "synthetic"
+
     if real_api and provider_mode != "official-bulk" and api_token:
         click.echo("Fetching full Taiwan listed and OTC stock master universe from FinMind API...")
         try:
@@ -283,6 +290,16 @@ def update(
         except Exception as e:
             click.echo(f"[FAIL-CLOSED] Failed to fetch dynamic stock master info: {e}", err=True)
             ctx.exit(1)
+    elif provider_mode == "official-bulk":
+        info_envelope = (
+            raw_store.load_matching("stock_info", {"dataset": "TaiwanStockInfo"})
+            if resume
+            else None
+        )
+        if info_envelope is not None and info_envelope.status_code == 200:
+            stock_master = parse_stock_info_payload(info_envelope.raw_body_str)
+        else:
+            stock_master = {}
     else:
         stock_master = load_universe_stock_master()
 
@@ -375,6 +392,13 @@ def update(
                         cache_hits += 1
                         h_val = env.content_hash
                     raw_hashes.append(h_val)
+                    ext_master = extract_official_stock_master([env])
+                    if ext_master:
+                        stock_master.update(ext_master)
+                    if limit is not None:
+                        norm_obj.stock_master = dict(list(stock_master.items())[:limit])
+                    elif stock_master:
+                        norm_obj.stock_master = stock_master
                     norm_recs = norm_obj.normalize(env)
                     if norm_recs:
                         success_count += len(norm_recs)

@@ -2,7 +2,7 @@
 
 import csv
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Any, Dict, Optional, Sequence
 
 from pydantic import BaseModel
 
@@ -105,3 +105,66 @@ def load_universe_stock_master(csv_path: Optional[Path] = None) -> Dict[str, Sto
                 industry=row.get("subtheme"),
             )
     return registry
+
+
+def extract_official_stock_master(envelopes: Sequence[Any]) -> Dict[str, StockMaster]:
+    """Extract active TWSE/TPEx stock master directly from official market payloads."""
+    import json
+    import re
+
+    registry: Dict[str, StockMaster] = {}
+    for env in envelopes:
+        if getattr(env, "status_code", None) != 200 or not getattr(env, "raw_body_bytes", None):
+            continue
+        provider = getattr(env, "provider_name", "")
+        market = "TWSE" if provider == "twse" else "TPEx" if provider == "tpex" else None
+        if not market:
+            continue
+        try:
+            payload = json.loads(env.raw_body_str)
+        except Exception:
+            continue
+        if not isinstance(payload, dict):
+            continue
+
+        tables = payload.get("tables")
+        if not isinstance(tables, list):
+            tables = [payload]
+
+        for table in tables:
+            if not isinstance(table, dict):
+                continue
+            fields = table.get("fields")
+            data = table.get("data")
+            if not isinstance(fields, list) or not isinstance(data, list):
+                continue
+
+            sid_col = next((c for c in ("證券代號", "股票代號", "代號") if c in fields), None)
+            name_col = next((c for c in ("證券名稱", "股票名稱", "名稱") if c in fields), None)
+            if sid_col is None:
+                continue
+
+            idx_sid = fields.index(sid_col)
+            idx_name = fields.index(name_col) if name_col is not None else None
+
+            for row in data:
+                if not isinstance(row, list) or len(row) <= idx_sid:
+                    continue
+                sid = str(row[idx_sid]).strip()
+                if not re.fullmatch(r"\d{4}", sid) or sid.startswith("00"):
+                    continue
+                name = (
+                    str(row[idx_name]).strip()
+                    if idx_name is not None and len(row) > idx_name
+                    else sid
+                )
+                name = re.sub(r"<[^>]+>", "", name).strip()
+                if sid not in registry:
+                    registry[sid] = StockMaster(
+                        symbol=sid,
+                        name=name or sid,
+                        market=market,
+                        is_active=True,
+                    )
+    return registry
+
