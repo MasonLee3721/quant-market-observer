@@ -178,9 +178,9 @@ class PriceNormalizer:
         if not isinstance(payload, dict) or payload.get("stat") != "OK":
             raise SchemaValidationError("Official payload status is not OK", provider=provider)
         required = (
-            {"證券代號", "成交股數", "成交金額", "開盤價", "最高價", "最低價", "收盤價"}
+            {"證券代號", "成交股數", "成交筆數", "成交金額", "開盤價", "最高價", "最低價", "收盤價"}
             if provider == "twse"
-            else {"代號", "成交股數", "成交金額(元)", "開盤", "最高", "最低", "收盤"}
+            else {"代號", "成交股數", "成交金額(元)", "成交筆數", "開盤", "最高", "最低", "收盤"}
         )
         table = self._find_official_table(payload, required, provider)
         fields = table["fields"]
@@ -294,7 +294,7 @@ class PriceNormalizer:
             row.get(names["value"]), names["value"], provider, integer=True
         )
         count = self._official_number(
-            row.get(names["count"], 0), names["count"], provider, integer=True
+            row.get(names["count"]), names["count"], provider, integer=True
         )
         if volume is None or value is None or count is None:
             raise SchemaValidationError(

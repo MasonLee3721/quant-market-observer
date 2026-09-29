@@ -406,6 +406,37 @@ def test_tpex_official_change_sign_boundaries(raw_change: str, expected: float) 
     assert record.no_trade is False
 
 
+def test_official_market_price_requires_transaction_count_field() -> None:
+    payload = {
+        "stat": "OK",
+        "date": "20260924",
+        "tables": [
+            {
+                "fields": [
+                    "證券代號",
+                    "成交股數",
+                    "成交金額",
+                    "開盤價",
+                    "最高價",
+                    "最低價",
+                    "收盤價",
+                ],
+                "data": [["2330", "1", "100", "100", "100", "100", "100"]],
+            }
+        ],
+    }
+    envelope = RawResponseEnvelope(
+        provider_name="twse",
+        endpoint="official",
+        params={"date": "20260924"},
+        status_code=200,
+        raw_body_bytes=json.dumps(payload, ensure_ascii=False).encode(),
+    )
+    registry = {"2330": StockMaster(symbol="2330", name="台積電", market="TWSE")}
+    with pytest.raises(SchemaValidationError, match="quote table not found"):
+        PriceNormalizer(stock_master=registry).normalize(envelope)
+
+
 def test_official_market_price_normalizer_fails_closed_on_schema_drift() -> None:
     envelope = RawResponseEnvelope(
         provider_name="twse",

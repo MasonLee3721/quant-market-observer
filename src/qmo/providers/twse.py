@@ -75,9 +75,10 @@ class TwseProvider:
 
     def fetch_margin(self, symbol: str, start_date: str, end_date: str) -> RawResponseEnvelope:
         twse_date = start_date.replace("-", "")
-        url = "https://www.twse.com.tw/rwd/zh/marginTrading/TWT93U"
+        url = "https://www.twse.com.tw/rwd/zh/marginTrading/MI_MARGN"
         params = {
             "date": twse_date,
+            "selectType": "ALL",
             "response": "json",
         }
         res = self.transport.execute(url, params=params)

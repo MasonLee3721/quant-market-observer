@@ -255,13 +255,14 @@ def test_tpex_fetch_market_daily_price_endpoint() -> None:
 
 
 def test_twse_margin_endpoint() -> None:
-    """Verify TWSE Provider uses TWT93U endpoint for margin trading report."""
+    """Verify TWSE Provider uses MI_MARGN endpoint for margin trading report."""
 
     def mock_request(
         url: str, params: Dict[str, Any], headers: Dict[str, str]
     ) -> Tuple[int, Dict[str, str], bytes]:
-        assert "TWT93U" in url
+        assert "MI_MARGN" in url
         assert params["date"] == "20260924"
+        assert params["selectType"] == "ALL"
         assert params["response"] == "json"
         return 200, {"Content-Type": "application/json"}, b'{"stat": "OK", "tables": []}'
 
@@ -269,7 +270,7 @@ def test_twse_margin_endpoint() -> None:
     provider = TwseProvider(transport=transport)
     envelope = provider.fetch_margin("2330", "2026-09-24", "2026-09-24")
 
-    assert "TWT93U" in envelope.endpoint
+    assert "MI_MARGN" in envelope.endpoint
     assert envelope.status_code == 200
 
 
