@@ -13,8 +13,10 @@ if [ -d "$PROJECT_DIR" ]; then
     cd "$PROJECT_DIR"
 fi
 
-mkdir -p "$ROOT_DIR"
-touch "$ROOT_DIR/.qmo_data_dir"
+if [ ! -d "$ROOT_DIR" ] || [ ! -f "$ROOT_DIR/.qmo_data_dir" ]; then
+    echo "ERROR: Pipeline data root '$ROOT_DIR' does not exist or is missing required marker file '.qmo_data_dir'! Pipeline aborted." >&2
+    exit 1
+fi
 
 run_pipeline_steps() {
     echo "=== [$(date -u +"%Y-%m-%d %H:%M:%SZ")] Starting QMO Pipeline Update ==="

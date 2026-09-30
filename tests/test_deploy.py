@@ -523,5 +523,30 @@ def test_marker_file_enforcement_in_backup_and_restore(tmp_path: Path) -> None:
     assert "missing required marker file" in res_r2.stderr.lower()
 
 
+def test_run_pipeline_missing_marker_fails(tmp_path: Path) -> None:
+    """Verify run_pipeline.sh fails closed when QMO_DATA_ROOT lacks .qmo_data_dir marker."""
+    unmarked_dir = tmp_path / "unmarked_root"
+    unmarked_dir.mkdir()
+
+    pipeline_script = Path("deploy/run_pipeline.sh").resolve()
+    lock_file = tmp_path / "test.lock"
+    env = {
+        **dict(os.environ),
+        "QMO_DATA_ROOT": str(unmarked_dir),
+        "LOCK_FILE": str(lock_file),
+    }
+
+    res = subprocess.run(
+        [str(pipeline_script)],
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    assert res.returncode != 0
+    assert "missing required marker file" in res.stderr.lower()
+    assert not (unmarked_dir / ".qmo_data_dir").exists()
+
+
+
 
 
