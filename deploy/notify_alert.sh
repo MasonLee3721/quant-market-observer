@@ -23,8 +23,9 @@ if [ -z "$WEBHOOK" ]; then
     echo "[$TIMESTAMP] ERROR: Alert delivery failed for '$TASK_NAME': No webhook URL configured!" >&2
     exit 1
 fi
+PYTHON_BIN=$(command -v python3 || command -v python || echo "python3")
 
-PAYLOAD=$(python3 -c "
+PAYLOAD=$($PYTHON_BIN -c "
 import json, sys, os
 
 task_name = sys.argv[1]

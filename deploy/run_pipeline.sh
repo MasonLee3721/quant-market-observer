@@ -3,9 +3,9 @@ set -euo pipefail
 
 # Atomic QMO Pipeline Runner with Shared Flock Lock & Automatic External Alerting
 
-LOCK_FILE="/var/lock/qmo-pipeline.lock"
-ROOT_DIR="/var/lib/qmo/data"
-PROJECT_DIR="/opt/quant-market-observer"
+LOCK_FILE="${LOCK_FILE:-/var/lock/qmo-pipeline.lock}"
+ROOT_DIR="${QMO_DATA_ROOT:-/var/lib/qmo/data}"
+PROJECT_DIR="${PROJECT_DIR:-/opt/quant-market-observer}"
 LOG_FILE="/var/log/qmo-pipeline.log"
 HOLIDAY_CAL="/opt/quant-market-observer/config/taiwan_holidays.csv"
 
