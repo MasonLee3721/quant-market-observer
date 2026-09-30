@@ -1,6 +1,3 @@
-# Run after TWSE/TPEx post-market publication. Host timezone must be Asia/Taipei.
+# Run after TWSE/TPEx post-market publication (15:40 Taipei Time). Host timezone must be Asia/Taipei.
 # Install with: crontab deploy/qmo.cron
-40 15 * * 1-5 cd /opt/quant-market-observer && (/usr/bin/flock -n /var/lock/qmo-update.lock /usr/bin/docker compose run --rm qmo update --provider-mode official-bulk --holiday-calendar /opt/quant-market-observer/config/taiwan_holidays.csv --date latest --root-dir /var/lib/qmo/data >> /var/log/qmo-update.log 2>&1 || /opt/quant-market-observer/deploy/notify_alert.sh "QMO Update Pipeline" /var/log/qmo-update.log)
-10 16 * * 1-5 cd /opt/quant-market-observer && (/usr/bin/docker compose run --rm qmo validate --root-dir /var/lib/qmo/data --format text >> /var/log/qmo-validate.log 2>&1 || /opt/quant-market-observer/deploy/notify_alert.sh "QMO Validation Task" /var/log/qmo-validate.log)
-
-
+40 15 * * 1-5 /opt/quant-market-observer/deploy/run_pipeline.sh

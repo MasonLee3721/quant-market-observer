@@ -10,22 +10,22 @@
 ## 建置與基本驗收
 
 ```bash
-# 1. 建置並固定映像版本
-docker build -t quant-market-observer:7f02840 .
+# 1. 建置並固定映像版本 (請替換為當前通過驗收之 Git Commit Hash)
+docker build -t quant-market-observer:COMMIT_HASH .
 
-# 2. 設定 .env 固定 QMO_IMAGE_TAG
-echo "QMO_IMAGE_TAG=7f02840" > .env
-echo "DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/..." >> .env
+# 2. 安全更新 .env 設定檔（勿直接使用 > 覆寫既有 .env）
+grep -q "^QMO_IMAGE_TAG=" .env 2>/dev/null && sed -i 's/^QMO_IMAGE_TAG=.*/QMO_IMAGE_TAG=COMMIT_HASH/' .env || echo "QMO_IMAGE_TAG=COMMIT_HASH" >> .env
+grep -q "^DISCORD_WEBHOOK_URL=" .env 2>/dev/null || echo "DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/..." >> .env
 
 # 3. 驗收 CLI 與 Catalog 狀態
 docker compose run --rm qmo status --root-dir /var/lib/qmo/data
-docker compose run --rm qmo update --provider-mode official-bulk --date latest --dry-run --root-dir /var/lib/qmo/data
+docker compose run --rm qmo update --provider-mode official-bulk --holiday-calendar /opt/quant-market-observer/config/taiwan_holidays.csv --date latest --dry-run --root-dir /var/lib/qmo/data
 ```
 
 確認真實 Provider 已接線後才可執行非 dry-run 更新：
 
 ```bash
-docker compose run --rm qmo update --provider-mode official-bulk --date latest --root-dir /var/lib/qmo/data
+docker compose run --rm qmo update --provider-mode official-bulk --holiday-calendar /opt/quant-market-observer/config/taiwan_holidays.csv --date latest --root-dir /var/lib/qmo/data
 docker compose run --rm qmo validate --root-dir /var/lib/qmo/data --format text
 ```
 
@@ -33,9 +33,9 @@ docker compose run --rm qmo validate --root-dir /var/lib/qmo/data --format text
 
 ## 排程與告警
 
-將 repository 放置於 `/opt/quant-market-observer`，主機時區設為
-`Asia/Taipei`，再安裝 `deploy/qmo.cron`。
-更新使用 `flock` 防止重疊執行，若執行失敗（非零退出）會自動呼叫 `deploy/notify_alert.sh` 進行外部通知。
+將 repository 放置於 `/opt/quant-market-observer`，主機時區設為 `Asia/Taipei`，再安裝 `deploy/qmo.cron`。
+排程呼叫 `deploy/run_pipeline.sh`，使用單一共用鎖 `/var/lock/qmo-pipeline.lock` 原子性執行 update 與 validate。
+若任一步驟失敗（非零退出），會自動觸發 `deploy/notify_alert.sh` 以 Python 進行安全 JSON 編碼並發送外部 Webhook 告警。
 
 ## 備份與還原演練
 
