@@ -6,14 +6,14 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /app
 
-RUN groupadd --system qmo && useradd --system --gid qmo --home-dir /app qmo
+RUN groupadd -g 10001 qmo && useradd -u 10001 -g 10001 --home-dir /app qmo
 
 COPY pyproject.toml uv.lock README.md ./
 COPY src ./src
 RUN uv sync --frozen --no-dev
 
-RUN mkdir -p /var/lib/qmo/data && chown -R qmo:qmo /app /var/lib/qmo
-USER qmo
+RUN mkdir -p /var/lib/qmo/data && chown -R 10001:10001 /app /var/lib/qmo
+USER 10001:10001
 
 ENTRYPOINT ["uv", "run", "--no-sync", "qmo"]
 CMD ["status", "--root-dir", "/var/lib/qmo/data"]

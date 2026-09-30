@@ -18,7 +18,11 @@ if [ ! -d "$DATA_DIR" ]; then
     echo "ERROR: Data directory '$DATA_DIR' does not exist!" >&2
     exit 1
 fi
-touch "$DATA_DIR/.qmo_data_dir"
+
+if [ ! -f "$DATA_DIR/.qmo_data_dir" ]; then
+    echo "ERROR: Data directory '$DATA_DIR' is missing required marker file '.qmo_data_dir'! Backup aborted." >&2
+    exit 1
+fi
 
 exec 9>"$LOCK_FILE"
 if ! flock -n 9; then

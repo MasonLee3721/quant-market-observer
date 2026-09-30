@@ -13,6 +13,9 @@ if [ -d "$PROJECT_DIR" ]; then
     cd "$PROJECT_DIR"
 fi
 
+mkdir -p "$ROOT_DIR"
+touch "$ROOT_DIR/.qmo_data_dir"
+
 run_pipeline_steps() {
     echo "=== [$(date -u +"%Y-%m-%d %H:%M:%SZ")] Starting QMO Pipeline Update ==="
     docker compose run --rm qmo update \

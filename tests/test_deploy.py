@@ -87,6 +87,7 @@ def test_backup_and_restore_scripts_e2e(tmp_path: Path) -> None:
     backup_dir = tmp_path / "backups"
     lock_file = tmp_path / "test.lock"
     data_dir.mkdir()
+    (data_dir / ".qmo_data_dir").touch()
     catalog_dir = data_dir / "catalog"
     catalog_dir.mkdir()
     conn = duckdb.connect(str(catalog_dir / "qmo_catalog.duckdb"))
@@ -193,6 +194,7 @@ def test_restore_corrupted_catalog_fails(tmp_path: Path) -> None:
     backup_dir = tmp_path / "backups"
     lock_file = tmp_path / "test.lock"
     data_dir.mkdir()
+    (data_dir / ".qmo_data_dir").touch()
     (data_dir / "catalog").mkdir()
     (data_dir / "catalog" / "qmo_catalog.duckdb").write_text("not_a_valid_duckdb_file")
 
@@ -326,11 +328,13 @@ def test_restore_swap_failure_preserves_original_data(tmp_path: Path) -> None:
     # 1. Setup original live data directory
     live_data = tmp_path / "live_data"
     live_data.mkdir()
+    (live_data / ".qmo_data_dir").touch()
     (live_data / "important_data.txt").write_text("ORIGINAL_LIVE_DATA_V1")
 
     # 2. Setup backup directory with catalog missing required tables
     data_dir = tmp_path / "bad_data"
     data_dir.mkdir()
+    (data_dir / ".qmo_data_dir").touch()
     (data_dir / "catalog").mkdir()
     (data_dir / "catalog" / "qmo_catalog.duckdb").write_text("invalid_duckdb_bytes")
 
@@ -369,11 +373,13 @@ def test_restore_staging_swap_failure_triggers_automatic_rollback(tmp_path: Path
     # 1. Setup original live data directory
     live_data = tmp_path / "live_data"
     live_data.mkdir()
+    (live_data / ".qmo_data_dir").touch()
     (live_data / "important_data.txt").write_text("ORIGINAL_LIVE_DATA_V1")
 
     # 2. Setup valid backup directory with required tables
     data_dir = tmp_path / "valid_data"
     data_dir.mkdir()
+    (data_dir / ".qmo_data_dir").touch()
     (data_dir / "catalog").mkdir()
     conn = duckdb.connect(str(data_dir / "catalog" / "qmo_catalog.duckdb"))
     conn.execute("CREATE TABLE batch_manifests(id INT); CREATE TABLE quality_reports(id INT)")
@@ -432,6 +438,89 @@ def test_qmo_cron_file_entries_and_syntax() -> None:
         cmd = parts[5]
         res = subprocess.run(["sh", "-n", "-c", cmd], capture_output=True, text=True)
         assert res.returncode == 0, f"Cron line syntax error: {cmd}\n{res.stderr}"
+
+
+def test_marker_file_enforcement_in_backup_and_restore(tmp_path: Path) -> None:
+    """Verify backup_qmo.sh and restore_qmo.sh strictly enforce .qmo_data_dir marker file."""
+    backup_script = Path("deploy/backup_qmo.sh").resolve()
+    restore_script = Path("deploy/restore_qmo.sh").resolve()
+    lock_file = tmp_path / "test.lock"
+    env = {**dict(os.environ), "LOCK_FILE": str(lock_file)}
+
+    # 1. Backup fails when .qmo_data_dir is missing
+    unmarked_data = tmp_path / "unmarked_data"
+    unmarked_data.mkdir()
+    (unmarked_data / "some_file.txt").write_text("data")
+    backup_dir = tmp_path / "backups"
+
+    res_b = subprocess.run(
+        [str(backup_script), str(unmarked_data), str(backup_dir)],
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    assert res_b.returncode != 0
+    assert "missing required marker file" in res_b.stderr.lower()
+
+    # 2. Restore fails when live target exists, is non-empty, and missing .qmo_data_dir
+    valid_data = tmp_path / "valid_data"
+    valid_data.mkdir()
+    (valid_data / ".qmo_data_dir").touch()
+    (valid_data / "catalog").mkdir()
+    import duckdb
+
+    conn = duckdb.connect(str(valid_data / "catalog" / "qmo_catalog.duckdb"))
+    conn.execute("CREATE TABLE batch_manifests(id INT); CREATE TABLE quality_reports(id INT)")
+    conn.close()
+
+    subprocess.run(
+        [str(backup_script), str(valid_data), str(backup_dir)],
+        check=True,
+        env=env,
+    )
+    tar_file = list(backup_dir.glob("qmo-backup-*.tar.gz"))[0]
+
+    unmarked_live = tmp_path / "unmarked_live"
+    unmarked_live.mkdir()
+    (unmarked_live / "existing_file.txt").write_text("existing")
+
+    res_r1 = subprocess.run(
+        [str(restore_script), str(tar_file), str(unmarked_live)],
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    assert res_r1.returncode != 0
+    assert "missing marker file" in res_r1.stderr.lower()
+
+    # 3. Restore fails when archive is missing .qmo_data_dir
+    no_marker_data = tmp_path / "no_marker_data"
+    no_marker_data.mkdir()
+    (no_marker_data / "catalog").mkdir()
+    conn = duckdb.connect(str(no_marker_data / "catalog" / "qmo_catalog.duckdb"))
+    conn.execute("CREATE TABLE batch_manifests(id INT); CREATE TABLE quality_reports(id INT)")
+    conn.close()
+
+    no_marker_tar = tmp_path / "no_marker.tar.gz"
+    subprocess.run(
+        ["tar", "-czf", str(no_marker_tar), "-C", str(no_marker_data), "catalog"],
+        check=True,
+    )
+    sha256 = hashlib.sha256(no_marker_tar.read_bytes()).hexdigest()
+    (tmp_path / f"{no_marker_tar.name}.sha256").write_text(f"{sha256}  {no_marker_tar.name}\n")
+
+    valid_live = tmp_path / "valid_live"
+    valid_live.mkdir()
+    (valid_live / ".qmo_data_dir").touch()
+
+    res_r2 = subprocess.run(
+        [str(restore_script), str(no_marker_tar), str(valid_live)],
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    assert res_r2.returncode != 0
+    assert "missing required marker file" in res_r2.stderr.lower()
 
 
 

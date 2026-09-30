@@ -12,10 +12,15 @@ if [ -z "$TAR_FILE" ] || [ ! -f "$TAR_FILE" ]; then
     exit 1
 fi
 
-# 1. Path Traversal & Forbidden Root Defense
+# 1. Path Traversal, Forbidden Root & Marker File Defense
 REAL_DATA_DIR=$(readlink -f "$DATA_DIR" 2>/dev/null || echo "$DATA_DIR")
 if [[ "$REAL_DATA_DIR" =~ ^/(bin|boot|dev|etc|home|lib|lib64|proc|root|sbin|sys|tmp|usr|var)?/?$ ]]; then
     echo "ERROR: Refusing to restore to broad system root directory '$REAL_DATA_DIR'!" >&2
+    exit 1
+fi
+
+if [ -d "$REAL_DATA_DIR" ] && [ "$(ls -A "$REAL_DATA_DIR" 2>/dev/null)" ] && [ ! -f "$REAL_DATA_DIR/.qmo_data_dir" ]; then
+    echo "ERROR: Existing target directory '$REAL_DATA_DIR' is missing marker file '.qmo_data_dir'! Refusing restore to unverified target." >&2
     exit 1
 fi
 
@@ -65,7 +70,11 @@ trap cleanup EXIT
 
 echo "=== Extracting backup archive to staging directory $STAGING_DIR ==="
 tar -xzf "$TAR_FILE" -C "$STAGING_DIR"
-touch "$STAGING_DIR/.qmo_data_dir"
+
+if [ ! -f "$STAGING_DIR/.qmo_data_dir" ]; then
+    echo "ERROR: Restored backup archive is missing required marker file '.qmo_data_dir'! Restore aborted." >&2
+    exit 1
+fi
 
 # 5. Mandatory Staging Catalog Integrity Validation
 if [ -f "$STAGING_DIR/catalog/qmo_catalog.duckdb" ]; then
