@@ -11,19 +11,24 @@ if [ ! -d "$DATA_DIR" ]; then
     DATA_DIR="/"
 fi
 
-USAGE_PCT=$(df -P "$DATA_DIR" | tail -n 1 | awk '{print $5}' | tr -d '%')
+USAGE_PCT="${MOCK_USAGE_PCT:-$(df -P "$DATA_DIR" | tail -n 1 | awk '{print $5}' | tr -d '%')}"
 TIMESTAMP=$(date -u +"%Y-%m-%d %H:%M:%SZ")
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+NOTIFY_SCRIPT="${NOTIFY_SCRIPT:-$SCRIPT_DIR/notify_alert.sh}"
 
 if [ "$USAGE_PCT" -ge "$CRIT_THRESHOLD" ]; then
     MSG="CRITICAL: Disk space for $DATA_DIR at $USAGE_PCT% (>= $CRIT_THRESHOLD%)!"
     echo "[$TIMESTAMP] $MSG" >&2
-    if [ -x "/opt/quant-market-observer/deploy/notify_alert.sh" ]; then
-        /opt/quant-market-observer/deploy/notify_alert.sh "Disk Space Critical Alert" /var/log/qmo-pipeline.log || true
+    if [ -x "$NOTIFY_SCRIPT" ]; then
+        "$NOTIFY_SCRIPT" "Disk Space Critical Alert" /var/log/qmo-pipeline.log || true
     fi
     exit 1
 elif [ "$USAGE_PCT" -ge "$WARN_THRESHOLD" ]; then
     MSG="WARNING: Disk space for $DATA_DIR at $USAGE_PCT% (>= $WARN_THRESHOLD%)"
     echo "[$TIMESTAMP] $MSG"
+    if [ -x "$NOTIFY_SCRIPT" ]; then
+        "$NOTIFY_SCRIPT" "Disk Space Warning Alert" /var/log/qmo-pipeline.log || true
+    fi
     exit 0
 else
     echo "[$TIMESTAMP] OK: Disk space for $DATA_DIR at $USAGE_PCT%"

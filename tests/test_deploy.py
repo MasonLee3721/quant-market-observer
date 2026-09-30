@@ -1,5 +1,6 @@
 """Tests for Deployment Scripts and Alerting Mechanism."""
 
+import hashlib
 import json
 import os
 import subprocess
@@ -167,14 +168,220 @@ def test_notify_alert_script_http_500_fails(tmp_path: Path) -> None:
         server.shutdown()
 
 
-def test_check_disk_space_script(tmp_path: Path) -> None:
-    """Verify check_disk_space.sh executes without error on valid directory."""
-    script_path = Path("deploy/check_disk_space.sh").resolve()
+def test_restore_missing_checksum_fails(tmp_path: Path) -> None:
+    """Verify restore_qmo.sh fails closed when SHA256 checksum file is missing."""
+    tar_file = tmp_path / "mock.tar.gz"
+    tar_file.write_text("mock_tar_bytes")
+
+    restore_script = Path("deploy/restore_qmo.sh").resolve()
+    target_data = tmp_path / "target_data"
+    lock_file = tmp_path / "test.lock"
+    env = {**dict(os.environ), "LOCK_FILE": str(lock_file)}
     res = subprocess.run(
+        [str(restore_script), str(tar_file), str(target_data)],
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    assert res.returncode != 0
+    assert "checksum file" in res.stderr and "missing" in res.stderr
+
+
+def test_restore_corrupted_catalog_fails(tmp_path: Path) -> None:
+    """Verify restore_qmo.sh fails closed when restored catalog is corrupted or invalid."""
+    data_dir = tmp_path / "data"
+    backup_dir = tmp_path / "backups"
+    lock_file = tmp_path / "test.lock"
+    data_dir.mkdir()
+    (data_dir / "catalog").mkdir()
+    (data_dir / "catalog" / "qmo_catalog.duckdb").write_text("not_a_valid_duckdb_file")
+
+    backup_script = Path("deploy/backup_qmo.sh").resolve()
+    restore_script = Path("deploy/restore_qmo.sh").resolve()
+    env = {**dict(os.environ), "LOCK_FILE": str(lock_file)}
+
+    res_b = subprocess.run(
+        [str(backup_script), str(data_dir), str(backup_dir)],
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    assert res_b.returncode == 0
+
+    tar_file = list(backup_dir.glob("qmo-backup-*.tar.gz"))[0]
+    target_data = tmp_path / "target_data"
+    res_r = subprocess.run(
+        [str(restore_script), str(tar_file), str(target_data)],
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    assert res_r.returncode != 0
+    stderr_lower = res_r.stderr.lower()
+    assert "catalog integrity check failed" in stderr_lower or "aborted" in stderr_lower
+
+
+def test_check_disk_space_script(tmp_path: Path) -> None:
+    """Verify check_disk_space.sh handles normal, warning, and critical alert branches."""
+    script_path = Path("deploy/check_disk_space.sh").resolve()
+
+    # 1. Normal branch (<80%)
+    env_normal = {**dict(os.environ), "MOCK_USAGE_PCT": "50"}
+    res_normal = subprocess.run(
         [str(script_path), str(tmp_path)],
         capture_output=True,
         text=True,
+        env=env_normal,
     )
-    assert res.returncode == 0
-    assert "Disk space for" in res.stdout
+    assert res_normal.returncode == 0
+    assert "OK: Disk space" in res_normal.stdout
+
+    # 2. Warning branch (80% <= pct < 90%)
+    env_warn = {**dict(os.environ), "MOCK_USAGE_PCT": "85"}
+    res_warn = subprocess.run(
+        [str(script_path), str(tmp_path)],
+        capture_output=True,
+        text=True,
+        env=env_warn,
+    )
+    assert res_warn.returncode == 0
+    assert "WARNING: Disk space" in res_warn.stdout
+
+    # 3. Critical alert branch (pct >= 90%)
+    env_crit = {**dict(os.environ), "MOCK_USAGE_PCT": "95"}
+    res_crit = subprocess.run(
+        [str(script_path), str(tmp_path)],
+        capture_output=True,
+        text=True,
+        env=env_crit,
+    )
+    assert res_crit.returncode == 1
+    assert "CRITICAL: Disk space" in res_crit.stderr
+
+
+def test_restore_unsafe_tar_entries_fails(tmp_path: Path) -> None:
+    """Verify restore_qmo.sh rejects archives with path traversal entries."""
+    import io
+    import tarfile
+
+    rel_tar = tmp_path / "unsafe_traversal.tar.gz"
+    buf = io.BytesIO()
+    with tarfile.open(fileobj=buf, mode="w:gz") as tar:
+        info = tarfile.TarInfo(name="../unsafe_traversal.txt")
+        data = b"unsafe content"
+        info.size = len(data)
+        tar.addfile(info, io.BytesIO(data))
+    rel_tar.write_bytes(buf.getvalue())
+
+    # Generate sha256 checksum file
+    sha256 = hashlib.sha256(rel_tar.read_bytes()).hexdigest()
+    (tmp_path / f"{rel_tar.name}.sha256").write_text(f"{sha256}  {rel_tar.name}\n")
+
+    restore_script = Path("deploy/restore_qmo.sh").resolve()
+    target_data = tmp_path / "target_data"
+    lock_file = tmp_path / "test.lock"
+    env = {**dict(os.environ), "LOCK_FILE": str(lock_file)}
+
+    res = subprocess.run(
+        [str(restore_script), str(rel_tar), str(target_data)],
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    assert res.returncode != 0
+    assert "unsafe" in res.stderr.lower() or "path traversal" in res.stderr.lower()
+
+
+def test_restore_unsafe_symlink_fails(tmp_path: Path) -> None:
+    """Verify restore_qmo.sh rejects archives with symlinks pointing to absolute paths."""
+    tar_dir = tmp_path / "archive_content"
+    tar_dir.mkdir()
+    symlink_file = tar_dir / "bad_link"
+    os.symlink("/etc/passwd", symlink_file)
+
+    tar_file = tmp_path / "symlink.tar.gz"
+    subprocess.run(
+        ["tar", "-czf", str(tar_file), "-C", str(tar_dir), "bad_link"],
+        check=True,
+    )
+    sha256 = hashlib.sha256(tar_file.read_bytes()).hexdigest()
+    (tmp_path / f"{tar_file.name}.sha256").write_text(f"{sha256}  {tar_file.name}\n")
+
+    restore_script = Path("deploy/restore_qmo.sh").resolve()
+    target_data = tmp_path / "target_data"
+    lock_file = tmp_path / "test.lock"
+    env = {**dict(os.environ), "LOCK_FILE": str(lock_file)}
+    res = subprocess.run(
+        [str(restore_script), str(tar_file), str(target_data)],
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    assert res.returncode != 0
+    assert "unsafe" in res.stderr.lower() or "symlink" in res.stderr.lower()
+
+
+def test_restore_swap_failure_preserves_original_data(tmp_path: Path) -> None:
+    """Verify restore_qmo.sh preserves original data directory if staging check or swap fails."""
+    # 1. Setup original live data directory
+    live_data = tmp_path / "live_data"
+    live_data.mkdir()
+    (live_data / "important_data.txt").write_text("ORIGINAL_LIVE_DATA_V1")
+
+    # 2. Setup backup directory with catalog missing required tables
+    data_dir = tmp_path / "bad_data"
+    data_dir.mkdir()
+    (data_dir / "catalog").mkdir()
+    (data_dir / "catalog" / "qmo_catalog.duckdb").write_text("invalid_duckdb_bytes")
+
+    backup_dir = tmp_path / "backups"
+    backup_script = Path("deploy/backup_qmo.sh").resolve()
+    restore_script = Path("deploy/restore_qmo.sh").resolve()
+    lock_file = tmp_path / "test.lock"
+    env = {**dict(os.environ), "LOCK_FILE": str(lock_file)}
+
+    subprocess.run(
+        [str(backup_script), str(data_dir), str(backup_dir)],
+        check=True,
+        env=env,
+    )
+
+    tar_file = list(backup_dir.glob("qmo-backup-*.tar.gz"))[0]
+
+    # 3. Attempt restore targeting live_data
+    res = subprocess.run(
+        [str(restore_script), str(tar_file), str(live_data)],
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+
+    # 4. Assert restore failed AND original live data preserved
+    assert res.returncode != 0
+    assert live_data.exists()
+    assert (live_data / "important_data.txt").read_text() == "ORIGINAL_LIVE_DATA_V1"
+
+
+def test_qmo_cron_file_entries_and_syntax() -> None:
+    """Verify qmo.cron contains required jobs and valid bash syntax."""
+    cron_path = Path("deploy/qmo.cron").resolve()
+    content = cron_path.read_text()
+
+    assert "run_pipeline.sh" in content
+    assert "backup_qmo.sh" in content
+    assert "check_disk_space.sh" in content
+    assert "notify_alert.sh" in content
+
+    # Check bash syntax for each command line in cron
+    for line in content.splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        # Extract command after cron 5-field schedule
+        parts = line.split(maxsplit=5)
+        assert len(parts) == 6
+        cmd = parts[5]
+        res = subprocess.run(["sh", "-n", "-c", cmd], capture_output=True, text=True)
+        assert res.returncode == 0, f"Cron line syntax error: {cmd}\n{res.stderr}"
+
 
