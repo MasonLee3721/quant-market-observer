@@ -523,28 +523,48 @@ def test_marker_file_enforcement_in_backup_and_restore(tmp_path: Path) -> None:
     assert "missing required marker file" in res_r2.stderr.lower()
 
 
-def test_run_pipeline_missing_marker_fails(tmp_path: Path) -> None:
-    """Verify run_pipeline.sh fails closed when QMO_DATA_ROOT lacks .qmo_data_dir marker."""
-    unmarked_dir = tmp_path / "unmarked_root"
-    unmarked_dir.mkdir()
+def test_run_pipeline_missing_marker_fails_and_alerts(tmp_path: Path) -> None:
+    """Verify run_pipeline.sh fails closed and triggers external webhook alert on missing marker."""
+    MockWebhookHandler.received_payloads.clear()
+    server = HTTPServer(("127.0.0.1", 0), MockWebhookHandler)
+    port = server.server_port
+    server_thread = Thread(target=server.serve_forever, daemon=True)
+    server_thread.start()
 
-    pipeline_script = Path("deploy/run_pipeline.sh").resolve()
-    lock_file = tmp_path / "test.lock"
-    env = {
-        **dict(os.environ),
-        "QMO_DATA_ROOT": str(unmarked_dir),
-        "LOCK_FILE": str(lock_file),
-    }
+    try:
+        unmarked_dir = tmp_path / "unmarked_root"
+        unmarked_dir.mkdir()
+        env_file = tmp_path / ".env"
+        env_file.write_text(f'DISCORD_WEBHOOK_URL="http://127.0.0.1:{port}/webhook"\n')
+        log_file = tmp_path / "pipeline.log"
+        lock_file = tmp_path / "test.lock"
 
-    res = subprocess.run(
-        [str(pipeline_script)],
-        capture_output=True,
-        text=True,
-        env=env,
-    )
-    assert res.returncode != 0
-    assert "missing required marker file" in res.stderr.lower()
-    assert not (unmarked_dir / ".qmo_data_dir").exists()
+        pipeline_script = Path("deploy/run_pipeline.sh").resolve()
+        env = {
+            **dict(os.environ),
+            "QMO_DATA_ROOT": str(unmarked_dir),
+            "LOCK_FILE": str(lock_file),
+            "LOG_FILE": str(log_file),
+            "ENV_FILE": str(env_file),
+        }
+
+        res = subprocess.run(
+            [str(pipeline_script)],
+            capture_output=True,
+            text=True,
+            env=env,
+        )
+        assert res.returncode != 0
+        assert not (unmarked_dir / ".qmo_data_dir").exists()
+        log_content = log_file.read_text().lower()
+        assert "missing required marker file" in log_content
+
+        assert len(MockWebhookHandler.received_payloads) == 1
+        payload = MockWebhookHandler.received_payloads[0]
+        assert "QMO Update & Validation Pipeline" in payload["content"]
+        assert "missing required marker file" in payload["content"].lower()
+    finally:
+        server.shutdown()
 
 
 

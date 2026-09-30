@@ -6,19 +6,22 @@ set -euo pipefail
 LOCK_FILE="${LOCK_FILE:-/var/lock/qmo-pipeline.lock}"
 ROOT_DIR="${QMO_DATA_ROOT:-/var/lib/qmo/data}"
 PROJECT_DIR="${PROJECT_DIR:-/opt/quant-market-observer}"
-LOG_FILE="/var/log/qmo-pipeline.log"
-HOLIDAY_CAL="/opt/quant-market-observer/config/taiwan_holidays.csv"
+LOG_FILE="${LOG_FILE:-/var/log/qmo-pipeline.log}"
+HOLIDAY_CAL="${HOLIDAY_CAL:-/opt/quant-market-observer/config/taiwan_holidays.csv}"
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+NOTIFY_SCRIPT="${NOTIFY_SCRIPT:-$SCRIPT_DIR/notify_alert.sh}"
 
 if [ -d "$PROJECT_DIR" ]; then
     cd "$PROJECT_DIR"
 fi
 
-if [ ! -d "$ROOT_DIR" ] || [ ! -f "$ROOT_DIR/.qmo_data_dir" ]; then
-    echo "ERROR: Pipeline data root '$ROOT_DIR' does not exist or is missing required marker file '.qmo_data_dir'! Pipeline aborted." >&2
-    exit 1
-fi
-
 run_pipeline_steps() {
+    if [ ! -d "$ROOT_DIR" ] || [ ! -f "$ROOT_DIR/.qmo_data_dir" ]; then
+        echo "ERROR: Pipeline data root '$ROOT_DIR' does not exist or is missing required marker file '.qmo_data_dir'! Pipeline aborted." >&2
+        return 1
+    fi
+
     echo "=== [$(date -u +"%Y-%m-%d %H:%M:%SZ")] Starting QMO Pipeline Update ==="
     docker compose run --rm qmo update \
         --provider-mode official-bulk \
@@ -42,6 +45,8 @@ fi
 
 if ! run_pipeline_steps >> "$LOG_FILE" 2>&1; then
     echo "[$(date -u +"%Y-%m-%d %H:%M:%SZ")] ERROR: QMO Pipeline failed! Triggering external alert..." >> "$LOG_FILE"
-    /opt/quant-market-observer/deploy/notify_alert.sh "QMO Update & Validation Pipeline" "$LOG_FILE" || true
+    if [ -x "$NOTIFY_SCRIPT" ]; then
+        "$NOTIFY_SCRIPT" "QMO Update & Validation Pipeline" "$LOG_FILE" "${ENV_FILE:-.env}" || true
+    fi
     exit 1
 fi
