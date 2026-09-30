@@ -14,8 +14,8 @@ fi
 
 # 1. Path Traversal & Forbidden Root Defense
 REAL_DATA_DIR=$(readlink -f "$DATA_DIR" 2>/dev/null || echo "$DATA_DIR")
-if [[ "$REAL_DATA_DIR" =~ ^/(bin|boot|dev|etc|lib|lib64|proc|root|sbin|sys|usr)?/?$ ]]; then
-    echo "ERROR: Refusing to restore to system root directory '$REAL_DATA_DIR'!" >&2
+if [[ "$REAL_DATA_DIR" =~ ^/(bin|boot|dev|etc|home|lib|lib64|proc|root|sbin|sys|tmp|usr|var)?/?$ ]]; then
+    echo "ERROR: Refusing to restore to broad system root directory '$REAL_DATA_DIR'!" >&2
     exit 1
 fi
 
@@ -65,12 +65,13 @@ trap cleanup EXIT
 
 echo "=== Extracting backup archive to staging directory $STAGING_DIR ==="
 tar -xzf "$TAR_FILE" -C "$STAGING_DIR"
+touch "$STAGING_DIR/.qmo_data_dir"
 
 # 5. Mandatory Staging Catalog Integrity Validation
 if [ -f "$STAGING_DIR/catalog/qmo_catalog.duckdb" ]; then
     echo "Running mandatory integrity check on restored staging DuckDB catalog..."
     PYTHON_BIN=$(command -v python3 || command -v python || echo "python3")
-    if ! $PYTHON_BIN -c "import duckdb; conn = duckdb.connect('$STAGING_DIR/catalog/qmo_catalog.duckdb', read_only=True); tables = [t[0] for t in conn.execute('SHOW TABLES').fetchall()]; assert len(tables) > 0, 'Catalog table list is empty'; print('Staging DuckDB catalog integrity check PASSED')"; then
+    if ! $PYTHON_BIN -c "import duckdb; conn = duckdb.connect('$STAGING_DIR/catalog/qmo_catalog.duckdb', read_only=True); tables = [t[0] for t in conn.execute('SHOW TABLES').fetchall()]; assert 'batch_manifests' in tables and 'quality_reports' in tables, f'Missing required tables: {tables}'; conn.execute('SELECT count(*) FROM batch_manifests').fetchall(); conn.execute('SELECT count(*) FROM quality_reports').fetchall(); print('Staging DuckDB catalog integrity check PASSED')"; then
         echo "ERROR: DuckDB catalog integrity check failed for staging data! Restore aborted." >&2
         exit 1
     fi
@@ -86,6 +87,11 @@ mkdir -p "$REAL_DATA_DIR"
 if ! mv "$REAL_DATA_DIR" "$ROLLBACK_DIR"; then
     echo "ERROR: Failed to move existing live data directory to rollback target!" >&2
     exit 1
+fi
+
+if [ "${MOCK_FAIL_STAGING_SWAP:-0}" = "1" ]; then
+    echo "ERROR: Simulating staging swap failure for rollback test..." >&2
+    rm -rf "$STAGING_DIR"
 fi
 
 if ! mv "$STAGING_DIR" "$REAL_DATA_DIR"; then

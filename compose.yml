@@ -11,7 +11,7 @@ services:
       QMO_DATA_ROOT: /var/lib/qmo/data
       TZ: Asia/Taipei
     volumes:
-      - qmo-data:/var/lib/qmo/data
+      - ${QMO_HOST_DATA_DIR:-/var/lib/qmo/data}:/var/lib/qmo/data
     command: ["status", "--root-dir", "/var/lib/qmo/data"]
     read_only: true
     tmpfs:
@@ -19,5 +19,3 @@ services:
     security_opt:
       - no-new-privileges:true
 
-volumes:
-  qmo-data:

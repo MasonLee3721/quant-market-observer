@@ -18,6 +18,7 @@ if [ ! -d "$DATA_DIR" ]; then
     echo "ERROR: Data directory '$DATA_DIR' does not exist!" >&2
     exit 1
 fi
+touch "$DATA_DIR/.qmo_data_dir"
 
 exec 9>"$LOCK_FILE"
 if ! flock -n 9; then

@@ -90,7 +90,7 @@ def test_backup_and_restore_scripts_e2e(tmp_path: Path) -> None:
     catalog_dir = data_dir / "catalog"
     catalog_dir.mkdir()
     conn = duckdb.connect(str(catalog_dir / "qmo_catalog.duckdb"))
-    conn.execute("CREATE TABLE test_table(id INT)")
+    conn.execute("CREATE TABLE batch_manifests(id INT); CREATE TABLE quality_reports(id INT)")
     conn.close()
 
     (data_dir / "normalized").mkdir()
@@ -362,6 +362,55 @@ def test_restore_swap_failure_preserves_original_data(tmp_path: Path) -> None:
     assert (live_data / "important_data.txt").read_text() == "ORIGINAL_LIVE_DATA_V1"
 
 
+def test_restore_staging_swap_failure_triggers_automatic_rollback(tmp_path: Path) -> None:
+    """Verify restore_qmo.sh performs automatic rollback if staging swap fails."""
+    import duckdb
+
+    # 1. Setup original live data directory
+    live_data = tmp_path / "live_data"
+    live_data.mkdir()
+    (live_data / "important_data.txt").write_text("ORIGINAL_LIVE_DATA_V1")
+
+    # 2. Setup valid backup directory with required tables
+    data_dir = tmp_path / "valid_data"
+    data_dir.mkdir()
+    (data_dir / "catalog").mkdir()
+    conn = duckdb.connect(str(data_dir / "catalog" / "qmo_catalog.duckdb"))
+    conn.execute("CREATE TABLE batch_manifests(id INT); CREATE TABLE quality_reports(id INT)")
+    conn.close()
+
+    backup_dir = tmp_path / "backups"
+    backup_script = Path("deploy/backup_qmo.sh").resolve()
+    restore_script = Path("deploy/restore_qmo.sh").resolve()
+    lock_file = tmp_path / "test.lock"
+
+    subprocess.run(
+        [str(backup_script), str(data_dir), str(backup_dir)],
+        check=True,
+        env={**dict(os.environ), "LOCK_FILE": str(lock_file)},
+    )
+    tar_file = list(backup_dir.glob("qmo-backup-*.tar.gz"))[0]
+
+    # 3. Trigger restore with MOCK_FAIL_STAGING_SWAP=1
+    env_fail = {
+        **dict(os.environ),
+        "LOCK_FILE": str(lock_file),
+        "MOCK_FAIL_STAGING_SWAP": "1",
+    }
+    res = subprocess.run(
+        [str(restore_script), str(tar_file), str(live_data)],
+        capture_output=True,
+        text=True,
+        env=env_fail,
+    )
+
+    # 4. Verify script failed AND original live data directory was restored automatically
+    assert res.returncode != 0
+    assert "Simulating staging swap failure" in res.stderr
+    assert live_data.exists()
+    assert (live_data / "important_data.txt").read_text() == "ORIGINAL_LIVE_DATA_V1"
+
+
 def test_qmo_cron_file_entries_and_syntax() -> None:
     """Verify qmo.cron contains required jobs and valid bash syntax."""
     cron_path = Path("deploy/qmo.cron").resolve()
@@ -383,5 +432,7 @@ def test_qmo_cron_file_entries_and_syntax() -> None:
         cmd = parts[5]
         res = subprocess.run(["sh", "-n", "-c", cmd], capture_output=True, text=True)
         assert res.returncode == 0, f"Cron line syntax error: {cmd}\n{res.stderr}"
+
+
 
 

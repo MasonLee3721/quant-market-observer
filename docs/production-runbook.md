@@ -33,39 +33,36 @@ docker compose run --rm qmo validate --root-dir /var/lib/qmo/data --format text
 
 ## 排程與告警
 
-將 repository 放置於 `/opt/quant-market-observer`，主機時區設為 `Asia/Taipei`，再安裝 `deploy/qmo.cron`。
-排程呼叫 `deploy/run_pipeline.sh`，使用單一共用鎖 `/var/lock/qmo-pipeline.lock` 原子性執行 update 與 validate。
-若任一步驟失敗（非零退出），會自動觸發 `deploy/notify_alert.sh` 以 Python 進行安全 JSON 編碼並發送外部 Webhook 告警。
+放置 repository 於 `/opt/quant-market-observer`，主機時區設為 `Asia/Taipei`，建立 `qmo` 使用者與群組 (`groupadd -f qmo && useradd -g qmo -s /bin/false qmo`)，並確定 `${QMO_HOST_DATA_DIR:-/var/lib/qmo/data}` Host Bind Mount 資料路徑與權限。
+安裝 `deploy/qmo.cron` 至 crontab：
+- `run_pipeline.sh`: 盤後原子執行 update 與 validate，持有 `/var/lock/qmo-pipeline.lock` 共用鎖。
+- `backup_qmo.sh`: 每日定時將 Host Bind Mount 資料目錄打包並生成 `.sha256` 驗證碼，自動清理 30 天舊備份。
+- `check_disk_space.sh`: 每小時監控 Host 資料 Volume 容量 (80% Warning / 90% Critical 告警)。
 
 ## 備份與還原演練
 
 1. **定期備份 (Daily Backup)**
-   - 每日盤後定時將 DuckDB Catalog `/var/lib/qmo/data/catalog/qmo_catalog.duckdb` 與 `normalized/` Parquet 批次同步備份至獨立儲存庫：
+   - Cron 排程自動呼叫 `deploy/backup_qmo.sh /var/lib/qmo/data /var/lib/qmo/backups`。
+   - 生成打包檔與 `.sha256` 校驗檔，確保無崩潰或資料毀損。
+2. **安全還原演練 (Atomic Safe Restore)**
+   - 執行原子還原腳本 `deploy/restore_qmo.sh`：
    ```bash
-   tar -czf /backup/qmo-data-$(date +%Y%m%d).tar.gz -C /var/lib/qmo/data catalog normalized
-   ```
-2. **還原演練 (Restore Drill)**
-   - 若發生極端災害需還原 Catalog 與 Dataset：
-   ```bash
-   # 1. 暫停 Cron
-   crontab -r
-   # 2. 解壓備份至資料目錄
-   tar -xzf /backup/qmo-data-YYYYMMDD.tar.gz -C /var/lib/qmo/data
-   # 3. 執行狀態驗證
+   # 1. 檢查備份檔與 SHA256 驗證碼
+   deploy/restore_qmo.sh /var/lib/qmo/backups/qmo-backup-YYYYMMDD_HHMMSS.tar.gz /var/lib/qmo/data
+   # 2. 驗收 DuckDB Catalog 狀態
    docker compose run --rm qmo status --root-dir /var/lib/qmo/data
-   # 4. 重新啟用 Cron
-   crontab deploy/qmo.cron
    ```
+   - 還原腳本會自動進行：SHA256 強制校驗、Tar Traversal / 危險 Symlink 防護、Staging DuckDB Catalog `batch_manifests` & `quality_reports` 查詢測試、同 Filesystem 原子 Rename 切換，若有任一步驟異常即自動 Rollback 復原原目錄。
 
 ## 資料與日誌保留策略 (Retention & Log Rotation)
 
 1. **日誌輪替 (Log Rotation)**
-   - 安裝 `deploy/qmo-logrotate.conf` 至 `/etc/logrotate.d/qmo`，設定每日輪替並保留 30 天日誌：
+   - 確保 Host 系統已有 `qmo:qmo` 使用者與群組，將 `deploy/qmo-logrotate.conf` 安裝至 `/etc/logrotate.d/qmo`：
    ```bash
    cp deploy/qmo-logrotate.conf /etc/logrotate.d/qmo
    ```
 2. **磁碟容量監控 (Disk Capacity Alert)**
-   - 監控 `/var/lib/qmo/data` 所在掛載點使用率，超過 80% 觸發警告，超過 90% 觸發緊急告警。
+   - 監控 `/var/lib/qmo/data` 所在掛載點使用率，超過 80% 觸發 Warning，超過 90% 觸發 Critical 告警。
 
 ## 回滾與停用
 
