@@ -5,7 +5,7 @@ set -euo pipefail
 
 TAR_FILE="${1:-}"
 DATA_DIR="${2:-/var/lib/qmo/data}"
-LOCK_FILE="${LOCK_FILE:-/var/lock/qmo-pipeline.lock}"
+LOCK_FILE="${LOCK_FILE:-/var/lock/qmo/pipeline.lock}"
 
 if [ -z "$TAR_FILE" ] || [ ! -f "$TAR_FILE" ]; then
     echo "Usage: $0 <path_to_backup_archive.tar.gz> [target_data_dir]" >&2

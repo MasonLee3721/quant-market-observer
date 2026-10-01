@@ -567,6 +567,22 @@ def test_run_pipeline_missing_marker_fails_and_alerts(tmp_path: Path) -> None:
         server.shutdown()
 
 
+def test_setup_host_script_syntax_and_path_resolution() -> None:
+    """Verify setup_host.sh bash syntax and absolute SCRIPT_DIR path resolution."""
+    setup_script = Path("deploy/setup_host.sh").resolve()
+    assert setup_script.exists()
+
+    res = subprocess.run(["bash", "-n", str(setup_script)], capture_output=True, text=True)
+    assert res.returncode == 0, f"setup_host.sh syntax error: {res.stderr}"
+
+    content = setup_script.read_text()
+    assert "SCRIPT_DIR=" in content
+    assert "PROJECT_DIR=" in content
+    assert "EXISTING_GID" in content
+    assert "EXISTING_UID" in content
+    assert "Fail-Closed" in content
+
+
 
 
 

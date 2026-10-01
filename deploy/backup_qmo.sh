@@ -5,7 +5,7 @@ set -euo pipefail
 
 DATA_DIR="${1:-/var/lib/qmo/data}"
 BACKUP_DIR="${2:-/var/lib/qmo/backups}"
-LOCK_FILE="${LOCK_FILE:-/var/lock/qmo-pipeline.lock}"
+LOCK_FILE="${LOCK_FILE:-/var/lock/qmo/pipeline.lock}"
 RETENTION_DAYS=30
 
 TIMESTAMP=$(date -u +"%Y%m%d_%H%M%S")
