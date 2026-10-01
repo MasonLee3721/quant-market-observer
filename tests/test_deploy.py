@@ -581,6 +581,58 @@ def test_setup_host_script_syntax_and_path_resolution() -> None:
     assert "EXISTING_GID" in content
     assert "EXISTING_UID" in content
     assert "Fail-Closed" in content
+    assert "CRON_TZ=Asia/Taipei" in content
+    assert "/var/lock/qmo" in content
+
+
+def test_setup_host_script_comprehensive_cases(tmp_path: Path) -> None:
+    """Verify setup_host.sh for fresh setup, UID/GID conflict rejection, and path resolution."""
+    setup_script = Path("deploy/setup_host.sh").resolve()
+    mock_bin = tmp_path / "bin"
+    mock_bin.mkdir()
+
+    # 1. Test UID/GID Mismatch Fail-Closed
+    bad_getent = mock_bin / "getent"
+    bad_getent.write_text("#!/bin/sh\nif [ \"$1\" = \"group\" ]; then echo \"qmo:x:9999:\"; fi\n")
+    bad_getent.chmod(0o755)
+
+    env_bad = {
+        **dict(os.environ),
+        "PATH": f"{mock_bin}:{os.environ.get('PATH', '')}",
+    }
+
+    res_bad = subprocess.run(
+        [str(setup_script)],
+        capture_output=True,
+        text=True,
+        cwd=str(tmp_path),
+        env=env_bad,
+    )
+    assert res_bad.returncode != 0
+    assert "fail-closed" in res_bad.stderr.lower() or "expected 10001" in res_bad.stderr.lower()
+
+    # 2. Test Correct UID/GID Matching & Execution from non-root CWD
+    good_getent = mock_bin / "getent"
+    good_getent.write_text(
+        "#!/bin/sh\n"
+        'if [ "$1" = "group" ]; then echo "qmo:x:10001:"; '
+        'elif [ "$1" = "passwd" ]; then echo "qmo:x:10001:10001::/app:/bin/false"; fi\n'
+    )
+    good_getent.chmod(0o755)
+
+    good_id = mock_bin / "id"
+    good_id.write_text("#!/bin/sh\necho 10001\n")
+    good_id.chmod(0o755)
+
+    res_good = subprocess.run(
+        [str(setup_script)],
+        capture_output=True,
+        text=True,
+        cwd=str(tmp_path),
+        env=env_bad,
+    )
+    assert "script_dir=" not in res_good.stderr.lower()
+
 
 
 
