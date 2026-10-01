@@ -145,6 +145,7 @@ fi
 if [ "$SKIP_USER_CHECK" != "1" ]; then
     chown -R "$QMO_UID:$QMO_GID" "$DATA_DIR" "$BACKUP_DIR" "$LOCK_DIR"
 else
+    # Non-root unit test fallback mode (SKIP_USER_CHECK=1) only
     chown -R "$QMO_UID:$QMO_GID" "$DATA_DIR" "$BACKUP_DIR" "$LOCK_DIR" 2>/dev/null || true
 fi
 chmod 755 "$DATA_DIR" "$BACKUP_DIR" "$LOCK_DIR"
@@ -155,6 +156,7 @@ touch "$LOG_DIR/qmo-pipeline.log" "$LOG_DIR/qmo-backup.log" "$LOG_DIR/qmo-disk.l
 if [ "$SKIP_USER_CHECK" != "1" ]; then
     chown "$QMO_UID:$QMO_GID" "$LOG_DIR/qmo-pipeline.log" "$LOG_DIR/qmo-backup.log" "$LOG_DIR/qmo-disk.log"
 else
+    # Non-root unit test fallback mode (SKIP_USER_CHECK=1) only
     chown "$QMO_UID:$QMO_GID" "$LOG_DIR/qmo-pipeline.log" "$LOG_DIR/qmo-backup.log" "$LOG_DIR/qmo-disk.log" 2>/dev/null || true
 fi
 chmod 664 "$LOG_DIR/qmo-pipeline.log" "$LOG_DIR/qmo-backup.log" "$LOG_DIR/qmo-disk.log"
@@ -164,6 +166,7 @@ if [ -f "$ENV_FILE" ]; then
     if [ "$SKIP_USER_CHECK" != "1" ]; then
         chown "$QMO_UID:$QMO_GID" "$ENV_FILE"
     else
+        # Non-root unit test fallback mode (SKIP_USER_CHECK=1) only
         chown "$QMO_UID:$QMO_GID" "$ENV_FILE" 2>/dev/null || true
     fi
     chmod 600 "$ENV_FILE"
