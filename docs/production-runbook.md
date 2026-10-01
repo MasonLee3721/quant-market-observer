@@ -34,16 +34,14 @@ docker compose run --rm qmo validate --root-dir /var/lib/qmo/data --format text
 ## 排程與告警
 
 放置 repository 於 `/opt/quant-market-observer`，主機時區設為 `Asia/Taipei`。
-建立固定數值 UID/GID 之 `qmo` 使用者與群組 (`groupadd -g 10001 qmo && useradd -u 10001 -g 10001 -s /bin/false qmo`)，確保與 Docker 容器內 `10001:10001` 完全一致。
-初始化資料目錄並設定權限與標記檔：
+執行一鍵宿主機初始化腳本 `deploy/setup_host.sh`：
 ```bash
-mkdir -p /var/lib/qmo/data /var/lib/qmo/backups
-touch /var/lib/qmo/data/.qmo_data_dir
-chown -R 10001:10001 /var/lib/qmo
+sudo ./deploy/setup_host.sh
 ```
+該腳本會自動建立固定數值 `10001:10001` 之 `qmo` 帳號、`/var/lib/qmo/data` 資料目錄、`.qmo_data_dir` 標記檔與 logrotate / 日誌檔權限。
 安裝 `deploy/qmo.cron` 至 crontab：
-- `run_pipeline.sh`: 盤後原子執行 update 與 validate，持有 `/var/lock/qmo-pipeline.lock` 共用鎖。
-- `backup_qmo.sh`: 每日定時將 Host Bind Mount 資料目錄打包並生成 `.sha256` 驗證碼，自動清理 30 天舊備份。
+- `run_pipeline.sh`: 每日 18:30 台北時間盤後原子執行 update 與 validate，持有 `/var/lock/qmo-pipeline.lock` 共用鎖。
+- `backup_qmo.sh`: 每日 19:00 台北時間將 Host Bind Mount 資料目錄打包並生成 `.sha256` 驗證碼，自動清理 30 天舊備份。
 - `check_disk_space.sh`: 每小時監控 Host 資料 Volume 容量 (80% Warning / 90% Critical 告警)。
 
 ## 備份與還原演練

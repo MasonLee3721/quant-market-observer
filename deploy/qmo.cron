@@ -1,5 +1,6 @@
-# Run after TWSE/TPEx post-market publication (15:40 Taipei Time). Host timezone must be Asia/Taipei.
+# Run after TWSE/TPEx post-market publication (18:30 Taipei Time). Host timezone must be Asia/Taipei.
 # Install with: crontab deploy/qmo.cron
-40 15 * * 1-5 /opt/quant-market-observer/deploy/run_pipeline.sh
-0 17 * * 1-5 /opt/quant-market-observer/deploy/backup_qmo.sh /var/lib/qmo/data /var/lib/qmo/backups >> /var/log/qmo-backup.log 2>&1 || /opt/quant-market-observer/deploy/notify_alert.sh "QMO Backup Task" /var/log/qmo-backup.log
+30 18 * * 1-5 /opt/quant-market-observer/deploy/run_pipeline.sh
+0 19 * * 1-5 /opt/quant-market-observer/deploy/backup_qmo.sh /var/lib/qmo/data /var/lib/qmo/backups >> /var/log/qmo-backup.log 2>&1 || /opt/quant-market-observer/deploy/notify_alert.sh "QMO Backup Task" /var/log/qmo-backup.log
 0 * * * * /opt/quant-market-observer/deploy/check_disk_space.sh /var/lib/qmo/data >> /var/log/qmo-disk.log 2>&1
+
