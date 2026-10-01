@@ -39,6 +39,9 @@ if [ "$SKIP_PREFLIGHT" != "1" ]; then
     if ! command -v cron >/dev/null 2>&1 && ! command -v crond >/dev/null 2>&1; then
         MISSING_DEPS+=("cron")
     fi
+    if ! command -v runuser >/dev/null 2>&1 && ! command -v sudo >/dev/null 2>&1; then
+        MISSING_DEPS+=("runuser/sudo")
+    fi
     if [ ${#MISSING_DEPS[@]} -gt 0 ]; then
         echo "ERROR: Required software dependencies missing on host: ${MISSING_DEPS[*]}" >&2
         echo "Please install missing software before running setup_host.sh. Aborting (Fail-Closed)." >&2
@@ -113,17 +116,18 @@ if [ "$SKIP_USER_CHECK" != "1" ]; then
         RUN_AS_QMO="runuser -u qmo --"
     elif command -v sudo >/dev/null 2>&1; then
         RUN_AS_QMO="sudo -u qmo"
+    else
+        echo "ERROR: Neither 'runuser' nor 'sudo' is available on host to verify user 'qmo' Docker execution! Aborting (Fail-Closed)." >&2
+        exit 1
     fi
 
-    if [ -n "$RUN_AS_QMO" ]; then
-        if ! $RUN_AS_QMO docker info >/dev/null 2>&1; then
-            echo "ERROR: User 'qmo' failed Docker daemon access check ('$RUN_AS_QMO docker info')! Aborting (Fail-Closed)." >&2
-            exit 1
-        fi
-        if ! $RUN_AS_QMO docker compose version >/dev/null 2>&1; then
-            echo "ERROR: User 'qmo' failed Docker Compose access check ('$RUN_AS_QMO docker compose version')! Aborting (Fail-Closed)." >&2
-            exit 1
-        fi
+    if ! $RUN_AS_QMO docker info >/dev/null 2>&1; then
+        echo "ERROR: User 'qmo' failed Docker daemon access check ('$RUN_AS_QMO docker info')! Aborting (Fail-Closed)." >&2
+        exit 1
+    fi
+    if ! $RUN_AS_QMO docker compose version >/dev/null 2>&1; then
+        echo "ERROR: User 'qmo' failed Docker Compose access check ('$RUN_AS_QMO docker compose version')! Aborting (Fail-Closed)." >&2
+        exit 1
     fi
 fi
 

@@ -783,6 +783,59 @@ def test_setup_host_script_comprehensive_behavioral(tmp_path: Path) -> None:
     assert res_docker_fail.returncode != 0
     assert "failed to add user 'qmo' to group 'docker'" in res_docker_fail.stderr.lower()
 
+    # 2d. Test Missing Both runuser and sudo Fail-Closed (when SKIP_USER_CHECK=0)
+    mock_bin_no_exec = tmp_path / "mock_bin_no_exec"
+    mock_bin_no_exec.mkdir()
+    no_exec_cmds = [
+        "docker",
+        "flock",
+        "logrotate",
+        "cron",
+        "groupadd",
+        "useradd",
+        "usermod",
+        "chown",
+        "chmod",
+    ]
+    for cmd in no_exec_cmds:
+        m = mock_bin_no_exec / cmd
+        m.write_text("#!/bin/sh\nexit 0\n")
+        m.chmod(0o755)
+
+    no_exec_getent = mock_bin_no_exec / "getent"
+    no_exec_getent.write_text(
+        "#!/bin/sh\n"
+        'if [ "$1" = "group" ] && [ "$2" = "qmo" ]; then echo "qmo:x:10001:"; '
+        'elif [ "$1" = "group" ] && [ "$2" = "docker" ]; then echo "docker:x:999:"; '
+        'elif [ "$1" = "passwd" ]; then echo "qmo:x:10001:10001::/app:/bin/false"; fi\n'
+    )
+    no_exec_getent.chmod(0o755)
+
+    no_exec_id = mock_bin_no_exec / "id"
+    no_exec_id.write_text(
+        "#!/bin/sh\n"
+        'if [ "$1" = "-u" ]; then echo 10001; '
+        'elif [ "$1" = "-nG" ]; then echo "qmo docker"; '
+        "else echo 10001; fi\n"
+    )
+    no_exec_id.chmod(0o755)
+
+    res_no_exec = subprocess.run(
+        [str(setup_script)],
+        capture_output=True,
+        text=True,
+        cwd=str(tmp_path),
+        env={
+            **dict(os.environ),
+            "PATH": f"{mock_bin_no_exec}:/bin:/usr/bin",
+            "SKIP_PREFLIGHT_CHECK": "1",
+            "SKIP_USER_CHECK": "0",
+            "ALLOW_CUSTOM_PATHS": "1",
+        },
+    )
+    assert res_no_exec.returncode != 0
+    assert "neither 'runuser' nor 'sudo'" in res_no_exec.stderr.lower()
+
     # 3. Test Non-Empty Data Directory Missing Marker Fail-Closed
     non_empty_dir = tmp_path / "non_empty_data"
     non_empty_dir.mkdir()
