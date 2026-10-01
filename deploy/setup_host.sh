@@ -107,6 +107,24 @@ if [ "$SKIP_USER_CHECK" != "1" ]; then
         echo "ERROR: Failed to add user 'qmo' to group 'docker'! Aborting (Fail-Closed)." >&2
         exit 1
     fi
+
+    RUN_AS_QMO=""
+    if command -v runuser >/dev/null 2>&1; then
+        RUN_AS_QMO="runuser -u qmo --"
+    elif command -v sudo >/dev/null 2>&1; then
+        RUN_AS_QMO="sudo -u qmo"
+    fi
+
+    if [ -n "$RUN_AS_QMO" ]; then
+        if ! $RUN_AS_QMO docker info >/dev/null 2>&1; then
+            echo "ERROR: User 'qmo' failed Docker daemon access check ('$RUN_AS_QMO docker info')! Aborting (Fail-Closed)." >&2
+            exit 1
+        fi
+        if ! $RUN_AS_QMO docker compose version >/dev/null 2>&1; then
+            echo "ERROR: User 'qmo' failed Docker Compose access check ('$RUN_AS_QMO docker compose version')! Aborting (Fail-Closed)." >&2
+            exit 1
+        fi
+    fi
 fi
 
 echo "=== [4/7] Verifying host timezone (Asia/Taipei) ==="

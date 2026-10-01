@@ -625,6 +625,7 @@ def test_setup_host_script_comprehensive_behavioral(tmp_path: Path) -> None:
         "usermod",
         "chown",
         "chmod",
+        "runuser",
     ]
     for cmd in mock_cmds:
         m = mock_bin / cmd
@@ -632,6 +633,11 @@ def test_setup_host_script_comprehensive_behavioral(tmp_path: Path) -> None:
             m.write_text(
                 f'#!/bin/sh\necho "{cmd} $*" >> "{cmd_log}"\n'
                 f'/bin/chmod "$@" 2>/dev/null || /usr/bin/chmod "$@" 2>/dev/null || exit 0\n'
+            )
+        elif cmd == "runuser":
+            m.write_text(
+                f'#!/bin/sh\necho "{cmd} $*" >> "{cmd_log}"\n'
+                'shift 2\n[ "$1" = "--" ] && shift\nexec "$@"\n'
             )
         else:
             m.write_text(
@@ -804,7 +810,25 @@ def test_setup_host_script_comprehensive_behavioral(tmp_path: Path) -> None:
     assert "lacks marker file" in res_non_empty.stderr.lower()
     assert not (non_empty_dir / ".qmo_data_dir").exists()
 
-    # 4. Fresh Setup Execution & Assertions (Returncode == 0)
+    # 4. Fresh Setup Execution & Assertions (Returncode == 0 with SKIP_USER_CHECK=0)
+    good_getent = mock_bin / "getent"
+    good_getent.write_text(
+        "#!/bin/sh\n"
+        'if [ "$1" = "group" ] && [ "$2" = "qmo" ]; then echo "qmo:x:10001:"; '
+        'elif [ "$1" = "group" ] && [ "$2" = "docker" ]; then echo "docker:x:999:"; '
+        'elif [ "$1" = "passwd" ]; then echo "qmo:x:10001:10001::/app:/bin/false"; fi\n'
+    )
+    good_getent.chmod(0o755)
+
+    good_id = mock_bin / "id"
+    good_id.write_text(
+        "#!/bin/sh\n"
+        'if [ "$1" = "-u" ]; then echo 10001; '
+        'elif [ "$1" = "-nG" ]; then echo "qmo docker"; '
+        "else echo 10001; fi\n"
+    )
+    good_id.chmod(0o755)
+
     fresh_data = tmp_path / "fresh_data"
     fresh_backups = tmp_path / "fresh_backups"
     fresh_lock = tmp_path / "fresh_lock"
@@ -819,7 +843,11 @@ def test_setup_host_script_comprehensive_behavioral(tmp_path: Path) -> None:
     fresh_env.write_text("DISCORD_WEBHOOK_URL=http://mock/webhook\n")
 
     env_fresh = {
-        **env_mock_base,
+        **dict(os.environ),
+        "PATH": f"{mock_bin}:{os.environ.get('PATH', '')}",
+        "SKIP_PREFLIGHT_CHECK": "1",
+        "SKIP_USER_CHECK": "0",
+        "ALLOW_CUSTOM_PATHS": "1",
         "DATA_DIR": str(fresh_data),
         "BACKUP_DIR": str(fresh_backups),
         "LOCK_DIR": str(fresh_lock),
@@ -863,10 +891,12 @@ def test_setup_host_script_comprehensive_behavioral(tmp_path: Path) -> None:
     assert oct(logrotate_installed.stat().st_mode & 0o777) == "0o644"
     assert oct(fresh_env.stat().st_mode & 0o777) == "0o600"
 
-    # Assert mock command invocations recorded
+    # Assert mock command invocations recorded including qmo docker execution checks
     invocations = cmd_log.read_text()
     assert "chmod 755" in invocations
     assert "chmod 600" in invocations
+    assert "runuser -u qmo -- docker info" in invocations
+    assert "runuser -u qmo -- docker compose version" in invocations
 
     # 5. Idempotency Check (Second run under same fresh env succeeds with returncode 0)
     res_idempotent = subprocess.run(
