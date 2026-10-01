@@ -595,7 +595,7 @@ def test_setup_host_script_comprehensive_behavioral(tmp_path: Path) -> None:
     mock_bin = tmp_path / "mock_bin"
     mock_bin.mkdir()
 
-    # 1. Test Preflight Dependency Check Failure (Fail-Closed, zero host mutation)
+    # 1a. Test Preflight Dependency Check Failure (Fail-Closed, zero host mutation)
     target_data_pf = tmp_path / "pf_data"
     res_preflight = subprocess.run(
         [str(setup_script)],
@@ -630,6 +630,31 @@ def test_setup_host_script_comprehensive_behavioral(tmp_path: Path) -> None:
         m.write_text("#!/bin/sh\nexit 0\n")
         m.chmod(0o755)
 
+    # 1b. Test Docker Daemon Failure in Preflight (Fail-Closed)
+    mock_docker_fail = mock_bin / "docker"
+    mock_docker_fail.write_text(
+        '#!/bin/sh\nif [ "$1" = "info" ]; then exit 1; else exit 0; fi\n'
+    )
+    mock_docker_fail.chmod(0o755)
+
+    res_docker_pf = subprocess.run(
+        [str(setup_script)],
+        capture_output=True,
+        text=True,
+        cwd=str(tmp_path),
+        env={
+            **dict(os.environ),
+            "PATH": f"{mock_bin}:{os.environ.get('PATH', '')}",
+        },
+    )
+    assert res_docker_pf.returncode != 0
+    assert "docker daemon is not running" in res_docker_pf.stderr.lower()
+
+    # Restore mock docker to return success
+    mock_docker = mock_bin / "docker"
+    mock_docker.write_text("#!/bin/sh\nexit 0\n")
+    mock_docker.chmod(0o755)
+
     # 2a. Test User UID Mismatch Fail-Closed
     bad_uid_getent = mock_bin / "getent"
     bad_uid_getent.write_text(
@@ -649,7 +674,23 @@ def test_setup_host_script_comprehensive_behavioral(tmp_path: Path) -> None:
         **dict(os.environ),
         "PATH": f"{mock_bin}:{os.environ.get('PATH', '')}",
         "SKIP_PREFLIGHT_CHECK": "1",
+        "SKIP_USER_CHECK": "1",
     }
+
+    # 2a. Test User UID Mismatch Fail-Closed
+    bad_uid_getent = mock_bin / "getent"
+    bad_uid_getent.write_text(
+        "#!/bin/sh\n"
+        'if [ "$1" = "group" ]; then echo "qmo:x:10001:"; '
+        'elif [ "$1" = "passwd" ]; then echo "qmo:x:9999:10001::/app:/bin/false"; fi\n'
+    )
+    bad_uid_getent.chmod(0o755)
+
+    bad_uid_id = mock_bin / "id"
+    bad_uid_id.write_text(
+        "#!/bin/sh\nif [ \"$1\" = \"-u\" ]; then echo 9999; else echo 10001; fi\n"
+    )
+    bad_uid_id.chmod(0o755)
 
     res_bad_uid = subprocess.run(
         [str(setup_script)],
@@ -686,19 +727,43 @@ def test_setup_host_script_comprehensive_behavioral(tmp_path: Path) -> None:
     assert res_bad_gid.returncode != 0
     assert "fail-closed" in res_bad_gid.stderr.lower()
 
-    # 3. Test Non-Empty Data Directory Missing Marker Fail-Closed
+    # 2c. Test Docker Group Membership Failure Fail-Closed (when SKIP_USER_CHECK=0)
     good_getent = mock_bin / "getent"
     good_getent.write_text(
         "#!/bin/sh\n"
-        'if [ "$1" = "group" ]; then echo "qmo:x:10001:"; '
+        'if [ "$1" = "group" ] && [ "$2" = "qmo" ]; then echo "qmo:x:10001:"; '
+        'elif [ "$1" = "group" ] && [ "$2" = "docker" ]; then echo "docker:x:999:"; '
         'elif [ "$1" = "passwd" ]; then echo "qmo:x:10001:10001::/app:/bin/false"; fi\n'
     )
     good_getent.chmod(0o755)
 
     good_id = mock_bin / "id"
-    good_id.write_text("#!/bin/sh\necho 10001\n")
+    good_id.write_text(
+        "#!/bin/sh\n"
+        'if [ "$1" = "-u" ]; then echo 10001; '
+        'elif [ "$1" = "-nG" ]; then echo "qmo"; '
+        "else echo 10001; fi\n"
+    )
     good_id.chmod(0o755)
 
+    env_docker_fail = {
+        **dict(os.environ),
+        "PATH": f"{mock_bin}:{os.environ.get('PATH', '')}",
+        "SKIP_PREFLIGHT_CHECK": "1",
+        "SKIP_USER_CHECK": "0",
+    }
+
+    res_docker_fail = subprocess.run(
+        [str(setup_script)],
+        capture_output=True,
+        text=True,
+        cwd=str(tmp_path),
+        env=env_docker_fail,
+    )
+    assert res_docker_fail.returncode != 0
+    assert "failed to add user 'qmo' to group 'docker'" in res_docker_fail.stderr.lower()
+
+    # 3. Test Non-Empty Data Directory Missing Marker Fail-Closed
     non_empty_dir = tmp_path / "non_empty_data"
     non_empty_dir.mkdir()
     (non_empty_dir / "unauthorized_file.txt").write_text("data")
@@ -771,7 +836,8 @@ def test_setup_host_script_comprehensive_behavioral(tmp_path: Path) -> None:
     assert cron_installed.exists()
     cron_text = cron_installed.read_text()
     assert "CRON_TZ=Asia/Taipei" in cron_text
-    assert "qmo /opt/quant-market-observer/deploy/run_pipeline.sh" in cron_text
+    proj_dir = setup_script.parent.parent
+    assert f"qmo {proj_dir}/deploy/run_pipeline.sh" in cron_text
 
     # Assert logrotate installed
     assert (fresh_logrotate / "qmo").exists()

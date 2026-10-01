@@ -16,7 +16,7 @@ CRON_DIR="${CRON_DIR:-/etc/cron.d}"
 QMO_UID=10001
 QMO_GID=10001
 
-echo "=== [1/7] Preflight software dependency inspection ==="
+echo "=== [1/7] Preflight software dependency & environment inspection ==="
 SKIP_PREFLIGHT="${SKIP_PREFLIGHT_CHECK:-0}"
 if [ "$SKIP_PREFLIGHT" != "1" ]; then
     MISSING_DEPS=()
@@ -33,9 +33,25 @@ if [ "$SKIP_PREFLIGHT" != "1" ]; then
         echo "Please install missing software before running setup_host.sh. Aborting (Fail-Closed)." >&2
         exit 1
     fi
+
+    if ! docker info >/dev/null 2>&1; then
+        echo "ERROR: Docker daemon is not running or current user lacks access! Aborting (Fail-Closed)." >&2
+        exit 1
+    fi
+
+    if ! docker compose version >/dev/null 2>&1; then
+        echo "ERROR: 'docker compose' plugin is not functional! Aborting (Fail-Closed)." >&2
+        exit 1
+    fi
 fi
 
-echo "=== [2/7] Validating & creating system group and user qmo (UID/GID: $QMO_UID) ==="
+# Preflight data directory safety check BEFORE any system mutations
+if [ -d "$DATA_DIR" ] && [ "$(ls -A "$DATA_DIR" 2>/dev/null)" ] && [ ! -f "$DATA_DIR/.qmo_data_dir" ]; then
+    echo "ERROR: Target data directory '$DATA_DIR' exists and is non-empty, but lacks marker file '.qmo_data_dir'! Refusing to initialize (Fail-Closed)." >&2
+    exit 1
+fi
+
+echo "=== [2/7] Validating & creating system group and user qmo (UID/GID: $QMO_UID:$QMO_GID) ==="
 if getent group qmo >/dev/null 2>&1; then
     EXISTING_GID=$(getent group qmo | cut -d: -f3)
     if [ "$EXISTING_GID" -ne "$QMO_GID" ]; then
@@ -47,7 +63,7 @@ else
 fi
 
 if getent passwd qmo >/dev/null 2>&1; then
-    EXISTING_UID=$(id -u qmo)
+    EXISTING_UID=$(id -u qmo 2>/dev/null || getent passwd qmo | cut -d: -f3)
     EXISTING_USER_GID=$(id -g qmo 2>/dev/null || getent passwd qmo | cut -d: -f4)
     if [ "$EXISTING_UID" -ne "$QMO_UID" ] || [ "$EXISTING_USER_GID" -ne "$QMO_GID" ]; then
         echo "ERROR: User 'qmo' exists with UID $EXISTING_UID / primary GID $EXISTING_USER_GID, expected $QMO_UID:$QMO_GID! Fail-Closed." >&2
@@ -57,9 +73,22 @@ else
     useradd -u "$QMO_UID" -g "$QMO_GID" -s /bin/false qmo 2>/dev/null || true
 fi
 
-echo "=== [3/7] Configuring Docker group permissions for qmo user ==="
-if getent group docker >/dev/null 2>&1; then
-    usermod -aG docker qmo 2>/dev/null || true
+echo "=== [3/7] Configuring & verifying Docker group permissions for qmo user ==="
+SKIP_USER_CHECK="${SKIP_USER_CHECK:-0}"
+if [ "$SKIP_USER_CHECK" != "1" ]; then
+    if ! getent group docker >/dev/null 2>&1; then
+        echo "ERROR: System group 'docker' does not exist! Cannot grant Docker access to qmo user. Aborting (Fail-Closed)." >&2
+        exit 1
+    fi
+    usermod -aG docker qmo
+    if ! id -nG qmo 2>/dev/null | grep -qw docker && ! getent group docker 2>/dev/null | grep -qw qmo; then
+        echo "ERROR: Failed to add user 'qmo' to group 'docker'! Aborting (Fail-Closed)." >&2
+        exit 1
+    fi
+else
+    if getent group docker >/dev/null 2>&1; then
+        usermod -aG docker qmo 2>/dev/null || true
+    fi
 fi
 
 echo "=== [4/7] Verifying host timezone (Asia/Taipei) ==="
@@ -72,11 +101,6 @@ if command -v timedatectl >/dev/null 2>&1; then
 fi
 
 echo "=== [5/7] Initializing data, backup, lock directories and marker file ==="
-if [ -d "$DATA_DIR" ] && [ "$(ls -A "$DATA_DIR" 2>/dev/null)" ] && [ ! -f "$DATA_DIR/.qmo_data_dir" ]; then
-    echo "ERROR: Target data directory '$DATA_DIR' exists and is non-empty, but lacks marker file '.qmo_data_dir'! Refusing to initialize (Fail-Closed)." >&2
-    exit 1
-fi
-
 mkdir -p "$DATA_DIR" "$BACKUP_DIR" "$LOCK_DIR"
 if [ ! -f "$DATA_DIR/.qmo_data_dir" ]; then
     touch "$DATA_DIR/.qmo_data_dir"
@@ -103,7 +127,7 @@ if [ -d "$LOGROTATE_DIR" ] && [ -f "$SCRIPT_DIR/qmo-logrotate.conf" ]; then
 fi
 
 if [ -d "$CRON_DIR" ] && [ -f "$SCRIPT_DIR/qmo.cron" ]; then
-    cp "$SCRIPT_DIR/qmo.cron" "$CRON_DIR/qmo"
+    sed "s|/opt/quant-market-observer|$PROJECT_DIR|g" "$SCRIPT_DIR/qmo.cron" > "$CRON_DIR/qmo"
     chmod 644 "$CRON_DIR/qmo"
 fi
 

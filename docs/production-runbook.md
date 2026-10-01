@@ -33,14 +33,13 @@ docker compose run --rm qmo validate --root-dir /var/lib/qmo/data --format text
 
 ## 排程與告警
 
-放置 repository 於 `/opt/quant-market-observer`，主機時區設為 `Asia/Taipei`。
+放置 repository 於 `/opt/quant-market-observer`（或任意專案目錄），主機時區設為 `Asia/Taipei`。
 執行一鍵宿主機初始化腳本 `deploy/setup_host.sh`：
 ```bash
 sudo ./deploy/setup_host.sh
 ```
-該腳本會自動建立固定數值 `10001:10001` 之 `qmo` 帳號、`/var/lib/qmo/data` 資料目錄、`.qmo_data_dir` 標記檔與 logrotate / 日誌檔權限。
-安裝 `deploy/qmo.cron` 至 crontab：
-- `run_pipeline.sh`: 每日 18:30 台北時間盤後原子執行 update 與 validate，持有 `/var/lock/qmo-pipeline.lock` 共用鎖。
+該腳本會自動驗證 Preflight 依賴與 Docker daemon 狀態，建立固定數值 `10001:10001` 之 `qmo` 帳號、配置 Docker 群組權限、建立 `/var/lib/qmo/data` 資料目錄、`.qmo_data_dir` 標記檔、日誌檔權限，並自動將 Cron 模板轉換為當前專案路徑安裝至 `/etc/cron.d/qmo`：
+- `run_pipeline.sh`: 每日 18:30 台北時間盤後原子執行 update 與 validate，持有 `/var/lock/qmo/pipeline.lock` 共用鎖。
 - `backup_qmo.sh`: 每日 19:00 台北時間將 Host Bind Mount 資料目錄打包並生成 `.sha256` 驗證碼，自動清理 30 天舊備份。
 - `check_disk_space.sh`: 每小時監控 Host 資料 Volume 容量 (80% Warning / 90% Critical 告警)。
 
@@ -62,16 +61,16 @@ sudo ./deploy/setup_host.sh
 ## 資料與日誌保留策略 (Retention & Log Rotation)
 
 1. **日誌輪替 (Log Rotation)**
-   - 確保 Host 系統已有 `qmo:qmo` 使用者與群組，將 `deploy/qmo-logrotate.conf` 安裝至 `/etc/logrotate.d/qmo`：
+   - `deploy/setup_host.sh` 會自動將 `deploy/qmo-logrotate.conf` 安裝至 `/etc/logrotate.d/qmo`：
    ```bash
-   cp deploy/qmo-logrotate.conf /etc/logrotate.d/qmo
+   chmod 644 /etc/logrotate.d/qmo
    ```
 2. **磁碟容量監控 (Disk Capacity Alert)**
    - 監控 `/var/lib/qmo/data` 所在掛載點使用率，超過 80% 觸發 Warning，超過 90% 觸發 Critical 告警。
 
 ## 回滾與停用
 
-1. 停用 cron (`crontab -r`)。
+1. 停用系統排程 (`sudo rm -f /etc/cron.d/qmo`)。
 2. 將 `.env` 中的 `QMO_IMAGE_TAG` 指回前一個已驗證映像版本 (例：`QMO_IMAGE_TAG=7f02840`)。
 3. 執行 `docker compose run --rm qmo status`，確認 DuckDB Catalog 仍指向前一個成功批次。
 4. 不要手動覆寫或刪除已發布批次；由 manifest 與 atomic publisher 維持不可變性。
