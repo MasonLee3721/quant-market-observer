@@ -613,7 +613,8 @@ def test_setup_host_script_comprehensive_behavioral(tmp_path: Path) -> None:
     assert "missing on host" in err_msg or "fail-closed" in err_msg
     assert not target_data_pf.exists()  # Zero mutation
 
-    # Create mock helper commands in mock_bin
+    # Create mock helper commands in mock_bin and log invocations
+    cmd_log = tmp_path / "cmd_log.txt"
     mock_cmds = [
         "docker",
         "flock",
@@ -627,7 +628,15 @@ def test_setup_host_script_comprehensive_behavioral(tmp_path: Path) -> None:
     ]
     for cmd in mock_cmds:
         m = mock_bin / cmd
-        m.write_text("#!/bin/sh\nexit 0\n")
+        if cmd == "chmod":
+            m.write_text(
+                f'#!/bin/sh\necho "{cmd} $*" >> "{cmd_log}"\n'
+                f'/bin/chmod "$@" 2>/dev/null || /usr/bin/chmod "$@" 2>/dev/null || exit 0\n'
+            )
+        else:
+            m.write_text(
+                f'#!/bin/sh\necho "{cmd} $*" >> "{cmd_log}"\nexit 0\n'
+            )
         m.chmod(0o755)
 
     # 1b. Test Docker Daemon Failure in Preflight (Fail-Closed)
@@ -650,10 +659,28 @@ def test_setup_host_script_comprehensive_behavioral(tmp_path: Path) -> None:
     assert res_docker_pf.returncode != 0
     assert "docker daemon is not running" in res_docker_pf.stderr.lower()
 
-    # Restore mock docker to return success
+    # Restore mock docker
     mock_docker = mock_bin / "docker"
-    mock_docker.write_text("#!/bin/sh\nexit 0\n")
+    mock_docker.write_text(
+        f'#!/bin/sh\necho "docker $*" >> "{cmd_log}"\nexit 0\n'
+    )
     mock_docker.chmod(0o755)
+
+    # 1c. Test Production Custom Path Guard Rejection Fail-Closed
+    res_prod_guard = subprocess.run(
+        [str(setup_script)],
+        capture_output=True,
+        text=True,
+        cwd=str(tmp_path),
+        env={
+            **dict(os.environ),
+            "DATA_DIR": str(tmp_path / "custom_data"),
+            "SKIP_USER_CHECK": "0",
+            "ALLOW_CUSTOM_PATHS": "0",
+        },
+    )
+    assert res_prod_guard.returncode != 0
+    assert "custom paths detected" in res_prod_guard.stderr.lower()
 
     # 2a. Test User UID Mismatch Fail-Closed
     bad_uid_getent = mock_bin / "getent"
@@ -675,22 +702,8 @@ def test_setup_host_script_comprehensive_behavioral(tmp_path: Path) -> None:
         "PATH": f"{mock_bin}:{os.environ.get('PATH', '')}",
         "SKIP_PREFLIGHT_CHECK": "1",
         "SKIP_USER_CHECK": "1",
+        "ALLOW_CUSTOM_PATHS": "1",
     }
-
-    # 2a. Test User UID Mismatch Fail-Closed
-    bad_uid_getent = mock_bin / "getent"
-    bad_uid_getent.write_text(
-        "#!/bin/sh\n"
-        'if [ "$1" = "group" ]; then echo "qmo:x:10001:"; '
-        'elif [ "$1" = "passwd" ]; then echo "qmo:x:9999:10001::/app:/bin/false"; fi\n'
-    )
-    bad_uid_getent.chmod(0o755)
-
-    bad_uid_id = mock_bin / "id"
-    bad_uid_id.write_text(
-        "#!/bin/sh\nif [ \"$1\" = \"-u\" ]; then echo 9999; else echo 10001; fi\n"
-    )
-    bad_uid_id.chmod(0o755)
 
     res_bad_uid = subprocess.run(
         [str(setup_script)],
@@ -751,6 +764,7 @@ def test_setup_host_script_comprehensive_behavioral(tmp_path: Path) -> None:
         "PATH": f"{mock_bin}:{os.environ.get('PATH', '')}",
         "SKIP_PREFLIGHT_CHECK": "1",
         "SKIP_USER_CHECK": "0",
+        "ALLOW_CUSTOM_PATHS": "1",
     }
 
     res_docker_fail = subprocess.run(
@@ -825,22 +839,34 @@ def test_setup_host_script_comprehensive_behavioral(tmp_path: Path) -> None:
     assert res_fresh.returncode == 0, res_fresh.stderr
     assert "Host Setup Completed Successfully" in res_fresh.stdout
 
-    # Assert created directories and marker files
+    # Assert created directories, marker files, and exact permission octals
     assert fresh_data.exists()
-    assert (fresh_data / ".qmo_data_dir").exists()
-    assert fresh_backups.exists()
-    assert fresh_lock.exists()
+    marker_file = fresh_data / ".qmo_data_dir"
+    assert marker_file.exists()
+    assert oct(marker_file.stat().st_mode & 0o777) == "0o600"
+    assert oct(fresh_data.stat().st_mode & 0o777) == "0o755"
+    assert oct(fresh_backups.stat().st_mode & 0o777) == "0o755"
+    assert oct(fresh_lock.stat().st_mode & 0o777) == "0o755"
 
     # Assert system cron installed with qmo user & CRON_TZ
     cron_installed = fresh_cron / "qmo"
     assert cron_installed.exists()
+    assert oct(cron_installed.stat().st_mode & 0o777) == "0o644"
     cron_text = cron_installed.read_text()
     assert "CRON_TZ=Asia/Taipei" in cron_text
     proj_dir = setup_script.parent.parent
     assert f"qmo {proj_dir}/deploy/run_pipeline.sh" in cron_text
 
     # Assert logrotate installed
-    assert (fresh_logrotate / "qmo").exists()
+    logrotate_installed = fresh_logrotate / "qmo"
+    assert logrotate_installed.exists()
+    assert oct(logrotate_installed.stat().st_mode & 0o777) == "0o644"
+    assert oct(fresh_env.stat().st_mode & 0o777) == "0o600"
+
+    # Assert mock command invocations recorded
+    invocations = cmd_log.read_text()
+    assert "chmod 755" in invocations
+    assert "chmod 600" in invocations
 
     # 5. Idempotency Check (Second run under same fresh env succeeds with returncode 0)
     res_idempotent = subprocess.run(

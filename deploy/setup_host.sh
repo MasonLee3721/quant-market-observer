@@ -16,6 +16,17 @@ CRON_DIR="${CRON_DIR:-/etc/cron.d}"
 QMO_UID=10001
 QMO_GID=10001
 
+SKIP_USER_CHECK="${SKIP_USER_CHECK:-0}"
+ALLOW_CUSTOM_PATHS="${ALLOW_CUSTOM_PATHS:-0}"
+
+# Production execution path safety guard
+if [ "$SKIP_USER_CHECK" != "1" ] && [ "$ALLOW_CUSTOM_PATHS" != "1" ]; then
+    if [ "$DATA_DIR" != "/var/lib/qmo/data" ] || [ "$BACKUP_DIR" != "/var/lib/qmo/backups" ] || [ "$LOCK_DIR" != "/var/lock/qmo" ] || [ "$CRON_DIR" != "/etc/cron.d" ]; then
+        echo "ERROR: Custom paths detected in production execution mode without ALLOW_CUSTOM_PATHS=1! Aborting (Fail-Closed)." >&2
+        exit 1
+    fi
+fi
+
 echo "=== [1/7] Preflight software dependency & environment inspection ==="
 SKIP_PREFLIGHT="${SKIP_PREFLIGHT_CHECK:-0}"
 if [ "$SKIP_PREFLIGHT" != "1" ]; then
@@ -59,7 +70,13 @@ if getent group qmo >/dev/null 2>&1; then
         exit 1
     fi
 else
-    groupadd -g "$QMO_GID" qmo 2>/dev/null || true
+    if [ "$SKIP_USER_CHECK" != "1" ]; then
+        groupadd -g "$QMO_GID" qmo
+        if ! getent group qmo >/dev/null 2>&1; then
+            echo "ERROR: Failed to create group 'qmo' with GID $QMO_GID! Aborting (Fail-Closed)." >&2
+            exit 1
+        fi
+    fi
 fi
 
 if getent passwd qmo >/dev/null 2>&1; then
@@ -70,11 +87,16 @@ if getent passwd qmo >/dev/null 2>&1; then
         exit 1
     fi
 else
-    useradd -u "$QMO_UID" -g "$QMO_GID" -s /bin/false qmo 2>/dev/null || true
+    if [ "$SKIP_USER_CHECK" != "1" ]; then
+        useradd -u "$QMO_UID" -g "$QMO_GID" -s /bin/false qmo
+        if ! getent passwd qmo >/dev/null 2>&1; then
+            echo "ERROR: Failed to create user 'qmo' with UID $QMO_UID! Aborting (Fail-Closed)." >&2
+            exit 1
+        fi
+    fi
 fi
 
 echo "=== [3/7] Configuring & verifying Docker group permissions for qmo user ==="
-SKIP_USER_CHECK="${SKIP_USER_CHECK:-0}"
 if [ "$SKIP_USER_CHECK" != "1" ]; then
     if ! getent group docker >/dev/null 2>&1; then
         echo "ERROR: System group 'docker' does not exist! Cannot grant Docker access to qmo user. Aborting (Fail-Closed)." >&2
@@ -84,10 +106,6 @@ if [ "$SKIP_USER_CHECK" != "1" ]; then
     if ! id -nG qmo 2>/dev/null | grep -qw docker && ! getent group docker 2>/dev/null | grep -qw qmo; then
         echo "ERROR: Failed to add user 'qmo' to group 'docker'! Aborting (Fail-Closed)." >&2
         exit 1
-    fi
-else
-    if getent group docker >/dev/null 2>&1; then
-        usermod -aG docker qmo 2>/dev/null || true
     fi
 fi
 
@@ -105,18 +123,31 @@ mkdir -p "$DATA_DIR" "$BACKUP_DIR" "$LOCK_DIR"
 if [ ! -f "$DATA_DIR/.qmo_data_dir" ]; then
     touch "$DATA_DIR/.qmo_data_dir"
 fi
-chown -R "$QMO_UID:$QMO_GID" "$DATA_DIR" "$BACKUP_DIR" "$LOCK_DIR" 2>/dev/null || true
+
+if [ "$SKIP_USER_CHECK" != "1" ]; then
+    chown -R "$QMO_UID:$QMO_GID" "$DATA_DIR" "$BACKUP_DIR" "$LOCK_DIR"
+else
+    chown -R "$QMO_UID:$QMO_GID" "$DATA_DIR" "$BACKUP_DIR" "$LOCK_DIR" 2>/dev/null || true
+fi
 chmod 755 "$DATA_DIR" "$BACKUP_DIR" "$LOCK_DIR"
 chmod 600 "$DATA_DIR/.qmo_data_dir"
 
 echo "=== [6/7] Setting up log & .env permissions for qmo user ==="
 touch "$LOG_DIR/qmo-pipeline.log" "$LOG_DIR/qmo-backup.log" "$LOG_DIR/qmo-disk.log"
-chown "$QMO_UID:$QMO_GID" "$LOG_DIR/qmo-pipeline.log" "$LOG_DIR/qmo-backup.log" "$LOG_DIR/qmo-disk.log" 2>/dev/null || true
+if [ "$SKIP_USER_CHECK" != "1" ]; then
+    chown "$QMO_UID:$QMO_GID" "$LOG_DIR/qmo-pipeline.log" "$LOG_DIR/qmo-backup.log" "$LOG_DIR/qmo-disk.log"
+else
+    chown "$QMO_UID:$QMO_GID" "$LOG_DIR/qmo-pipeline.log" "$LOG_DIR/qmo-backup.log" "$LOG_DIR/qmo-disk.log" 2>/dev/null || true
+fi
 chmod 664 "$LOG_DIR/qmo-pipeline.log" "$LOG_DIR/qmo-backup.log" "$LOG_DIR/qmo-disk.log"
 
 ENV_FILE="${ENV_FILE:-$PROJECT_DIR/.env}"
 if [ -f "$ENV_FILE" ]; then
-    chown "$QMO_UID:$QMO_GID" "$ENV_FILE" 2>/dev/null || true
+    if [ "$SKIP_USER_CHECK" != "1" ]; then
+        chown "$QMO_UID:$QMO_GID" "$ENV_FILE"
+    else
+        chown "$QMO_UID:$QMO_GID" "$ENV_FILE" 2>/dev/null || true
+    fi
     chmod 600 "$ENV_FILE"
 fi
 
