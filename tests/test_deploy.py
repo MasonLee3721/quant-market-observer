@@ -430,14 +430,17 @@ def test_qmo_cron_file_entries_and_syntax() -> None:
     # Check bash syntax for each command line in cron
     for line in content.splitlines():
         line = line.strip()
-        if not line or line.startswith("#"):
+        if not line or line.startswith("#") or "=" in line.split()[0]:
             continue
-        # Extract command after cron 5-field schedule
+        # Extract command after cron 5-field schedule (or 6-field system cron with user)
         parts = line.split(maxsplit=5)
-        assert len(parts) == 6
-        cmd = parts[5]
-        res = subprocess.run(["sh", "-n", "-c", cmd], capture_output=True, text=True)
-        assert res.returncode == 0, f"Cron line syntax error: {cmd}\n{res.stderr}"
+        if len(parts) == 6:
+            cmd = parts[5]
+            # If user column is present (e.g. qmo script.sh)
+            if cmd.startswith("qmo "):
+                cmd = cmd[4:]
+            res = subprocess.run(["sh", "-n", "-c", cmd], capture_output=True, text=True)
+            assert res.returncode == 0, f"Cron line syntax error: {cmd}\n{res.stderr}"
 
 
 def test_marker_file_enforcement_in_backup_and_restore(tmp_path: Path) -> None:
@@ -581,24 +584,45 @@ def test_setup_host_script_syntax_and_path_resolution() -> None:
     assert "EXISTING_GID" in content
     assert "EXISTING_UID" in content
     assert "Fail-Closed" in content
-    assert "CRON_TZ=Asia/Taipei" in content
+    assert "CRON_TZ=Asia/Taipei" in Path("deploy/qmo.cron").read_text()
     assert "/var/lock/qmo" in content
 
 
 def test_setup_host_script_comprehensive_cases(tmp_path: Path) -> None:
-    """Verify setup_host.sh for fresh setup, UID/GID conflict rejection, and path resolution."""
+    """Verify setup_host.sh for preflight checks and UID/GID conflict rejection."""
     setup_script = Path("deploy/setup_host.sh").resolve()
     mock_bin = tmp_path / "bin"
     mock_bin.mkdir()
 
-    # 1. Test UID/GID Mismatch Fail-Closed
+    # 1. Test Preflight Dependency Check Failure (Fail-Closed)
+    res_preflight = subprocess.run(
+        [str(setup_script)],
+        capture_output=True,
+        text=True,
+        cwd=str(tmp_path),
+        env={**dict(os.environ), "PATH": f"{mock_bin}:/bin:/usr/bin"},
+    )
+    assert res_preflight.returncode != 0
+    err_msg = res_preflight.stderr.lower()
+    assert "missing on host" in err_msg or "fail-closed" in err_msg
+
+    # 2. Test Primary GID Mismatch Fail-Closed
     bad_getent = mock_bin / "getent"
-    bad_getent.write_text("#!/bin/sh\nif [ \"$1\" = \"group\" ]; then echo \"qmo:x:9999:\"; fi\n")
+    bad_getent.write_text(
+        "#!/bin/sh\n"
+        'if [ "$1" = "group" ]; then echo "qmo:x:10001:"; '
+        'elif [ "$1" = "passwd" ]; then echo "qmo:x:10001:9999::/app:/bin/false"; fi\n'
+    )
     bad_getent.chmod(0o755)
+
+    bad_id = mock_bin / "id"
+    bad_id.write_text("#!/bin/sh\nif [ \"$1\" = \"-u\" ]; then echo 10001; else echo 9999; fi\n")
+    bad_id.chmod(0o755)
 
     env_bad = {
         **dict(os.environ),
         "PATH": f"{mock_bin}:{os.environ.get('PATH', '')}",
+        "SKIP_PREFLIGHT_CHECK": "1",
     }
 
     res_bad = subprocess.run(
@@ -611,7 +635,7 @@ def test_setup_host_script_comprehensive_cases(tmp_path: Path) -> None:
     assert res_bad.returncode != 0
     assert "fail-closed" in res_bad.stderr.lower() or "expected 10001" in res_bad.stderr.lower()
 
-    # 2. Test Correct UID/GID Matching & Execution from non-root CWD
+    # 3. Test Correct UID/GID Matching & Execution from non-root CWD
     good_getent = mock_bin / "getent"
     good_getent.write_text(
         "#!/bin/sh\n"

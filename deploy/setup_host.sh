@@ -13,7 +13,26 @@ LOG_DIR="/var/log"
 QMO_UID=10001
 QMO_GID=10001
 
-echo "=== [1/6] Validating & creating system user and group qmo (UID/GID: $QMO_UID) ==="
+echo "=== [1/7] Preflight software dependency inspection ==="
+SKIP_PREFLIGHT="${SKIP_PREFLIGHT_CHECK:-0}"
+if [ "$SKIP_PREFLIGHT" != "1" ]; then
+    MISSING_DEPS=()
+    for cmd in docker flock logrotate; do
+        if ! command -v "$cmd" >/dev/null 2>&1; then
+            MISSING_DEPS+=("$cmd")
+        fi
+    done
+    if ! command -v cron >/dev/null 2>&1 && ! command -v crond >/dev/null 2>&1; then
+        MISSING_DEPS+=("cron")
+    fi
+    if [ ${#MISSING_DEPS[@]} -gt 0 ]; then
+        echo "ERROR: Required software dependencies missing on host: ${MISSING_DEPS[*]}" >&2
+        echo "Please install missing software before running setup_host.sh. Aborting (Fail-Closed)." >&2
+        exit 1
+    fi
+fi
+
+echo "=== [2/7] Validating & creating system group and user qmo (UID/GID: $QMO_UID) ==="
 if getent group qmo >/dev/null 2>&1; then
     EXISTING_GID=$(getent group qmo | cut -d: -f3)
     if [ "$EXISTING_GID" -ne "$QMO_GID" ]; then
@@ -26,15 +45,21 @@ fi
 
 if getent passwd qmo >/dev/null 2>&1; then
     EXISTING_UID=$(id -u qmo)
-    if [ "$EXISTING_UID" -ne "$QMO_UID" ]; then
-        echo "ERROR: User 'qmo' exists with UID $EXISTING_UID, expected $QMO_UID! Fail-Closed." >&2
+    EXISTING_USER_GID=$(id -g qmo 2>/dev/null || getent passwd qmo | cut -d: -f4)
+    if [ "$EXISTING_UID" -ne "$QMO_UID" ] || [ "$EXISTING_USER_GID" -ne "$QMO_GID" ]; then
+        echo "ERROR: User 'qmo' exists with UID $EXISTING_UID / primary GID $EXISTING_USER_GID, expected $QMO_UID:$QMO_GID! Fail-Closed." >&2
         exit 1
     fi
 else
     useradd -u "$QMO_UID" -g "$QMO_GID" -s /bin/false qmo
 fi
 
-echo "=== [2/6] Verifying host timezone (Asia/Taipei) ==="
+echo "=== [3/7] Configuring Docker group permissions for qmo user ==="
+if getent group docker >/dev/null 2>&1; then
+    usermod -aG docker qmo 2>/dev/null || true
+fi
+
+echo "=== [4/7] Verifying host timezone (Asia/Taipei) ==="
 if command -v timedatectl >/dev/null 2>&1; then
     CURRENT_TZ=$(timedatectl show --property=Timezone --value 2>/dev/null || echo "")
     if [ "$CURRENT_TZ" != "Asia/Taipei" ]; then
@@ -43,47 +68,44 @@ if command -v timedatectl >/dev/null 2>&1; then
     fi
 fi
 
-echo "=== [3/6] Initializing data, backup, lock directories and marker file ==="
+echo "=== [5/7] Initializing data, backup, lock directories and marker file ==="
+if [ -d "$DATA_DIR" ] && [ "$(ls -A "$DATA_DIR" 2>/dev/null)" ] && [ ! -f "$DATA_DIR/.qmo_data_dir" ]; then
+    echo "ERROR: Target data directory '$DATA_DIR' exists and is non-empty, but lacks marker file '.qmo_data_dir'! Refusing to initialize (Fail-Closed)." >&2
+    exit 1
+fi
+
 mkdir -p "$DATA_DIR" "$BACKUP_DIR" "$LOCK_DIR"
-touch "$DATA_DIR/.qmo_data_dir"
+if [ ! -f "$DATA_DIR/.qmo_data_dir" ]; then
+    touch "$DATA_DIR/.qmo_data_dir"
+fi
 chown -R "$QMO_UID:$QMO_GID" /var/lib/qmo "$LOCK_DIR"
 chmod 755 "$DATA_DIR" "$BACKUP_DIR" "$LOCK_DIR"
 chmod 600 "$DATA_DIR/.qmo_data_dir"
 
-echo "=== [4/6] Setting up log file permissions for qmo user ==="
+echo "=== [6/7] Setting up log & .env permissions for qmo user ==="
 touch "$LOG_DIR/qmo-pipeline.log" "$LOG_DIR/qmo-backup.log" "$LOG_DIR/qmo-disk.log"
 chown "$QMO_UID:$QMO_GID" "$LOG_DIR/qmo-pipeline.log" "$LOG_DIR/qmo-backup.log" "$LOG_DIR/qmo-disk.log"
 chmod 664 "$LOG_DIR/qmo-pipeline.log" "$LOG_DIR/qmo-backup.log" "$LOG_DIR/qmo-disk.log"
 
-echo "=== [5/6] Installing logrotate configuration & system cron ==="
+ENV_FILE="$PROJECT_DIR/.env"
+if [ -f "$ENV_FILE" ]; then
+    chown "$QMO_UID:$QMO_GID" "$ENV_FILE"
+    chmod 600 "$ENV_FILE"
+fi
+
+echo "=== [7/7] Installing logrotate configuration & system cron from template ==="
 if [ -d /etc/logrotate.d ] && [ -f "$SCRIPT_DIR/qmo-logrotate.conf" ]; then
     cp "$SCRIPT_DIR/qmo-logrotate.conf" /etc/logrotate.d/qmo
     chmod 644 /etc/logrotate.d/qmo
 fi
 
 if [ -d /etc/cron.d ] && [ -f "$SCRIPT_DIR/qmo.cron" ]; then
-    cat <<EOF > /etc/cron.d/qmo
-SHELL=/bin/bash
-PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
-CRON_TZ=Asia/Taipei
-TZ=Asia/Taipei
-
-30 18 * * 1-5 qmo /opt/quant-market-observer/deploy/run_pipeline.sh
-0 19 * * 1-5 qmo /opt/quant-market-observer/deploy/backup_qmo.sh /var/lib/qmo/data /var/lib/qmo/backups >> /var/log/qmo-backup.log 2>&1 || /opt/quant-market-observer/deploy/notify_alert.sh "QMO Backup Task" /var/log/qmo-backup.log
-0 * * * * qmo /opt/quant-market-observer/deploy/check_disk_space.sh /var/lib/qmo/data >> /var/log/qmo-disk.log 2>&1
-EOF
+    cp "$SCRIPT_DIR/qmo.cron" /etc/cron.d/qmo
     chmod 644 /etc/cron.d/qmo
 fi
-
-echo "=== [6/6] Preflight software dependency inspection ==="
-for cmd in docker flock logrotate cron; do
-    if ! command -v "$cmd" >/dev/null 2>&1 && ! command -v "${cmd}d" >/dev/null 2>&1; then
-        echo "WARNING: Command '$cmd' is missing on host. Please ensure it is installed before running QMO." >&2
-    fi
-done
 
 echo "=== Host Setup Completed Successfully ==="
 echo "Next steps:"
 echo "1. Verify SSH hardening (PasswordAuthentication no, PermitRootLogin no) manually."
-echo "2. Copy production .env with DISCORD_WEBHOOK_URL and chmod 600 .env."
+echo "2. Create $PROJECT_DIR/.env with DISCORD_WEBHOOK_URL, owned by 10001:10001 with mode 600."
 echo "3. Run 'docker compose run --rm qmo status' to verify container bind-mount execution."

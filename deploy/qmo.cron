@@ -1,6 +1,15 @@
-# Run after TWSE/TPEx post-market publication (18:30 Taipei Time). Host timezone must be Asia/Taipei.
-# Install with: crontab deploy/qmo.cron
-30 18 * * 1-5 /opt/quant-market-observer/deploy/run_pipeline.sh
-0 19 * * 1-5 /opt/quant-market-observer/deploy/backup_qmo.sh /var/lib/qmo/data /var/lib/qmo/backups >> /var/log/qmo-backup.log 2>&1 || /opt/quant-market-observer/deploy/notify_alert.sh "QMO Backup Task" /var/log/qmo-backup.log
-0 * * * * /opt/quant-market-observer/deploy/check_disk_space.sh /var/lib/qmo/data >> /var/log/qmo-disk.log 2>&1
+# QMO Production System Cron Schedule Template (/etc/cron.d/qmo)
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
+CRON_TZ=Asia/Taipei
+TZ=Asia/Taipei
+ENV_FILE=/opt/quant-market-observer/.env
 
+# 1. Daily Post-Market Update & Validation (18:30 Taipei Time, Mon-Fri)
+30 18 * * 1-5 qmo /opt/quant-market-observer/deploy/run_pipeline.sh
+
+# 2. Daily Backup with SHA256 Checksum (19:00 Taipei Time, Mon-Fri)
+0 19 * * 1-5 qmo /opt/quant-market-observer/deploy/backup_qmo.sh /var/lib/qmo/data /var/lib/qmo/backups >> /var/log/qmo-backup.log 2>&1 || /opt/quant-market-observer/deploy/notify_alert.sh "QMO Backup Task" /var/log/qmo-backup.log /opt/quant-market-observer/.env
+
+# 3. Hourly Disk Space Capacity Monitor
+0 * * * * qmo /opt/quant-market-observer/deploy/check_disk_space.sh /var/lib/qmo/data >> /var/log/qmo-disk.log 2>&1
