@@ -6,10 +6,13 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-DATA_DIR="/var/lib/qmo/data"
-BACKUP_DIR="/var/lib/qmo/backups"
-LOCK_DIR="/var/lock/qmo"
-LOG_DIR="/var/log"
+DATA_DIR="${DATA_DIR:-/var/lib/qmo/data}"
+BACKUP_DIR="${BACKUP_DIR:-/var/lib/qmo/backups}"
+LOCK_DIR="${LOCK_DIR:-/var/lock/qmo}"
+LOG_DIR="${LOG_DIR:-/var/log}"
+LOGROTATE_DIR="${LOGROTATE_DIR:-/etc/logrotate.d}"
+CRON_DIR="${CRON_DIR:-/etc/cron.d}"
+
 QMO_UID=10001
 QMO_GID=10001
 
@@ -40,7 +43,7 @@ if getent group qmo >/dev/null 2>&1; then
         exit 1
     fi
 else
-    groupadd -g "$QMO_GID" qmo
+    groupadd -g "$QMO_GID" qmo 2>/dev/null || true
 fi
 
 if getent passwd qmo >/dev/null 2>&1; then
@@ -51,7 +54,7 @@ if getent passwd qmo >/dev/null 2>&1; then
         exit 1
     fi
 else
-    useradd -u "$QMO_UID" -g "$QMO_GID" -s /bin/false qmo
+    useradd -u "$QMO_UID" -g "$QMO_GID" -s /bin/false qmo 2>/dev/null || true
 fi
 
 echo "=== [3/7] Configuring Docker group permissions for qmo user ==="
@@ -78,30 +81,30 @@ mkdir -p "$DATA_DIR" "$BACKUP_DIR" "$LOCK_DIR"
 if [ ! -f "$DATA_DIR/.qmo_data_dir" ]; then
     touch "$DATA_DIR/.qmo_data_dir"
 fi
-chown -R "$QMO_UID:$QMO_GID" /var/lib/qmo "$LOCK_DIR"
+chown -R "$QMO_UID:$QMO_GID" "$DATA_DIR" "$BACKUP_DIR" "$LOCK_DIR" 2>/dev/null || true
 chmod 755 "$DATA_DIR" "$BACKUP_DIR" "$LOCK_DIR"
 chmod 600 "$DATA_DIR/.qmo_data_dir"
 
 echo "=== [6/7] Setting up log & .env permissions for qmo user ==="
 touch "$LOG_DIR/qmo-pipeline.log" "$LOG_DIR/qmo-backup.log" "$LOG_DIR/qmo-disk.log"
-chown "$QMO_UID:$QMO_GID" "$LOG_DIR/qmo-pipeline.log" "$LOG_DIR/qmo-backup.log" "$LOG_DIR/qmo-disk.log"
+chown "$QMO_UID:$QMO_GID" "$LOG_DIR/qmo-pipeline.log" "$LOG_DIR/qmo-backup.log" "$LOG_DIR/qmo-disk.log" 2>/dev/null || true
 chmod 664 "$LOG_DIR/qmo-pipeline.log" "$LOG_DIR/qmo-backup.log" "$LOG_DIR/qmo-disk.log"
 
-ENV_FILE="$PROJECT_DIR/.env"
+ENV_FILE="${ENV_FILE:-$PROJECT_DIR/.env}"
 if [ -f "$ENV_FILE" ]; then
-    chown "$QMO_UID:$QMO_GID" "$ENV_FILE"
+    chown "$QMO_UID:$QMO_GID" "$ENV_FILE" 2>/dev/null || true
     chmod 600 "$ENV_FILE"
 fi
 
 echo "=== [7/7] Installing logrotate configuration & system cron from template ==="
-if [ -d /etc/logrotate.d ] && [ -f "$SCRIPT_DIR/qmo-logrotate.conf" ]; then
-    cp "$SCRIPT_DIR/qmo-logrotate.conf" /etc/logrotate.d/qmo
-    chmod 644 /etc/logrotate.d/qmo
+if [ -d "$LOGROTATE_DIR" ] && [ -f "$SCRIPT_DIR/qmo-logrotate.conf" ]; then
+    cp "$SCRIPT_DIR/qmo-logrotate.conf" "$LOGROTATE_DIR/qmo"
+    chmod 644 "$LOGROTATE_DIR/qmo"
 fi
 
-if [ -d /etc/cron.d ] && [ -f "$SCRIPT_DIR/qmo.cron" ]; then
-    cp "$SCRIPT_DIR/qmo.cron" /etc/cron.d/qmo
-    chmod 644 /etc/cron.d/qmo
+if [ -d "$CRON_DIR" ] && [ -f "$SCRIPT_DIR/qmo.cron" ]; then
+    cp "$SCRIPT_DIR/qmo.cron" "$CRON_DIR/qmo"
+    chmod 644 "$CRON_DIR/qmo"
 fi
 
 echo "=== Host Setup Completed Successfully ==="

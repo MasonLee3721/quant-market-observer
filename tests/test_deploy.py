@@ -588,25 +588,80 @@ def test_setup_host_script_syntax_and_path_resolution() -> None:
     assert "/var/lock/qmo" in content
 
 
-def test_setup_host_script_comprehensive_cases(tmp_path: Path) -> None:
-    """Verify setup_host.sh for preflight checks and UID/GID conflict rejection."""
+def test_setup_host_script_comprehensive_behavioral(tmp_path: Path) -> None:
+    """Verify setup_host.sh for fresh setup, idempotency, non-empty marker, and UID/GID checks."""
     setup_script = Path("deploy/setup_host.sh").resolve()
-    mock_bin = tmp_path / "bin"
+
+    mock_bin = tmp_path / "mock_bin"
     mock_bin.mkdir()
 
-    # 1. Test Preflight Dependency Check Failure (Fail-Closed)
+    # 1. Test Preflight Dependency Check Failure (Fail-Closed, zero host mutation)
+    target_data_pf = tmp_path / "pf_data"
     res_preflight = subprocess.run(
         [str(setup_script)],
         capture_output=True,
         text=True,
         cwd=str(tmp_path),
-        env={**dict(os.environ), "PATH": f"{mock_bin}:/bin:/usr/bin"},
+        env={
+            **dict(os.environ),
+            "PATH": f"{mock_bin}:/bin:/usr/bin",
+            "DATA_DIR": str(target_data_pf),
+        },
     )
     assert res_preflight.returncode != 0
     err_msg = res_preflight.stderr.lower()
     assert "missing on host" in err_msg or "fail-closed" in err_msg
+    assert not target_data_pf.exists()  # Zero mutation
 
-    # 2. Test Primary GID Mismatch Fail-Closed
+    # Create mock helper commands in mock_bin
+    mock_cmds = [
+        "docker",
+        "flock",
+        "logrotate",
+        "cron",
+        "groupadd",
+        "useradd",
+        "usermod",
+        "chown",
+        "chmod",
+    ]
+    for cmd in mock_cmds:
+        m = mock_bin / cmd
+        m.write_text("#!/bin/sh\nexit 0\n")
+        m.chmod(0o755)
+
+    # 2a. Test User UID Mismatch Fail-Closed
+    bad_uid_getent = mock_bin / "getent"
+    bad_uid_getent.write_text(
+        "#!/bin/sh\n"
+        'if [ "$1" = "group" ]; then echo "qmo:x:10001:"; '
+        'elif [ "$1" = "passwd" ]; then echo "qmo:x:9999:10001::/app:/bin/false"; fi\n'
+    )
+    bad_uid_getent.chmod(0o755)
+
+    bad_uid_id = mock_bin / "id"
+    bad_uid_id.write_text(
+        "#!/bin/sh\nif [ \"$1\" = \"-u\" ]; then echo 9999; else echo 10001; fi\n"
+    )
+    bad_uid_id.chmod(0o755)
+
+    env_mock_base = {
+        **dict(os.environ),
+        "PATH": f"{mock_bin}:{os.environ.get('PATH', '')}",
+        "SKIP_PREFLIGHT_CHECK": "1",
+    }
+
+    res_bad_uid = subprocess.run(
+        [str(setup_script)],
+        capture_output=True,
+        text=True,
+        cwd=str(tmp_path),
+        env=env_mock_base,
+    )
+    assert res_bad_uid.returncode != 0
+    assert "fail-closed" in res_bad_uid.stderr.lower()
+
+    # 2b. Test Primary GID Mismatch Fail-Closed
     bad_getent = mock_bin / "getent"
     bad_getent.write_text(
         "#!/bin/sh\n"
@@ -616,26 +671,22 @@ def test_setup_host_script_comprehensive_cases(tmp_path: Path) -> None:
     bad_getent.chmod(0o755)
 
     bad_id = mock_bin / "id"
-    bad_id.write_text("#!/bin/sh\nif [ \"$1\" = \"-u\" ]; then echo 10001; else echo 9999; fi\n")
+    bad_id.write_text(
+        "#!/bin/sh\nif [ \"$1\" = \"-u\" ]; then echo 10001; else echo 9999; fi\n"
+    )
     bad_id.chmod(0o755)
 
-    env_bad = {
-        **dict(os.environ),
-        "PATH": f"{mock_bin}:{os.environ.get('PATH', '')}",
-        "SKIP_PREFLIGHT_CHECK": "1",
-    }
-
-    res_bad = subprocess.run(
+    res_bad_gid = subprocess.run(
         [str(setup_script)],
         capture_output=True,
         text=True,
         cwd=str(tmp_path),
-        env=env_bad,
+        env=env_mock_base,
     )
-    assert res_bad.returncode != 0
-    assert "fail-closed" in res_bad.stderr.lower() or "expected 10001" in res_bad.stderr.lower()
+    assert res_bad_gid.returncode != 0
+    assert "fail-closed" in res_bad_gid.stderr.lower()
 
-    # 3. Test Correct UID/GID Matching & Execution from non-root CWD
+    # 3. Test Non-Empty Data Directory Missing Marker Fail-Closed
     good_getent = mock_bin / "getent"
     good_getent.write_text(
         "#!/bin/sh\n"
@@ -648,14 +699,93 @@ def test_setup_host_script_comprehensive_cases(tmp_path: Path) -> None:
     good_id.write_text("#!/bin/sh\necho 10001\n")
     good_id.chmod(0o755)
 
-    res_good = subprocess.run(
+    non_empty_dir = tmp_path / "non_empty_data"
+    non_empty_dir.mkdir()
+    (non_empty_dir / "unauthorized_file.txt").write_text("data")
+
+    env_redirect = {
+        **env_mock_base,
+        "DATA_DIR": str(non_empty_dir),
+        "BACKUP_DIR": str(tmp_path / "backups"),
+        "LOCK_DIR": str(tmp_path / "lock"),
+        "LOG_DIR": str(tmp_path / "log"),
+        "LOGROTATE_DIR": str(tmp_path / "logrotate.d"),
+        "CRON_DIR": str(tmp_path / "cron.d"),
+        "ENV_FILE": str(tmp_path / ".env"),
+    }
+
+    res_non_empty = subprocess.run(
         [str(setup_script)],
         capture_output=True,
         text=True,
         cwd=str(tmp_path),
-        env=env_bad,
+        env=env_redirect,
     )
-    assert "script_dir=" not in res_good.stderr.lower()
+    assert res_non_empty.returncode != 0
+    assert "lacks marker file" in res_non_empty.stderr.lower()
+    assert not (non_empty_dir / ".qmo_data_dir").exists()
+
+    # 4. Fresh Setup Execution & Assertions (Returncode == 0)
+    fresh_data = tmp_path / "fresh_data"
+    fresh_backups = tmp_path / "fresh_backups"
+    fresh_lock = tmp_path / "fresh_lock"
+    fresh_log = tmp_path / "fresh_log"
+    fresh_logrotate = tmp_path / "fresh_logrotate.d"
+    fresh_cron = tmp_path / "fresh_cron.d"
+    fresh_env = tmp_path / "fresh.env"
+
+    fresh_logrotate.mkdir()
+    fresh_cron.mkdir()
+    fresh_log.mkdir()
+    fresh_env.write_text("DISCORD_WEBHOOK_URL=http://mock/webhook\n")
+
+    env_fresh = {
+        **env_mock_base,
+        "DATA_DIR": str(fresh_data),
+        "BACKUP_DIR": str(fresh_backups),
+        "LOCK_DIR": str(fresh_lock),
+        "LOG_DIR": str(fresh_log),
+        "LOGROTATE_DIR": str(fresh_logrotate),
+        "CRON_DIR": str(fresh_cron),
+        "ENV_FILE": str(fresh_env),
+    }
+
+    res_fresh = subprocess.run(
+        [str(setup_script)],
+        capture_output=True,
+        text=True,
+        cwd=str(tmp_path),
+        env=env_fresh,
+    )
+    assert res_fresh.returncode == 0, res_fresh.stderr
+    assert "Host Setup Completed Successfully" in res_fresh.stdout
+
+    # Assert created directories and marker files
+    assert fresh_data.exists()
+    assert (fresh_data / ".qmo_data_dir").exists()
+    assert fresh_backups.exists()
+    assert fresh_lock.exists()
+
+    # Assert system cron installed with qmo user & CRON_TZ
+    cron_installed = fresh_cron / "qmo"
+    assert cron_installed.exists()
+    cron_text = cron_installed.read_text()
+    assert "CRON_TZ=Asia/Taipei" in cron_text
+    assert "qmo /opt/quant-market-observer/deploy/run_pipeline.sh" in cron_text
+
+    # Assert logrotate installed
+    assert (fresh_logrotate / "qmo").exists()
+
+    # 5. Idempotency Check (Second run under same fresh env succeeds with returncode 0)
+    res_idempotent = subprocess.run(
+        [str(setup_script)],
+        capture_output=True,
+        text=True,
+        cwd=str(tmp_path),
+        env=env_fresh,
+    )
+    assert res_idempotent.returncode == 0, res_idempotent.stderr
+    assert (fresh_data / ".qmo_data_dir").exists()
 
 
 
